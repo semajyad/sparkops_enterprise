@@ -3,6 +3,8 @@
 import { Download, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useAuth } from "@/lib/auth";
+
 type JobDraftResponse = {
   id: string;
   raw_transcript: string;
@@ -23,6 +25,7 @@ type JobDraftResponse = {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 export default function JobReviewPage({ params }: { params: { id: string } }) {
+  const { session } = useAuth();
   const [job, setJob] = useState<JobDraftResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -30,10 +33,21 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     async function loadJob(): Promise<void> {
+      if (!session?.access_token) {
+        setIsLoading(false);
+        setErrorMessage("You must be logged in to view this job.");
+        return;
+      }
+
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const response = await fetch(`${API_BASE_URL}/api/jobs/${params.id}`, { cache: "no-store" });
+        const response = await fetch(`${API_BASE_URL}/api/jobs/${params.id}`, {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
         if (!response.ok) {
           const body = await response.text();
           throw new Error(body || `Failed to load job (${response.status})`);
@@ -49,16 +63,20 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     }
 
     void loadJob();
-  }, [params.id]);
+  }, [params.id, session?.access_token]);
 
   async function downloadPdf(): Promise<void> {
-    if (!job) {
+    if (!job || !session?.access_token) {
       return;
     }
 
     setIsDownloading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/jobs/${job.id}/pdf`);
+      const response = await fetch(`${API_BASE_URL}/api/jobs/${job.id}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       if (!response.ok) {
         const body = await response.text();
         throw new Error(body || `PDF export failed (${response.status})`);

@@ -3,6 +3,8 @@
 import { Loader2, UploadCloud } from "lucide-react";
 import { ChangeEvent, DragEvent, useMemo, useState } from "react";
 
+import { useAuth } from "@/lib/auth";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type ImportSummary = {
@@ -13,6 +15,7 @@ type ImportSummary = {
 };
 
 export default function MaterialsSettingsPage() {
+  const { session } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -27,6 +30,11 @@ export default function MaterialsSettingsPage() {
   }, [isDragging]);
 
   async function uploadCsv(file: File): Promise<void> {
+    if (!session?.access_token) {
+      setStatusMessage("Please log in as an OWNER to import materials.");
+      return;
+    }
+
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setStatusMessage("Only CSV files are accepted.");
       return;
@@ -47,6 +55,9 @@ export default function MaterialsSettingsPage() {
 
       const response = await fetch(`${API_BASE_URL}/api/materials/import`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: formData,
       });
 

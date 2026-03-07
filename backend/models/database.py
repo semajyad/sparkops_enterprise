@@ -63,6 +63,8 @@ class Material(SQLModel, table=True):
     __tablename__ = "materials"
 
     sku: str = Field(primary_key=True, max_length=64)
+    organization_id: UUID = Field(index=True, nullable=False)
+    user_id: UUID = Field(index=True, nullable=False)
     name: str = Field(index=True, max_length=255)
     trade_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     
@@ -99,6 +101,8 @@ class JobDraft(SQLModel, table=True):
     __tablename__ = "job_drafts"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, nullable=False)
+    organization_id: UUID = Field(index=True, nullable=False)
     raw_transcript: str = Field(sa_column=Column(Text, nullable=False))
     extracted_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="DRAFT", max_length=32)

@@ -7,13 +7,32 @@ mocking external OpenAI-dependent calls.
 from __future__ import annotations
 
 import base64
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import create_engine
 
 pytest.importorskip("sqlmodel")
 
 import main
+from dependencies import AuthenticatedUser
+from models.database import create_db_and_tables
+
+
+@pytest.fixture(autouse=True)
+def _reset_dependency_overrides() -> None:
+    main.app.dependency_overrides = {}
+    yield
+    main.app.dependency_overrides = {}
+
+
+@pytest.fixture(autouse=True)
+def _sqlite_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'ingest_test.db'}", echo=False)
+    create_db_and_tables(engine)
+    monkeypatch.setattr(main, "ENGINE", engine)
 
 
 def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -33,6 +52,14 @@ def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.M
             ],
         },
     )
+
+    test_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="EMPLOYEE",
+        full_name="Test Employee",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: test_user
 
     client = TestClient(main.app)
     audio_base64 = base64.b64encode(b"fake-wav-bytes").decode("utf-8")
@@ -59,6 +86,14 @@ def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.M
 def test_ingest_rejects_payload_without_voice_or_audio() -> None:
     """Ensure ingest endpoint enforces mandatory voice/audio input contract."""
 
+    test_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="EMPLOYEE",
+        full_name="Test Employee",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: test_user
+
     client = TestClient(main.app)
     response = client.post("/api/ingest", json={"receipt_image_base64": "abc"})
 
@@ -68,6 +103,14 @@ def test_ingest_rejects_payload_without_voice_or_audio() -> None:
 
 def test_ingest_rejects_payload_without_any_content() -> None:
     """Ensure ingest rejects fully empty payloads."""
+
+    test_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="EMPLOYEE",
+        full_name="Test Employee",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: test_user
 
     client = TestClient(main.app)
     response = client.post("/api/ingest", json={})

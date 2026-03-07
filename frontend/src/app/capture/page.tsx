@@ -4,6 +4,7 @@ import { Camera, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSync } from "@/components/SyncProvider";
+import { useAuth } from "@/lib/auth";
 import { saveJobDraft } from "@/lib/db";
 import { syncPendingDrafts } from "@/lib/syncManager";
 
@@ -29,6 +30,7 @@ function fileToBase64(file: Blob): Promise<string> {
 
 export default function CapturePage() {
   const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
+  const { session } = useAuth();
 
   const [voiceText, setVoiceText] = useState("");
   const [audioBlob, setAudioBlob] = useState<string>("");
@@ -52,10 +54,15 @@ export default function CapturePage() {
   }, [isOnline, isSyncing]);
 
   async function uploadAudioToIngest(audioBase64: string): Promise<void> {
+    if (!session?.access_token) {
+      throw new Error("You must be logged in to upload capture data.");
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/ingest`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
         audio_base64: audioBase64,
@@ -209,7 +216,7 @@ export default function CapturePage() {
       if (!window.navigator.onLine) {
         throw new Error("offline");
       }
-      const result = await syncPendingDrafts();
+      const result = await syncPendingDrafts(session?.access_token);
       await refreshCounts();
       setStatusMessage("Pending drafts sync complete.");
       window.alert(`Sync Complete: ${result.synced} drafts uploaded.`);

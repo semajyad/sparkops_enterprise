@@ -4,16 +4,23 @@ from __future__ import annotations
 
 import sys
 import types
-from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, create_engine
 
 import main
-from models.database import JobDraft, Material, create_db_and_tables
+from dependencies import AuthenticatedUser
+from models.database import JobDraft, create_db_and_tables
+
+
+@pytest.fixture(autouse=True)
+def _reset_dependency_overrides() -> None:
+    main.app.dependency_overrides = {}
+    yield
+    main.app.dependency_overrides = {}
 
 
 @pytest.fixture()
@@ -27,9 +34,21 @@ def sqlite_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_materials_import_returns_summary_and_skips_malformed_rows(
     sqlite_engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    owner_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="OWNER",
+        full_name="Owner User",
+    )
+    main.app.dependency_overrides[main.require_owner] = lambda: owner_user
+
     monkeypatch.setattr(main, "_materials_supports_vector_column", lambda: True)
     monkeypatch.setattr(main, "embed_text_batch", lambda texts: [[0.0] * 3072 for _ in texts])
-    monkeypatch.setattr(main, "_upsert_materials_rows", lambda rows, embeddings, with_vector: len(rows))
+    monkeypatch.setattr(
+        main,
+        "_upsert_materials_rows",
+        lambda rows, embeddings, with_vector, organization_id, user_id: len(rows),
+    )
 
     csv_payload = """sku,name,price
 SKU-001,TPS Cable,12.50
@@ -52,10 +71,23 @@ BAD-ROW,Missing Price,
 
 def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.MonkeyPatch) -> None:
     draft_id = uuid4()
+    organization_id = uuid4()
+    user_id = uuid4()
+
+    authed_user = AuthenticatedUser(
+        id=user_id,
+        organization_id=organization_id,
+        role="EMPLOYEE",
+        full_name="Employee User",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: authed_user
+
     with Session(sqlite_engine) as session:
         session.add(
             JobDraft(
                 id=draft_id,
+                user_id=user_id,
+                organization_id=organization_id,
                 raw_transcript="Install TPS and test circuits.",
                 extracted_data={
                     "client": "Smith Residence",

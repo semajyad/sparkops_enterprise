@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -33,6 +33,7 @@ except ImportError:  # pragma: no cover - compatibility with legacy OpenAI SDK
     OpenAI = None  # type: ignore[assignment]
 
 from database import engine as database_engine
+from dependencies import AuthenticatedUser, get_current_user, require_owner
 from models.database import JobDraft, Material, create_db_and_tables
 
 from routers.eta import router as eta_router
@@ -210,6 +211,15 @@ class MaterialsImportResponse(BaseModel):
     failed_count: int
     total_rows: int
     message: str
+
+
+class AuthMeResponse(BaseModel):
+    """Authenticated user response payload for frontend role-aware UI."""
+
+    id: UUID
+    organization_id: UUID
+    role: str
+    full_name: str | None = None
 
 
 def get_openai_client() -> OpenAI:
@@ -495,7 +505,14 @@ def _materials_supports_vector_column() -> bool:
         return False
 
 
-def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: list[list[float]], *, with_vector: bool) -> int:
+def _upsert_materials_rows(
+    rows: list[tuple[str, str, Decimal]],
+    embeddings: list[list[float]],
+    *,
+    with_vector: bool,
+    organization_id: UUID,
+    user_id: UUID,
+) -> int:
     """Upsert parsed material rows into the materials table."""
 
     upserted = 0
@@ -503,40 +520,51 @@ def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: lis
         if with_vector:
             statement = text(
                 """
-                INSERT INTO materials (sku, name, trade_price, vector_embedding)
-                VALUES (:sku, :name, :trade_price, :vector_embedding)
+                INSERT INTO materials (sku, organization_id, user_id, name, trade_price, vector_embedding)
+                VALUES (:sku, :organization_id, :user_id, :name, :trade_price, :vector_embedding)
                 ON CONFLICT (sku) DO UPDATE SET
+                    organization_id = EXCLUDED.organization_id,
+                    user_id = EXCLUDED.user_id,
                     name = EXCLUDED.name,
                     trade_price = EXCLUDED.trade_price,
                     vector_embedding = EXCLUDED.vector_embedding
                 """
             )
+
             for (sku, description, price), embedding in zip(rows, embeddings, strict=False):
                 session.exec(
                     statement,
                     params={
                         "sku": sku,
+                        "organization_id": str(organization_id),
+                        "user_id": str(user_id),
                         "name": description,
                         "trade_price": str(price),
                         "vector_embedding": embedding,
                     },
                 )
+
                 upserted += 1
         else:
             statement = text(
                 """
-                INSERT INTO materials (sku, name, trade_price)
-                VALUES (:sku, :name, :trade_price)
+                INSERT INTO materials (sku, organization_id, user_id, name, trade_price)
+                VALUES (:sku, :organization_id, :user_id, :name, :trade_price)
                 ON CONFLICT (sku) DO UPDATE SET
+                    organization_id = EXCLUDED.organization_id,
+                    user_id = EXCLUDED.user_id,
                     name = EXCLUDED.name,
                     trade_price = EXCLUDED.trade_price
                 """
             )
+
             for sku, description, price in rows:
                 session.exec(
                     statement,
                     params={
                         "sku": sku,
+                        "organization_id": str(organization_id),
+                        "user_id": str(user_id),
                         "name": description,
                         "trade_price": str(price),
                     },
@@ -547,7 +575,7 @@ def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: lis
     return upserted
 
 
-def process_materials_upload(csv_bytes: bytes, filename: str) -> None:
+def process_materials_upload(csv_bytes: bytes, filename: str, organization_id: UUID, user_id: UUID) -> None:
     """Background task: parse CSV, batch-embed descriptions, and upsert materials."""
 
     try:
@@ -562,14 +590,20 @@ def process_materials_upload(csv_bytes: bytes, filename: str) -> None:
             batch_rows = rows[offset : offset + batch_size]
             descriptions = [description for _, description, _ in batch_rows]
             embeddings = embed_text_batch(descriptions) if with_vector else []
-            total_upserted += _upsert_materials_rows(batch_rows, embeddings, with_vector=with_vector)
+            total_upserted += _upsert_materials_rows(
+                batch_rows,
+                embeddings,
+                with_vector=with_vector,
+                organization_id=organization_id,
+                user_id=user_id,
+            )
 
         logger.info("Materials upload completed: filename=%s upserted=%s", filename, total_upserted)
     except Exception:
         logger.exception("Materials upload failed: filename=%s", filename)
 
 
-def import_materials(csv_bytes: bytes, filename: str) -> MaterialsImportResponse:
+def import_materials(csv_bytes: bytes, filename: str, current_user: AuthenticatedUser) -> MaterialsImportResponse:
     """Import materials synchronously and return import summary."""
 
     rows, failed_rows = _parse_materials_csv_tolerant(csv_bytes)
@@ -586,7 +620,13 @@ def import_materials(csv_bytes: bytes, filename: str) -> MaterialsImportResponse
         descriptions = [name for _, name, _ in batch_rows]
         try:
             embeddings = embed_text_batch(descriptions) if with_vector else []
-            imported_count += _upsert_materials_rows(batch_rows, embeddings, with_vector=with_vector)
+            imported_count += _upsert_materials_rows(
+                batch_rows,
+                embeddings,
+                with_vector=with_vector,
+                organization_id=current_user.organization_id,
+                user_id=current_user.id,
+            )
         except Exception as exc:
             failed_rows += len(batch_rows)
             logger.warning("Skipping materials batch %s-%s due to import error: %s", offset, offset + len(batch_rows), exc)
@@ -802,7 +842,7 @@ def root() -> HealthResponse:
 
 
 @app.post("/api/ingest", response_model=JobDraftResponse)
-def ingest(payload: IngestRequest) -> JobDraftResponse:
+def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDraftResponse:
     """Ingest voice/text and persist GPT-5 triage draft.
 
     Args:
@@ -828,9 +868,12 @@ def ingest(payload: IngestRequest) -> JobDraftResponse:
 
         with Session(ENGINE) as session:
             draft = JobDraft(
+                user_id=current_user.id,
+                organization_id=current_user.organization_id,
                 raw_transcript=transcript,
                 extracted_data=extracted_data,
             )
+
             session.add(draft)
             session.commit()
             session.refresh(draft)
@@ -850,7 +893,11 @@ def ingest(payload: IngestRequest) -> JobDraftResponse:
 
 
 @app.post("/api/materials/upload", response_model=MaterialsUploadResponse)
-async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFile = File(...)) -> MaterialsUploadResponse:
+async def upload_materials_csv(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> MaterialsUploadResponse:
     """Accept a wholesaler CSV and process material upserts asynchronously."""
 
     filename = file.filename or "materials.csv"
@@ -858,6 +905,7 @@ async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFi
         raise HTTPException(status_code=400, detail="Only .csv files are supported.")
 
     contents = await file.read()
+
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
 
@@ -866,7 +914,14 @@ async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFi
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    background_tasks.add_task(process_materials_upload, contents, filename)
+    background_tasks.add_task(
+        process_materials_upload,
+        contents,
+        filename,
+        current_user.organization_id,
+        current_user.id,
+    )
+
     return MaterialsUploadResponse(
         status="accepted",
         message="Processing materials CSV in the background.",
@@ -875,7 +930,10 @@ async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFi
 
 
 @app.post("/api/materials/import", response_model=MaterialsImportResponse)
-async def import_materials_csv(file: UploadFile = File(...)) -> MaterialsImportResponse:
+async def import_materials_csv(
+    file: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> MaterialsImportResponse:
     """Bulk-import wholesaler materials and return import summary."""
 
     filename = file.filename or "materials.csv"
@@ -887,22 +945,40 @@ async def import_materials_csv(file: UploadFile = File(...)) -> MaterialsImportR
         raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
 
     try:
-        return import_materials(contents, filename)
+        return import_materials(contents, filename, current_user)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     except Exception as exc:
         logger.exception("Materials import failed")
         raise HTTPException(status_code=500, detail=f"Materials import failed: {exc}") from exc
 
 
+@app.get("/api/auth/me", response_model=AuthMeResponse)
+def auth_me(current_user: AuthenticatedUser = Depends(get_current_user)) -> AuthMeResponse:
+    """Return authenticated user identity and role for frontend gating."""
+
+    return AuthMeResponse(
+        id=current_user.id,
+        organization_id=current_user.organization_id,
+        role=current_user.role,
+        full_name=current_user.full_name,
+    )
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobDraftResponse)
-def get_job_draft(job_id: UUID) -> JobDraftResponse:
+def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDraftResponse:
     """Return a saved JobDraft payload by id."""
 
     with Session(ENGINE) as session:
         draft = session.get(JobDraft, job_id)
         if draft is None:
             raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        if current_user.role != "OWNER" and draft.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
+        if draft.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
 
         return JobDraftResponse(
             id=draft.id,
@@ -914,13 +990,17 @@ def get_job_draft(job_id: UUID) -> JobDraftResponse:
 
 
 @app.get("/api/jobs/{job_id}/pdf")
-def download_job_invoice_pdf(job_id: UUID) -> StreamingResponse:
+def download_job_invoice_pdf(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> StreamingResponse:
     """Generate and return a PDF invoice for the specified JobDraft."""
 
     with Session(ENGINE) as session:
         draft = session.get(JobDraft, job_id)
         if draft is None:
             raise HTTPException(status_code=404, detail="Job draft not found.")
+        if current_user.role != "OWNER" and draft.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
+        if draft.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
 
     from services.pdf import generate_invoice_pdf
 

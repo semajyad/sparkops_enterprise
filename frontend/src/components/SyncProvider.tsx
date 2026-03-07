@@ -6,6 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "@/lib/auth";
 import { getDraftCounts } from "@/lib/db";
 import { scheduleBackgroundSync, syncPendingDrafts } from "@/lib/syncManager";
 
@@ -30,6 +31,7 @@ interface SyncProviderProps {
 }
 
 export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element {
+  const { session } = useAuth();
   const [isOnline, setIsOnline] = useState(
     typeof window === "undefined" ? true : window.navigator.onLine
   );
@@ -48,12 +50,12 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
 
     setIsSyncing(true);
     try {
-      await syncPendingDrafts();
+      await syncPendingDrafts(session?.access_token);
       await refreshCounts();
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, refreshCounts]);
+  }, [isSyncing, refreshCounts, session?.access_token]);
 
   useEffect(() => {
     setIsOnline(window.navigator.onLine);
