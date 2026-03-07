@@ -6,6 +6,7 @@ functions used to initialize PostgreSQL with pgvector support.
 
 from __future__ import annotations
 
+import logging
 import os
 from decimal import Decimal
 from enum import Enum
@@ -17,6 +18,9 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Numeric, text
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, SQLModel, create_engine
+
+
+logger = logging.getLogger(__name__)
 
 
 class InvoiceLineType(str, Enum):
@@ -111,15 +115,30 @@ def get_engine(database_url: Optional[str] = None) -> Engine:
     return create_engine(database_url or get_database_url(), echo=False)
 
 
-def enable_pgvector_extension(engine: Engine) -> None:
+def enable_pgvector_extension(engine: Engine) -> bool:
     """Ensure pgvector extension is available in the connected database.
 
     Args:
         engine: Active SQLAlchemy engine.
+
+    Returns:
+        bool: True when pgvector extension is available for use.
     """
 
-    with engine.begin() as connection:
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    try:
+        with engine.begin() as connection:
+            extension_available = connection.execute(
+                text("SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector')")
+            ).scalar()
+            if not extension_available:
+                logger.warning("pgvector extension is not available on this PostgreSQL instance; vector features disabled.")
+                return False
+
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        return True
+    except Exception as exc:  # pragma: no cover - environment-specific DB capabilities
+        logger.warning("Skipping pgvector extension enablement: %s", exc)
+        return False
 
 
 def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
@@ -133,6 +152,12 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
     """
 
     db_engine = engine or get_engine()
-    enable_pgvector_extension(db_engine)
-    SQLModel.metadata.create_all(db_engine)
+    vector_enabled = enable_pgvector_extension(db_engine)
+    if vector_enabled:
+        SQLModel.metadata.create_all(db_engine)
+    else:
+        non_vector_tables = [
+            table for table in SQLModel.metadata.sorted_tables if table.name != Material.__tablename__
+        ]
+        SQLModel.metadata.create_all(db_engine, tables=non_vector_tables)
     return db_engine
