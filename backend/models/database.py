@@ -27,6 +27,25 @@ from sqlmodel import Field, SQLModel, create_engine
 logger = logging.getLogger(__name__)
 
 
+def is_vector_enabled() -> bool:
+    """Check if vector functionality should be enabled based on database."""
+    
+    # If pgvector library is not available, vector is disabled
+    if not VECTOR_AVAILABLE:
+        return False
+    
+    # Check if we're using Supabase (which has pgvector support)
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if supabase_url and supabase_key:
+        logger.info("Using Supabase - vector functionality enabled")
+        return True
+    
+    # For other databases, we'll check at runtime
+    return True
+
+
 class InvoiceLineType(str, Enum):
     """Supported invoice line categories.
 
@@ -55,8 +74,8 @@ class Material(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     trade_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     
-    # Only include vector column if pgvector is available
-    if VECTOR_AVAILABLE:
+    # Only include vector column if vector functionality is enabled
+    if is_vector_enabled():
         vector_embedding: list[float] = Field(sa_column=Column(Vector(3072), nullable=False))
 
 
@@ -89,12 +108,31 @@ def get_database_url() -> str:
         str: SQLAlchemy-compatible PostgreSQL URL.
     """
 
+    # Prioritize Supabase for vector functionality
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if supabase_url and supabase_key:
+        # Convert Supabase URL to SQLAlchemy format
+        if supabase_url.startswith("https://"):
+            db_url = supabase_url.replace("https://", "postgresql+psycopg://")
+            # Append service role key as password
+            if "@" in db_url:
+                db_url = db_url.replace("@", f":{supabase_key}@")
+            else:
+                # Fallback format
+                project_ref = supabase_url.split("https://")[1].split(".")[0]
+                db_url = f"postgresql+psycopg://postgres.{project_ref}:{supabase_key}@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+            return db_url
+
+    # Fallback to other database URLs
     database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or os.getenv("POSTGRESQL_URL")
     if database_url:
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         return database_url
 
+    # Individual PostgreSQL environment variables
     pg_host = os.getenv("PGHOST")
     pg_port = os.getenv("PGPORT")
     pg_user = os.getenv("PGUSER")

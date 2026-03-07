@@ -353,8 +353,8 @@ def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[Matc
     
     # Check if vector functionality is available
     try:
-        from models.database import VECTOR_AVAILABLE
-        if not VECTOR_AVAILABLE:
+        from models.database import is_vector_enabled
+        if not is_vector_enabled():
             logger.warning("Vector matching not available, using text-based fallback")
             return _text_match_materials(descriptions, limit)
     except ImportError:
