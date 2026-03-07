@@ -58,6 +58,13 @@ class TriageService:
         return recording_url if recording_url.endswith(".wav") else f"{recording_url}.wav"
 
     @staticmethod
+    def _limit_summary_words(summary: str, max_words: int = 10) -> str:
+        words = summary.split()
+        if not words:
+            return "Client callback required."
+        return " ".join(words[:max_words])
+
+    @staticmethod
     def _parse_classification(text: str) -> tuple[str, str]:
         try:
             payload = json.loads(text)
@@ -71,7 +78,7 @@ class TriageService:
             urgency = "Medium"
         if not summary:
             summary = "Client callback required."
-        return urgency, summary[:120]
+        return urgency, TriageService._limit_summary_words(summary, max_words=10)
 
     def set_ladder_mode(self, enabled: bool) -> None:
         with self._lock:

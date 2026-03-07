@@ -55,7 +55,7 @@ def build_twiml_response(*, ladder_mode_enabled: bool, callback_url: str) -> str
         return (
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<Response><Say voice=\"alice\" language=\"en-NZ\">"
-            "Dave is on site. Please leave a detailed message and the AI will notify him immediately."
+            "Dave is on site. Please leave a detailed message."
             "</Say>"
             f"<Record maxLength=\"120\" playBeep=\"true\" recordingStatusCallback=\"{callback_url}\" "
             "recordingStatusCallbackMethod=\"POST\"/>"
@@ -73,7 +73,7 @@ def build_twiml_response(*, ladder_mode_enabled: bool, callback_url: str) -> str
         return str(response)
 
     response.say(
-        "Dave is on site. Please leave a detailed message and the AI will notify him immediately.",
+        "Dave is on site. Please leave a detailed message.",
         voice="alice",
         language="en-NZ",
     )

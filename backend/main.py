@@ -13,8 +13,10 @@ import os
 from decimal import Decimal
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -45,14 +47,34 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["https://proactive-strength-staging.up.railway.app"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Twilio-Signature"],
 )
 
 app.include_router(twilio_router)
 app.include_router(eta_router)
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+    """Return structured JSON errors for explicit HTTP exceptions."""
+
+    return JSONResponse(status_code=exc.status_code, content={"error": str(exc.detail)})
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Return structured JSON errors for request validation failures."""
+
+    first_error = exc.errors()[0] if exc.errors() else {"msg": "Invalid request."}
+    return JSONResponse(status_code=422, content={"error": str(first_error.get("msg", "Invalid request."))})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Return structured JSON errors for unexpected server failures."""
+
+    logger.exception("Unhandled API error")
+    return JSONResponse(status_code=500, content={"error": str(exc)})
 
 translator_service = KiwiTranslator()
 vision_service = ReceiptVisionEngine()
