@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mic, ShieldAlert } from "lucide-react";
+import { Boxes, Home, Mic, ShieldAlert } from "lucide-react";
 
 function itemClass(isActive: boolean): string {
   return isActive ? "text-emerald-500" : "text-slate-400";
@@ -30,6 +30,13 @@ export function MobileNav(): React.JSX.Element {
       >
         <ShieldAlert className="h-5 w-5" />
         Ladder
+      </Link>
+      <Link
+        href="/settings/materials"
+        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/settings/materials"))}`}
+      >
+        <Boxes className="h-5 w-5" />
+        Materials
       </Link>
     </nav>
   );

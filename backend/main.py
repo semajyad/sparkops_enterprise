@@ -6,6 +6,7 @@ raw inputs into verified invoice JSON.
 
 from __future__ import annotations
 
+import csv
 from datetime import datetime
 import logging
 import os
@@ -16,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -192,6 +193,14 @@ class JobDraftResponse(BaseModel):
     created_at: datetime
 
 
+class MaterialsUploadResponse(BaseModel):
+    """Immediate acknowledgment for async materials upload processing."""
+
+    status: str
+    message: str
+    filename: str
+
+
 def get_openai_client() -> OpenAI:
     """Return a configured OpenAI client.
 
@@ -351,6 +360,156 @@ def embed_text(text: str) -> list[float]:
     client = get_openai_client()
     response = client.embeddings.create(model="text-embedding-3-large", input=text)
     return response.data[0].embedding
+
+
+def embed_text_batch(texts: list[str]) -> list[list[float]]:
+    """Generate embeddings for a batch of texts in a single API call."""
+
+    if not texts:
+        return []
+    client = get_openai_client()
+    response = client.embeddings.create(model="text-embedding-3-large", input=texts)
+    ordered = sorted(response.data, key=lambda row: row.index)
+    return [row.embedding for row in ordered]
+
+
+def _parse_materials_csv(csv_bytes: bytes) -> list[tuple[str, str, Decimal]]:
+    """Parse CSV upload into validated material rows."""
+
+    decoded = csv_bytes.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(decoded))
+    if not reader.fieldnames:
+        raise ValueError("CSV must include headers: sku, description, price.")
+
+    normalized_headers = {header.strip().lower() for header in reader.fieldnames if header}
+    required_headers = {"sku", "description", "price"}
+    if not required_headers.issubset(normalized_headers):
+        raise ValueError("CSV headers must include sku, description, price.")
+
+    rows: list[tuple[str, str, Decimal]] = []
+    for line_number, row in enumerate(reader, start=2):
+        normalized_row = {
+            str(key).strip().lower(): value
+            for key, value in row.items()
+            if key is not None
+        }
+        sku = str(normalized_row.get("sku", "")).strip()
+        description = str(normalized_row.get("description", "")).strip()
+        raw_price = str(normalized_row.get("price", "")).strip()
+
+        if not sku and not description and not raw_price:
+            continue
+        if not sku or not description or not raw_price:
+            raise ValueError(f"Invalid row {line_number}: sku, description, and price are required.")
+
+        try:
+            price = Decimal(raw_price)
+        except Exception as exc:
+            raise ValueError(f"Invalid price at row {line_number}: {raw_price}") from exc
+
+        rows.append((sku, description, price))
+
+    if not rows:
+        raise ValueError("CSV contains no material rows.")
+    return rows
+
+
+def _materials_supports_vector_column() -> bool:
+    """Return True when materials.vector_embedding exists in active DB schema."""
+
+    try:
+        with Session(ENGINE) as session:
+            exists = session.exec(
+                text(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'materials'
+                          AND column_name = 'vector_embedding'
+                    )
+                    """
+                )
+            ).one()
+        return bool(exists)
+    except Exception as exc:
+        logger.warning("Unable to verify materials vector column: %s", exc)
+        return False
+
+
+def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: list[list[float]], *, with_vector: bool) -> int:
+    """Upsert parsed material rows into the materials table."""
+
+    upserted = 0
+    with Session(ENGINE) as session:
+        if with_vector:
+            statement = text(
+                """
+                INSERT INTO materials (sku, name, trade_price, vector_embedding)
+                VALUES (:sku, :name, :trade_price, :vector_embedding)
+                ON CONFLICT (sku) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    trade_price = EXCLUDED.trade_price,
+                    vector_embedding = EXCLUDED.vector_embedding
+                """
+            )
+            for (sku, description, price), embedding in zip(rows, embeddings, strict=False):
+                session.exec(
+                    statement,
+                    params={
+                        "sku": sku,
+                        "name": description,
+                        "trade_price": price,
+                        "vector_embedding": embedding,
+                    },
+                )
+                upserted += 1
+        else:
+            statement = text(
+                """
+                INSERT INTO materials (sku, name, trade_price)
+                VALUES (:sku, :name, :trade_price)
+                ON CONFLICT (sku) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    trade_price = EXCLUDED.trade_price
+                """
+            )
+            for sku, description, price in rows:
+                session.exec(
+                    statement,
+                    params={
+                        "sku": sku,
+                        "name": description,
+                        "trade_price": price,
+                    },
+                )
+                upserted += 1
+
+        session.commit()
+    return upserted
+
+
+def process_materials_upload(csv_bytes: bytes, filename: str) -> None:
+    """Background task: parse CSV, batch-embed descriptions, and upsert materials."""
+
+    try:
+        rows = _parse_materials_csv(csv_bytes)
+        logger.info("Materials upload started: filename=%s rows=%s", filename, len(rows))
+
+        with_vector = _materials_supports_vector_column()
+        batch_size = 20
+        total_upserted = 0
+
+        for offset in range(0, len(rows), batch_size):
+            batch_rows = rows[offset : offset + batch_size]
+            descriptions = [description for _, description, _ in batch_rows]
+            embeddings = embed_text_batch(descriptions) if with_vector else []
+            total_upserted += _upsert_materials_rows(batch_rows, embeddings, with_vector=with_vector)
+
+        logger.info("Materials upload completed: filename=%s upserted=%s", filename, total_upserted)
+    except Exception:
+        logger.exception("Materials upload failed: filename=%s", filename)
 
 
 def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
@@ -612,6 +771,31 @@ def ingest(payload: IngestRequest) -> JobDraftResponse:
     except Exception as exc:
         logger.exception("Ingest pipeline failed")
         raise HTTPException(status_code=500, detail=f"Ingest failed: {exc}") from exc
+
+
+@app.post("/api/materials/upload", response_model=MaterialsUploadResponse)
+async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFile = File(...)) -> MaterialsUploadResponse:
+    """Accept a wholesaler CSV and process material upserts asynchronously."""
+
+    filename = file.filename or "materials.csv"
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
+
+    try:
+        _parse_materials_csv(contents)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    background_tasks.add_task(process_materials_upload, contents, filename)
+    return MaterialsUploadResponse(
+        status="accepted",
+        message="Processing materials CSV in the background.",
+        filename=filename,
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
