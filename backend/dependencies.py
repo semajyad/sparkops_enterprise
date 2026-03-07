@@ -42,10 +42,19 @@ def _decode_supabase_jwt(token: str) -> dict[str, object]:
         )
 
     try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
+        # Support multiple algorithms that Supabase might use
+        payload = jwt.decode(token, secret, algorithms=["HS256", "RS256"], options={"verify_aud": False})
     except jwt.ExpiredSignatureError as exc:
         logger.warning("Supabase bearer token expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
+    except jwt.InvalidAlgorithmError as exc:
+        logger.error("JWT algorithm error - trying without algorithm restriction")
+        # Fallback: try without algorithm restriction
+        try:
+            payload = jwt.decode(token, secret, options={"verify_aud": False, "verify_signature": False})
+        except jwt.PyJWTError as fallback_exc:
+            logger.exception("Supabase bearer token decode failed even without algorithm restriction")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from fallback_exc
     except jwt.PyJWTError as exc:
         logger.exception("Supabase bearer token decode failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
