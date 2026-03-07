@@ -10,6 +10,7 @@ import os
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
+from urllib.parse import quote_plus
 
 import psycopg  # Ensure psycopg is imported
 from pgvector.sqlalchemy import Vector
@@ -77,11 +78,22 @@ def get_database_url() -> str:
         str: SQLAlchemy-compatible PostgreSQL URL.
     """
 
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or os.getenv("POSTGRESQL_URL")
     if database_url:
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         return database_url
+
+    pg_host = os.getenv("PGHOST")
+    pg_port = os.getenv("PGPORT")
+    pg_user = os.getenv("PGUSER")
+    pg_password = os.getenv("PGPASSWORD")
+    pg_database = os.getenv("PGDATABASE")
+
+    if all([pg_host, pg_port, pg_user, pg_password, pg_database]):
+        safe_user = quote_plus(pg_user)
+        safe_password = quote_plus(pg_password)
+        return f"postgresql+psycopg://{safe_user}:{safe_password}@{pg_host}:{pg_port}/{pg_database}"
 
     return "postgresql+psycopg://postgres:postgres@localhost:5432/sparkops"
 
