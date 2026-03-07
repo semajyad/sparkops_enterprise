@@ -71,8 +71,10 @@ BAD-ROW,Missing Price,
 
 def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.MonkeyPatch) -> None:
     draft_id = uuid4()
+    second_draft_id = uuid4()
     organization_id = uuid4()
     user_id = uuid4()
+    other_user_id = uuid4()
 
     authed_user = AuthenticatedUser(
         id=user_id,
@@ -100,6 +102,21 @@ def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.Mon
                 status="DRAFT",
             )
         )
+        session.add(
+            JobDraft(
+                id=second_draft_id,
+                user_id=other_user_id,
+                organization_id=organization_id,
+                raw_transcript="Changeboard upgrade and test.",
+                extracted_data={
+                    "client": "North Shore Dental",
+                    "line_items": [
+                        {"qty": 5, "description": "Labor hours", "type": "LABOR"},
+                    ],
+                },
+                status="DONE",
+            )
+        )
         session.commit()
 
     fake_pdf_module = types.ModuleType("services.pdf")
@@ -107,6 +124,13 @@ def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.Mon
     monkeypatch.setitem(sys.modules, "services.pdf", fake_pdf_module)
 
     client = TestClient(main.app)
+
+    jobs_list_response = client.get("/api/jobs")
+    assert jobs_list_response.status_code == 200
+    jobs_payload = jobs_list_response.json()
+    assert len(jobs_payload) == 1
+    assert jobs_payload[0]["id"] == str(draft_id)
+    assert jobs_payload[0]["client_name"] == "Smith Residence"
 
     job_response = client.get(f"/api/jobs/{draft_id}")
     assert job_response.status_code == 200
@@ -116,3 +140,50 @@ def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.Mon
     assert pdf_response.status_code == 200
     assert pdf_response.headers["content-type"].startswith("application/pdf")
     assert pdf_response.content.startswith(b"%PDF-1.4")
+
+    delete_response = client.delete(f"/api/jobs/{draft_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "deleted"
+
+    deleted_fetch_response = client.get(f"/api/jobs/{draft_id}")
+    assert deleted_fetch_response.status_code == 404
+
+
+def test_owner_can_list_all_org_job_drafts(sqlite_engine) -> None:
+    organization_id = uuid4()
+    owner_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=organization_id,
+        role="OWNER",
+        full_name="Owner User",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: owner_user
+
+    with Session(sqlite_engine) as session:
+        session.add(
+            JobDraft(
+                id=uuid4(),
+                user_id=uuid4(),
+                organization_id=organization_id,
+                raw_transcript="Install EV charger.",
+                extracted_data={"client": "EV Homes"},
+                status="DRAFT",
+            )
+        )
+        session.add(
+            JobDraft(
+                id=uuid4(),
+                user_id=uuid4(),
+                organization_id=organization_id,
+                raw_transcript="Rewire switchboard.",
+                extracted_data={"client": "West Build Ltd"},
+                status="SYNCING",
+            )
+        )
+        session.commit()
+
+    client = TestClient(main.app)
+    response = client.get("/api/jobs")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 2

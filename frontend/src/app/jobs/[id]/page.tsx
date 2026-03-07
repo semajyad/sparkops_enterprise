@@ -1,9 +1,11 @@
 "use client";
 
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { useAuth } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
+import { formatJobDate, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
 type JobDraftResponse = {
   id: string;
@@ -16,6 +18,8 @@ type JobDraftResponse = {
       qty?: string | number;
       description?: string;
       type?: string;
+      unit_price?: string | number;
+      line_total?: string | number;
     }>;
   };
   status: string;
@@ -24,29 +28,32 @@ type JobDraftResponse = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+function statusBadgeClass(status: string): string {
+  const normalized = normalizeJobStatus(status);
+  if (normalized === "DONE") {
+    return "border-emerald-500/50 bg-emerald-500/20 text-emerald-200";
+  }
+  if (normalized === "SYNCING") {
+    return "border-amber-500/50 bg-amber-500/20 text-amber-200";
+  }
+  return "border-slate-600 bg-slate-700/50 text-slate-200";
+}
+
 export default function JobReviewPage({ params }: { params: { id: string } }) {
-  const { session } = useAuth();
+  const router = useRouter();
   const [job, setJob] = useState<JobDraftResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadJob(): Promise<void> {
-      if (!session?.access_token) {
-        setIsLoading(false);
-        setErrorMessage("You must be logged in to view this job.");
-        return;
-      }
-
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const response = await fetch(`${API_BASE_URL}/api/jobs/${params.id}`, {
+        const response = await apiFetch(`${API_BASE_URL}/api/jobs/${params.id}`, {
           cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
         });
         if (!response.ok) {
           const body = await response.text();
@@ -63,20 +70,16 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     }
 
     void loadJob();
-  }, [params.id, session?.access_token]);
+  }, [params.id]);
 
   async function downloadPdf(): Promise<void> {
-    if (!job || !session?.access_token) {
+    if (!job) {
       return;
     }
 
     setIsDownloading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/jobs/${job.id}/pdf`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/pdf`);
       if (!response.ok) {
         const body = await response.text();
         throw new Error(body || `PDF export failed (${response.status})`);
@@ -98,43 +101,118 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function deleteJob(): Promise<void> {
+    if (!job || isDeleting) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this job draft permanently?");
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage("");
+
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Delete failed (${response.status})`);
+      }
+
+      router.push("/jobs");
+    } catch (deleteError) {
+      setErrorMessage(deleteError instanceof Error ? deleteError.message : "Failed to delete this job draft.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const lineItems = job?.extracted_data?.line_items ?? [];
+
   return (
-    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50">
-        <header className="mb-6">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-300">Job Review</p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Voice-to-Cash Draft</h1>
+    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
+      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-amber-400">Evidence Locker</p>
+            <h1 className="text-3xl font-bold tracking-tight text-white">{job?.extracted_data?.client ?? "Unknown Client"}</h1>
+            {job ? <p className="mt-1 text-sm text-slate-400">{formatJobDate(job.created_at)}</p> : null}
+          </div>
+          <div className="flex items-center gap-2">
+            {job ? (
+              <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
+                {normalizeJobStatus(job.status)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void deleteJob()}
+              disabled={!job || isDeleting}
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </button>
+          </div>
         </header>
 
         {isLoading ? (
           <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-sm">
-            <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+            <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
             Loading job draft...
           </div>
         ) : job ? (
           <>
-            <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-sm">
-              <p><span className="font-semibold text-white">Client:</span> {job.extracted_data?.client ?? "Unknown"}</p>
-              <p><span className="font-semibold text-white">Address:</span> {job.extracted_data?.address ?? "Unknown"}</p>
-              <p><span className="font-semibold text-white">Scope:</span> {job.extracted_data?.scope ?? "Not provided"}</p>
-            </div>
+            <details className="rounded-xl border border-slate-700 bg-slate-950/70 p-4" open>
+              <summary className="cursor-pointer text-sm font-semibold text-white">Raw Transcript</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{job.raw_transcript || "No transcript found."}</p>
+            </details>
 
-            <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-              <p className="mb-2 text-sm font-semibold text-white">Line Items</p>
-              <ul className="space-y-2 text-sm text-slate-200">
-                {(job.extracted_data?.line_items ?? []).map((item, index) => (
-                  <li key={`${item.description ?? "item"}-${index}`} className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-2">
-                    {item.qty ?? "1"} × {item.description ?? "Unnamed"} <span className="text-slate-400">({item.type ?? "LABOR"})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">AI Breakdown</h2>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-left text-slate-400">
+                      <th className="px-2 py-2 font-medium">Type</th>
+                      <th className="px-2 py-2 font-medium">Description</th>
+                      <th className="px-2 py-2 font-medium">Qty / Hrs</th>
+                      <th className="px-2 py-2 font-medium">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((item, index) => {
+                      const qty = parseNumeric(item.qty || 0);
+                      const lineTotal = parseNumeric(item.line_total || 0);
+                      const unitPrice = parseNumeric(item.unit_price || 0);
+                      const inferredValue = lineTotal > 0 ? lineTotal : qty * unitPrice;
+                      return (
+                        <tr key={`${item.description ?? "item"}-${index}`} className="border-b border-slate-800 last:border-0">
+                          <td className="px-2 py-2 text-slate-200">{String(item.type ?? "LABOR").toUpperCase()}</td>
+                          <td className="px-2 py-2 text-slate-100">{item.description ?? "Unnamed"}</td>
+                          <td className="px-2 py-2 text-slate-300">{qty.toFixed(2)}</td>
+                          <td className="px-2 py-2 text-slate-300">{inferredValue > 0 ? `$${inferredValue.toFixed(2)}` : "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {lineItems.length === 0 ? (
+                <p className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-400">No line items were extracted for this job draft yet.</p>
+              ) : null}
+            </section>
 
             <button
               type="button"
               onClick={() => void downloadPdf()}
               disabled={isDownloading}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
             >
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download Invoice PDF

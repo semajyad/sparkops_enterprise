@@ -61,7 +61,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://proactive-strength-staging.up.railway.app"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Twilio-Signature"],
 )
 
@@ -193,6 +193,23 @@ class JobDraftResponse(BaseModel):
     extracted_data: dict[str, Any]
     status: str
     created_at: datetime
+
+
+class JobDraftListItemResponse(BaseModel):
+    """Compact JobDraft payload for dashboard and jobs list views."""
+
+    id: UUID
+    status: str
+    created_at: datetime
+    client_name: str
+    extracted_data: dict[str, Any]
+
+
+class JobDeleteResponse(BaseModel):
+    """Deletion acknowledgment for JobDraft resources."""
+
+    status: str
+    id: UUID
 
 
 class MaterialsUploadResponse(BaseModel):
@@ -966,6 +983,38 @@ def auth_me(current_user: AuthenticatedUser = Depends(get_current_user)) -> Auth
     )
 
 
+@app.get("/api/jobs", response_model=list[JobDraftListItemResponse])
+def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user)) -> list[JobDraftListItemResponse]:
+    """Return all visible JobDraft records for the authenticated user."""
+
+    with Session(ENGINE) as session:
+        query = (
+            select(JobDraft)
+            .where(JobDraft.organization_id == current_user.organization_id)
+            .order_by(JobDraft.created_at.desc())
+        )
+        if current_user.role != "OWNER":
+            query = query.where(JobDraft.user_id == current_user.id)
+
+        drafts = session.exec(query).all()
+
+        results: list[JobDraftListItemResponse] = []
+        for draft in drafts:
+            extracted_data = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+            client_name = str(extracted_data.get("client") or "Unknown Client").strip() or "Unknown Client"
+            results.append(
+                JobDraftListItemResponse(
+                    id=draft.id,
+                    status=draft.status,
+                    created_at=draft.created_at,
+                    client_name=client_name,
+                    extracted_data=extracted_data,
+                )
+            )
+
+        return results
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobDraftResponse)
 def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDraftResponse:
     """Return a saved JobDraft payload by id."""
@@ -987,6 +1036,26 @@ def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_cu
             status=draft.status,
             created_at=draft.created_at,
         )
+
+
+@app.delete("/api/jobs/{job_id}", response_model=JobDeleteResponse)
+def delete_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDeleteResponse:
+    """Delete a saved JobDraft by id if the user has access."""
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        if current_user.role != "OWNER" and draft.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
+        if draft.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+
+        session.delete(draft)
+        session.commit()
+
+    return JobDeleteResponse(status="deleted", id=job_id)
 
 
 @app.get("/api/jobs/{job_id}/pdf")
