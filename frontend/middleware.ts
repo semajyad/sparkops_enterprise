@@ -12,7 +12,7 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isLoginPath = pathname === "/login";
 
-  // Only redirect to login if not authenticated and not already on login page
+  // Simple logic: if not authenticated and not on login page, redirect to login
   if (!session && !isLoginPath) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/login";
@@ -20,7 +20,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Don't redirect from login page - let client-side handle it
+  // If authenticated and on login page, redirect to dashboard
+  if (session && isLoginPath) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   return res;
 }
 
