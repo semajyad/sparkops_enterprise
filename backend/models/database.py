@@ -13,7 +13,10 @@ from enum import Enum
 from typing import Optional
 from urllib.parse import quote_plus
 
-import psycopg  # Ensure psycopg is imported
+try:  # pragma: no cover - import side-effect guard for local test environments
+    import psycopg  # noqa: F401
+except Exception:  # pragma: no cover - allow sqlite/unit-test runtime without psycopg binary
+    psycopg = None  # type: ignore[assignment]
 try:
     from pgvector.sqlalchemy import Vector
     VECTOR_AVAILABLE = True
@@ -28,22 +31,9 @@ logger = logging.getLogger(__name__)
 
 
 def is_vector_enabled() -> bool:
-    """Check if vector functionality should be enabled based on database."""
-    
-    # If pgvector library is not available, vector is disabled
-    if not VECTOR_AVAILABLE:
-        return False
-    
-    # Check if we're using Supabase (which has pgvector support)
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    
-    if supabase_url and supabase_key:
-        logger.info("Using Supabase - vector functionality enabled")
-        return True
-    
-    # For other databases, we'll check at runtime
-    return True
+    """Return whether vector functionality can be used by this runtime."""
+
+    return VECTOR_AVAILABLE
 
 
 class InvoiceLineType(str, Enum):
@@ -74,8 +64,8 @@ class Material(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     trade_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     
-    # Only include vector column if vector functionality is enabled
-    if is_vector_enabled():
+    # Only include vector column when pgvector package is available.
+    if VECTOR_AVAILABLE:
         vector_embedding: list[float] = Field(sa_column=Column(Vector(3072), nullable=False))
 
 
@@ -108,25 +98,13 @@ def get_database_url() -> str:
         str: SQLAlchemy-compatible PostgreSQL URL.
     """
 
-    # Prioritize Supabase for vector functionality
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    
-    if supabase_url and supabase_key:
-        # Extract project reference from Supabase URL
-        # Example: https://mpdvcydpiatasvreqlvx.supabase.co
-        if "supabase.co" in supabase_url:
-            project_ref = supabase_url.split("https://")[1].split(".")[0]
-            # Construct direct Supabase PostgreSQL connection string
-            db_url = f"postgresql+psycopg://postgres.{project_ref}:{supabase_key}@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
-            logger.info(f"Connecting to Supabase project: {project_ref}")
-            return db_url
-
-    # Fallback to other database URLs
+    # Prefer explicit SQL connection URLs from Railway/Supabase/hosting env.
     database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or os.getenv("POSTGRESQL_URL")
     if database_url:
         if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
+            database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
+        elif database_url.startswith("postgresql://"):
+            database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
         return database_url
 
     # Individual PostgreSQL environment variables

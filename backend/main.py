@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pydub import AudioSegment
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 try:
@@ -349,22 +350,33 @@ def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[Matc
         list[MatchedMaterialOut]: Ranked material matches.
     """
 
+    normalized_descriptions = [description.strip() for description in descriptions if description and description.strip()]
+    if not normalized_descriptions:
+        return []
+
+    if not descriptions:
+        return []
+
     matches: list[MatchedMaterialOut] = []
+
+    if not _materials_table_exists():
+        logger.warning("Materials table is missing; skipping vector matching.")
+        return []
     
     # Check if vector functionality is available
     try:
         from models.database import is_vector_enabled
         if not is_vector_enabled():
             logger.warning("Vector matching not available, using text-based fallback")
-            return _text_match_materials(descriptions, limit)
+            return _text_match_materials(normalized_descriptions, limit)
     except ImportError:
         logger.warning("Could not check vector availability, using text-based fallback")
-        return _text_match_materials(descriptions, limit)
+        return _text_match_materials(normalized_descriptions, limit)
     
     # Try vector matching first
     try:
         with Session(ENGINE) as session:
-            for description in descriptions:
+            for description in normalized_descriptions:
                 try:
                     query_embedding = embed_text(description)
                 except Exception as exc:
@@ -390,7 +402,30 @@ def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[Matc
         return matches
     except Exception as exc:
         logger.warning("Vector matching failed, falling back to text matching: %s", exc)
-        return _text_match_materials(descriptions, limit)
+        return _text_match_materials(normalized_descriptions, limit)
+
+
+def _materials_table_exists() -> bool:
+    """Return True when the materials table exists in the active schema."""
+
+    try:
+        with Session(ENGINE) as session:
+            exists = session.exec(
+                text(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'materials'
+                    )
+                    """
+                )
+            ).one()
+        return bool(exists)
+    except Exception as exc:
+        logger.warning("Unable to verify materials table existence: %s", exc)
+        return False
 
 
 def _text_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
@@ -531,16 +566,21 @@ def ingest(payload: IngestRequest) -> IngestResponse:
         HTTPException: If required input is missing or pipeline execution fails.
     """
 
-    if not payload.voice_notes and not payload.audio_base64:
-        raise HTTPException(status_code=400, detail="Provide voice_notes or audio_base64.")
+    voice_notes = payload.voice_notes.strip() if payload.voice_notes else ""
+    audio_base64 = payload.audio_base64.strip() if payload.audio_base64 else ""
+    receipt_image_base64 = payload.receipt_image_base64.strip() if payload.receipt_image_base64 else ""
+
+    if not voice_notes and not audio_base64 and not receipt_image_base64:
+        raise HTTPException(status_code=400, detail="Provide voice_notes, audio_base64, or receipt_image_base64.")
+
 
     try:
-        transcript = payload.voice_notes.strip() if payload.voice_notes else transcribe_audio(payload.audio_base64 or "")
-        translated_lines = translator_service.translate_notes(transcript)
+        transcript = voice_notes if voice_notes else transcribe_audio(audio_base64)
+        translated_lines = translator_service.translate_notes(transcript) if transcript else []
 
         receipt = (
-            vision_service.extract_receipt(payload.receipt_image_base64)
-            if payload.receipt_image_base64
+            vision_service.extract_receipt(receipt_image_base64)
+            if receipt_image_base64
             else ReceiptExtraction(supplier="", date="", line_items=[])
         )
 

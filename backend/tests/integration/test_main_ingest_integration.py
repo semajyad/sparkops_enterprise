@@ -21,19 +21,7 @@ from services.vision import ReceiptExtraction, ReceiptLineItem
 def test_ingest_audio_to_invoice_with_mocked_openai_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify full ingest data flow from audio input to verified invoice output."""
 
-    class _AudioTranscriptions:
-        @staticmethod
-        def create(model: str, file: object) -> object:
-            assert model == "gpt-4o-mini-transcribe"
-            return type("Transcription", (), {"text": "Hori in the cupboard"})()
-
-    class _Audio:
-        transcriptions = _AudioTranscriptions()
-
-    class _FakeOpenAIClient:
-        audio = _Audio()
-
-    monkeypatch.setattr(main, "get_openai_client", lambda: _FakeOpenAIClient())
+    monkeypatch.setattr(main, "transcribe_audio", lambda _audio_base64: "Hori in the cupboard")
     monkeypatch.setattr(
         main.vision_service,
         "extract_receipt",
@@ -86,11 +74,41 @@ def test_ingest_audio_to_invoice_with_mocked_openai_dependencies(monkeypatch: py
     assert payload["total"] == "545.10"
 
 
-def test_ingest_rejects_payload_without_voice_or_audio() -> None:
-    """Ensure ingest endpoint enforces mandatory voice/audio input contract."""
+def test_ingest_accepts_receipt_only_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure ingest can process receipt-only payloads without audio/text."""
+
+    monkeypatch.setattr(
+        main.vision_service,
+        "extract_receipt",
+        lambda _image: ReceiptExtraction(
+            supplier="Corys",
+            date="2026-03-07",
+            line_items=[
+                ReceiptLineItem(
+                    description="Cable TPS 2.5mm",
+                    quantity=Decimal("2"),
+                    unit_price=Decimal("12.00"),
+                )
+            ],
+        ),
+    )
+    monkeypatch.setattr(main, "vector_match_materials", lambda _descriptions, limit=1: [])
 
     client = TestClient(main.app)
     response = client.post("/api/ingest", json={"receipt_image_base64": "abc"})
 
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["transcript"] == ""
+    assert payload["supplier"] == "Corys"
+    assert len(payload["invoice_lines"]) == 1
+
+
+def test_ingest_rejects_payload_without_any_content() -> None:
+    """Ensure ingest rejects fully empty payloads."""
+
+    client = TestClient(main.app)
+    response = client.post("/api/ingest", json={})
+
     assert response.status_code == 400
-    assert "Provide voice_notes or audio_base64" in response.json()["detail"]
+    assert "Provide voice_notes, audio_base64, or receipt_image_base64" in response.json()["error"]

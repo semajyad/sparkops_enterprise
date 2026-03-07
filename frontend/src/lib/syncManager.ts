@@ -13,6 +13,15 @@ export async function syncPendingDrafts(): Promise<{ synced: number; attempted: 
   let synced = 0;
 
   for (const draft of pendingDrafts) {
+    const voiceText = draft.voice_text?.trim() ?? "";
+    const audioBase64 = draft.audio_blob_base64?.trim() ?? "";
+    const receiptBase64 = draft.receipt_image_base64?.trim() ?? "";
+
+    if (!voiceText && !audioBase64 && !receiptBase64) {
+      await updateDraft({ ...draft, sync_status: "failed" });
+      continue;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/ingest`, {
         method: "POST",
@@ -20,13 +29,16 @@ export async function syncPendingDrafts(): Promise<{ synced: number; attempted: 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          voice_notes: draft.voice_text,
-          audio_base64: draft.audio_blob_base64,
-          receipt_image_base64: draft.receipt_image_base64,
+          voice_notes: voiceText || undefined,
+          audio_base64: audioBase64 || undefined,
+          receipt_image_base64: receiptBase64 || undefined,
         }),
       });
 
       if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          await updateDraft({ ...draft, sync_status: "failed" });
+        }
         continue;
       }
 
