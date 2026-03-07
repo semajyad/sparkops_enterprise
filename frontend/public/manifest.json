@@ -1,0 +1,16 @@
+{
+  "name": "SparkOps Basement Interface",
+  "short_name": "SparkOps",
+  "description": "Offline-first voice and receipt capture for NZ electricians.",
+  "start_url": "/capture",
+  "display": "standalone",
+  "background_color": "#0b111c",
+  "theme_color": "#1f7a8c",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}
