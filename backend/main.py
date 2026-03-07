@@ -19,11 +19,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from pydub import AudioSegment
 from sqlmodel import Session, select
 
 try:
-    from openai import OpenAI
+    from openai import BadRequestError, OpenAI
 except ImportError:  # pragma: no cover - compatibility with legacy OpenAI SDK
+    BadRequestError = Exception  # type: ignore[assignment]
     OpenAI = None  # type: ignore[assignment]
 
 from database import engine as database_engine
@@ -107,7 +109,8 @@ class IngestRequest(BaseModel):
 
     Attributes:
         voice_notes: Optional pre-transcribed text notes.
-        audio_base64: Optional base64 audio to transcribe with `gpt-audio-mini-2025-10-06`.
+        audio_base64: Optional base64 audio to transcribe with `gpt-4o-mini-audio-preview`.
+
         receipt_image_base64: Optional base64 receipt image.
     """
 
@@ -194,7 +197,7 @@ def get_openai_client() -> OpenAI:
 
 
 def transcribe_audio(audio_base64: str) -> str:
-    """Transcribe base64 audio using `gpt-audio-mini-2025-10-06`.
+    """Transcribe base64 audio using `gpt-4o-mini-audio-preview`.
 
     Args:
         audio_base64: Base64-encoded audio file bytes.
@@ -207,77 +210,96 @@ def transcribe_audio(audio_base64: str) -> str:
         return ""
 
     normalized_audio_base64 = audio_base64.strip()
+    detected_format = "webm"
     if normalized_audio_base64.startswith("data:") and "," in normalized_audio_base64:
-        normalized_audio_base64 = normalized_audio_base64.split(",", 1)[1]
+        header, normalized_audio_base64 = normalized_audio_base64.split(",", 1)
+        if "audio/wav" in header or "audio/x-wav" in header:
+            detected_format = "wav"
+        elif "audio/webm" in header:
+            detected_format = "webm"
 
-    def _extract_text(message_content: object) -> str:
+    audio_bytes = base64.b64decode(normalized_audio_base64)
+
+    def _to_clean_wav_base64(raw_audio: bytes, preferred_format: str) -> str:
+        source_audio = io.BytesIO(raw_audio)
+        source_audio.name = f"raw_input.{preferred_format}"
+
+        formats_to_try = [preferred_format] + [fmt for fmt in ["webm", "wav", "ogg", "mp3", "m4a"] if fmt != preferred_format]
+        parsed_audio: AudioSegment | None = None
+        last_error: Exception | None = None
+
+        for input_format in formats_to_try:
+            try:
+                source_audio.seek(0)
+                parsed_audio = AudioSegment.from_file(source_audio, format=input_format)
+                break
+            except Exception as exc:  # pragma: no cover - format probing branch
+                last_error = exc
+
+        if parsed_audio is None:
+            raise RuntimeError(f"Unable to decode input audio format: {last_error}")
+
+        normalized = parsed_audio.set_frame_rate(16000).set_channels(1)
+        wav_buffer = io.BytesIO()
+        wav_buffer.name = "normalized.wav"
+        normalized.export(wav_buffer, format="wav")
+        return base64.b64encode(wav_buffer.getvalue()).decode("utf-8")
+
+    def _extract_transcript(message_content: object) -> str:
         if isinstance(message_content, str):
             return message_content.strip()
 
         if isinstance(message_content, list):
-            text_chunks: list[str] = []
+            chunks: list[str] = []
             for item in message_content:
                 chunk_type = getattr(item, "type", None)
                 chunk_text = getattr(item, "text", None)
                 if chunk_type == "text" and isinstance(chunk_text, str):
-                    text_chunks.append(chunk_text)
-            return "".join(text_chunks).strip()
-
+                    chunks.append(chunk_text)
+            return "".join(chunks).strip()
         return str(message_content).strip()
 
-    def _normalize_transcript(raw_text: str) -> str:
-        cleaned = raw_text.strip()
-        if cleaned.lower().startswith("the text is:"):
-            cleaned = cleaned.split(":", 1)[1].strip()
-        cleaned = cleaned.strip('"').strip()
-        return cleaned
-
     def _is_refusal(text: str) -> bool:
-        refusal_markers = [
-            "can't transcribe",
-            "cannot transcribe",
-            "only process text",
-            "only process text and images",
-            "unable to transcribe",
-            "i'm sorry",
-            "cannot process audio",
-            '"error"',
-        ]
         lowered = text.lower()
+        refusal_markers = [
+            "unable to assist",
+            "can't assist",
+            "cannot assist",
+            "cannot transcribe",
+            "unable to transcribe",
+            "i'm unable",
+        ]
         return any(marker in lowered for marker in refusal_markers)
 
     try:
-        logger.info("Transcribing with model: gpt-audio-mini-2025-10-06")
+        clean_wav_base64 = _to_clean_wav_base64(audio_bytes, detected_format)
+        logger.info("Transcribing with model: gpt-4o-mini-audio-preview")
         client = get_openai_client()
-
-        last_error_text = ""
-        attempt_prompts = [
-            "Transcribe this audio exactly. Output only the text.",
-            "Listen to this audio and return only the spoken words.",
-            "Provide a verbatim transcript of this audio. Output transcript text only.",
+        prompts = [
+            "Transcribe this audio exactly.",
+            "Return only the spoken words from this audio.",
+            "Produce a verbatim transcript. Output text only.",
         ]
 
-        for attempt, prompt in enumerate(attempt_prompts, start=1):
+        last_text = ""
+        for prompt in prompts:
             response = client.chat.completions.create(
-                model="gpt-audio-mini-2025-10-06",
+                model="gpt-4o-mini-audio-preview",
                 modalities=["text"],
                 temperature=0,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a speech-to-text engine. Output only the transcript text.",
+                        "content": "You are a speech-to-text engine. Only transcribe the provided audio.",
                     },
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
+                            {"type": "text", "text": prompt},
                             {
                                 "type": "input_audio",
                                 "input_audio": {
-                                    "data": normalized_audio_base64,
+                                    "data": clean_wav_base64,
                                     "format": "wav",
                                 },
                             },
@@ -285,26 +307,17 @@ def transcribe_audio(audio_base64: str) -> str:
                     },
                 ],
             )
-
-            transcript = _normalize_transcript(_extract_text(response.choices[0].message.content))
+            transcript = _extract_transcript(response.choices[0].message.content)
             if transcript and not _is_refusal(transcript):
                 return transcript
+            last_text = transcript
 
-            last_error_text = transcript or f"empty transcript on attempt {attempt}"
+        raise RuntimeError(f"No valid transcript from audio-preview model. Last response: {last_text}")
 
-        logger.warning(
-            "gpt-audio-mini-2025-10-06 did not return a valid transcript. Falling back to gpt-4o-mini-transcribe. Last response: %s",
-            last_error_text,
-        )
+    except BadRequestError as exc:
+        logger.error("Transcription BadRequestError message: %s", getattr(exc, "message", str(exc)))
+        raise HTTPException(status_code=400, detail=f"Transcription failed: {str(exc)}") from exc
 
-        audio_bytes = base64.b64decode(normalized_audio_base64)
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = "job_note.wav"
-        fallback = client.audio.transcriptions.create(
-            model="gpt-4o-mini-transcribe",
-            file=audio_file,
-        )
-        return (fallback.text or "").strip()
     except Exception as exc:
         logger.exception("Transcription failed")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(exc)}") from exc

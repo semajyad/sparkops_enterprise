@@ -28,12 +28,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pb-28`}
       >
-        <SyncProvider>
-          <div className="pb-20">{children}</div>
-          <MobileNav />
-        </SyncProvider>
+        <SyncProvider>{children}</SyncProvider>
+        <MobileNav />
       </body>
     </html>
   );

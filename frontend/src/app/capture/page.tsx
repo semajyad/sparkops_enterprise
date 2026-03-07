@@ -7,6 +7,8 @@ import { useSync } from "@/components/SyncProvider";
 import { saveJobDraft } from "@/lib/db";
 import { syncPendingDrafts } from "@/lib/syncManager";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
 function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -49,6 +51,23 @@ export default function CapturePage() {
     return isOnline ? "Online" : "Offline";
   }, [isOnline, isSyncing]);
 
+  async function uploadAudioToIngest(audioBase64: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/ingest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        audio_base64: audioBase64,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || `Ingest failed with status ${response.status}`);
+    }
+  }
+
   useEffect(() => {
     return () => {
       if (audioPreviewUrl) {
@@ -81,7 +100,9 @@ export default function CapturePage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recordingStreamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
+      const recorder = MediaRecorder.isTypeSupported("audio/webm")
+        ? new MediaRecorder(stream, { mimeType: "audio/webm" })
+        : new MediaRecorder(stream);
       const chunks: Blob[] = [];
       setAudioChunks([]);
 
@@ -93,7 +114,7 @@ export default function CapturePage() {
       };
 
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
         const base64 = await fileToBase64(blob);
         setAudioBlob(base64);
 
@@ -104,7 +125,13 @@ export default function CapturePage() {
 
         recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
         recordingStreamRef.current = null;
-        setStatusMessage("Audio recording captured successfully.");
+
+        try {
+          await uploadAudioToIngest(base64);
+          setStatusMessage("Audio captured and sent to ingest successfully.");
+        } catch {
+          setStatusMessage("Audio captured, but ingest upload failed.");
+        }
       };
 
       mediaRecorder.current = recorder;
