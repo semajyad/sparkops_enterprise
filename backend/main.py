@@ -42,6 +42,7 @@ from services.math_utils import (
     calculate_invoice_totals,
     calculate_line_total,
 )
+from services.invoice import calculate_invoice, get_default_markup
 from services.triage import triage_service
 from services.translator import KiwiTranslator
 from services.vision import ReceiptExtraction, ReceiptVisionEngine
@@ -678,40 +679,26 @@ def build_invoice_lines(
         list[InvoiceLineOut]: Invoice-ready lines.
     """
 
-    lines: list[InvoiceLineOut] = []
-    material_price_lookup = {match.query: match.trade_price for match in vector_matches}
     default_labor_rate = Decimal(os.getenv("DEFAULT_LABOR_RATE", "95.00"))
+    markup_percentage = get_default_markup(ENGINE)
+    invoice_draft = calculate_invoice(
+        translated_lines=translated_lines,
+        receipt=receipt,
+        vector_matches=vector_matches,
+        default_labor_rate=default_labor_rate,
+        markup_percentage=markup_percentage,
+    )
 
-    for description in translated_lines:
-        qty = Decimal("1.00")
-        matched_price = material_price_lookup.get(description)
-        unit_price = matched_price if matched_price is not None else default_labor_rate
-        line_type = "Material" if matched_price is not None else "Labor"
-        lines.append(
-            InvoiceLineOut(
-                description=description,
-                qty=qty,
-                unit_price=unit_price,
-                line_total=calculate_line_total(qty=qty, unit_price=unit_price),
-                type=line_type,
-            )
+    return [
+        InvoiceLineOut(
+            description=line.description,
+            qty=line.qty,
+            unit_price=line.unit_price,
+            line_total=line.line_total,
+            type=line.type,
         )
-
-    for receipt_item in receipt.line_items:
-        lines.append(
-            InvoiceLineOut(
-                description=receipt_item.description,
-                qty=receipt_item.quantity,
-                unit_price=receipt_item.unit_price,
-                line_total=calculate_line_total(
-                    qty=receipt_item.quantity,
-                    unit_price=receipt_item.unit_price,
-                ),
-                type="Material",
-            )
-        )
-
-    return lines
+        for line in invoice_draft.invoice_lines
+    ]
 
 
 @app.get("/", response_model=HealthResponse)

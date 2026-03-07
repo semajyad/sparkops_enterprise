@@ -105,6 +105,15 @@ class JobDraft(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+class UserSettings(SQLModel, table=True):
+    """Global user-configurable defaults used during invoice pricing."""
+
+    __tablename__ = "user_settings"
+
+    id: int = Field(default=1, primary_key=True)
+    default_markup: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.2000"))
+
+
 def get_database_url() -> str:
     """Return DB URL from environment configuration.
 
