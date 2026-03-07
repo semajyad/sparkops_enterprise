@@ -6,6 +6,7 @@ raw inputs into verified invoice JSON.
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import os
 import base64
@@ -13,6 +14,7 @@ import io
 
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -30,7 +32,8 @@ except ImportError:  # pragma: no cover - compatibility with legacy OpenAI SDK
     OpenAI = None  # type: ignore[assignment]
 
 from database import engine as database_engine
-from models.database import Material, create_db_and_tables
+from models.database import JobDraft, Material, create_db_and_tables
+
 from routers.eta import router as eta_router
 from routers.twilio import router as twilio_router
 from services.math_utils import (
@@ -38,6 +41,7 @@ from services.math_utils import (
     calculate_invoice_totals,
     calculate_line_total,
 )
+from services.triage import triage_service
 from services.translator import KiwiTranslator
 from services.vision import ReceiptExtraction, ReceiptVisionEngine
 
@@ -176,6 +180,16 @@ class IngestResponse(BaseModel):
     gst: Decimal
     total: Decimal
     vector_matches: list[MatchedMaterialOut] = Field(default_factory=list)
+
+
+class JobDraftResponse(BaseModel):
+    """Persisted triage draft response model."""
+
+    id: UUID
+    raw_transcript: str
+    extracted_data: dict[str, Any]
+    status: str
+    created_at: datetime
 
 
 def get_openai_client() -> OpenAI:
@@ -552,15 +566,15 @@ def root() -> HealthResponse:
     return HealthResponse(status="healthy", service="sparkops-data-factory", version="1.0.0")
 
 
-@app.post("/api/ingest", response_model=IngestResponse)
-def ingest(payload: IngestRequest) -> IngestResponse:
-    """Ingest voice/text + receipt image and return verified invoice JSON.
+@app.post("/api/ingest", response_model=JobDraftResponse)
+def ingest(payload: IngestRequest) -> JobDraftResponse:
+    """Ingest voice/text and persist GPT-5 triage draft.
 
     Args:
         payload: Ingestion payload with optional audio/text/image components.
 
     Returns:
-        IngestResponse: Verified invoice JSON payload.
+        JobDraftResponse: Saved triage draft record.
 
     Raises:
         HTTPException: If required input is missing or pipeline execution fails.
@@ -568,40 +582,31 @@ def ingest(payload: IngestRequest) -> IngestResponse:
 
     voice_notes = payload.voice_notes.strip() if payload.voice_notes else ""
     audio_base64 = payload.audio_base64.strip() if payload.audio_base64 else ""
-    receipt_image_base64 = payload.receipt_image_base64.strip() if payload.receipt_image_base64 else ""
 
-    if not voice_notes and not audio_base64 and not receipt_image_base64:
-        raise HTTPException(status_code=400, detail="Provide voice_notes, audio_base64, or receipt_image_base64.")
+    if not voice_notes and not audio_base64:
+        raise HTTPException(status_code=400, detail="Provide voice_notes or audio_base64.")
 
 
     try:
         transcript = voice_notes if voice_notes else transcribe_audio(audio_base64)
-        translated_lines = translator_service.translate_notes(transcript) if transcript else []
+        extracted_data = triage_service.analyze_transcript(transcript)
 
-        receipt = (
-            vision_service.extract_receipt(receipt_image_base64)
-            if receipt_image_base64
-            else ReceiptExtraction(supplier="", date="", line_items=[])
-        )
+        with Session(ENGINE) as session:
+            draft = JobDraft(
+                raw_transcript=transcript,
+                extracted_data=extracted_data,
+            )
+            session.add(draft)
+            session.commit()
+            session.refresh(draft)
 
-        match_descriptions = translated_lines + [item.description for item in receipt.line_items]
-        vector_matches = vector_match_materials(match_descriptions)
-        invoice_lines = build_invoice_lines(translated_lines, receipt, vector_matches)
-
-        totals = calculate_invoice_totals(
-            InvoiceMathLine(qty=line.qty, unit_price=line.unit_price) for line in invoice_lines
-        )
-
-        return IngestResponse(
-            transcript=transcript,
-            supplier=receipt.supplier or None,
-            receipt_date=receipt.date or None,
-            invoice_lines=invoice_lines,
-            subtotal=totals.subtotal,
-            gst=totals.gst,
-            total=totals.total,
-            vector_matches=vector_matches,
-        )
+            return JobDraftResponse(
+                id=draft.id,
+                raw_transcript=draft.raw_transcript,
+                extracted_data=draft.extracted_data,
+                status=draft.status,
+                created_at=draft.created_at,
+            )
     except HTTPException:
         raise
     except Exception as exc:

@@ -166,5 +166,93 @@ class TriageService:
         )
         return self._parse_classification(response.output_text)
 
+    @staticmethod
+    def _extract_json_payload(text: str) -> dict[str, Any]:
+        """Parse JSON content from model output with markdown-fence fallback."""
+
+        candidate = text.strip()
+        if candidate.startswith("```"):
+            candidate = candidate.strip("`")
+            if candidate.startswith("json"):
+                candidate = candidate[4:]
+            candidate = candidate.strip()
+
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            start = candidate.find("{")
+            end = candidate.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                raise ValueError("GPT-5 triage output did not contain valid JSON.") from None
+            parsed = json.loads(candidate[start : end + 1])
+
+        if not isinstance(parsed, dict):
+            raise ValueError("GPT-5 triage output must be a JSON object.")
+        return parsed
+
+    @staticmethod
+    def _normalize_extraction(payload: dict[str, Any]) -> dict[str, Any]:
+        """Normalize and validate triage extraction payload shape."""
+
+        line_items = payload.get("line_items", [])
+        if not isinstance(line_items, list):
+            line_items = []
+
+        normalized_items: list[dict[str, Any]] = []
+        for item in line_items:
+            if not isinstance(item, dict):
+                continue
+            item_type = str(item.get("type", "LABOR")).strip().upper()
+            if item_type not in {"MATERIAL", "LABOR"}:
+                item_type = "LABOR"
+            normalized_items.append(
+                {
+                    "qty": item.get("qty", "1"),
+                    "description": str(item.get("description", "")).strip(),
+                    "type": item_type,
+                }
+            )
+
+        return {
+            "client": str(payload.get("client", "")).strip(),
+            "address": str(payload.get("address", "")).strip(),
+            "scope": str(payload.get("scope", "")).strip(),
+            "line_items": normalized_items,
+        }
+
+    def analyze_transcript(self, text: str) -> dict[str, Any]:
+        """Extract structured job draft data from transcript using GPT-5."""
+
+        transcript = text.strip()
+        if not transcript:
+            raise ValueError("Transcript text is required for triage analysis.")
+
+        client = self._get_openai_client()
+        response = client.responses.create(
+            model="gpt-5",
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "You are a Quantity Surveyor. Extract 'client', 'address', 'scope', and a list of "
+                                "'line_items' (qty, description, type=MATERIAL/LABOR) from this text. Return only "
+                                "valid JSON with keys: client, address, scope, line_items."
+                            ),
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": transcript}],
+                },
+            ],
+        )
+
+        parsed = self._extract_json_payload(response.output_text)
+        return self._normalize_extraction(parsed)
+
 
 triage_service = TriageService()

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import quote_plus
+from uuid import UUID, uuid4
 
 try:  # pragma: no cover - import side-effect guard for local test environments
     import psycopg  # noqa: F401
@@ -22,7 +24,7 @@ try:
     VECTOR_AVAILABLE = True
 except ImportError:
     VECTOR_AVAILABLE = False
-from sqlalchemy import Column, Numeric, text
+from sqlalchemy import JSON, Column, Numeric, Text, text
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, SQLModel, create_engine
 
@@ -89,6 +91,18 @@ class InvoiceLine(SQLModel, table=True):
     unit_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     line_total: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
     type: InvoiceLineType = Field(nullable=False)
+
+
+class JobDraft(SQLModel, table=True):
+    """Persisted triage draft extracted from a transcript."""
+
+    __tablename__ = "job_drafts"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    raw_transcript: str = Field(sa_column=Column(Text, nullable=False))
+    extracted_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    status: str = Field(default="DRAFT", max_length=32)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 def get_database_url() -> str:
