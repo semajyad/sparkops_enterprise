@@ -181,7 +181,7 @@ export default function Home() {
       <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-white/20 bg-white/5 p-6 backdrop-blur md:p-8">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">SparkOps Basement Interface</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">SparkOps Basement Interface - RAILWAY DEPLOYMENT TEST</p>
             <h1 className="text-3xl font-bold tracking-tight text-white">Capture Job Data Instantly</h1>
           </div>
           <div className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
@@ -204,7 +204,7 @@ export default function Home() {
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-200/60 bg-cyan-500/10 p-6 text-center transition hover:bg-cyan-500/20">
             <span className="text-lg font-bold">Record Voice</span>
             <span className="mt-1 text-sm text-cyan-100/80">Capture audio clip</span>
-            <input className="hidden" type="file" accept="audio/*" capture="microphone" onChange={handleAudioFile} />
+            <input className="hidden" type="file" accept="audio/*" capture="user" onChange={handleAudioFile} />
           </label>
 
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200/60 bg-emerald-500/10 p-6 text-center transition hover:bg-emerald-500/20">
