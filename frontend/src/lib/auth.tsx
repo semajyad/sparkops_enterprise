@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Session, User } from "@supabase/supabase-js";
+import { apiFetch } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -76,10 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+        const response = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
           cache: "no-store",
         });
 
@@ -119,4 +117,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   return useContext(AuthContext);
+}
+
+export async function clearAuthState(): Promise<void> {
+  // Clear Supabase session
+  const supabase = createClientComponentClient();
+  await supabase.auth.signOut();
+  
+  // Clear all localStorage data
+  localStorage.clear();
+  
+  // Clear all cookies
+  document.cookie.split(";").forEach((cookie) => {
+    const eqPos = cookie.indexOf("=");
+    const name = eqPos > -1 ? cookie.slice(0, eqPos) : cookie;
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+  });
 }
