@@ -1,15 +1,15 @@
 "use client";
 
 import { LogIn, Loader2 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { supabase } from "@/lib/supabase";
 
 type AuthMode = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClientComponentClient(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -121,6 +121,10 @@ export default function LoginPage() {
             {mode === "signup" ? "Create account" : "Sign in"}
           </button>
         </form>
+
+        <div className="mt-4 text-center text-xs text-slate-500">
+          Status: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "Connected" : "Config Missing"}
+        </div>
       </section>
     </main>
   );
