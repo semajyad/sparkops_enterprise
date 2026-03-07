@@ -1,152 +1,152 @@
-"use client";
-
 import { LogIn, Loader2 } from "lucide-react";
-import { useState, useEffect, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { useState } from "react";
+import { login, signup } from "./actions";
 
 type AuthMode = "login" | "signup";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
-
-  // Initialize Supabase client only on client side
-  useEffect(() => {
-    setSupabase(createClient());
-  }, []);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [mode, setMode] = useState<AuthMode>("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    
-    if (!supabase) {
-      setErrorMessage("Supabase client not initialized");
-      return;
-    }
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsSubmitting(true);
-
-    try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          console.error("Signup Failed:", error);
-          throw new Error(error.message);
-        }
-        setSuccessMessage("Sign-up successful. If email confirmation is enabled, check your inbox.");
-      } else {
-        console.log("Attempting Direct Login...");
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        console.log("Login Response:", { data, error });
-        
-        if (error) {
-          console.error("Login Failed:", error);
-          throw new Error(error.message);
-        }
-        
-        console.log("Login Successful - User authenticated:", data.user?.id);
-        console.log("Session:", data.session);
-        
-        // Simple redirect after successful login
-        console.log("Redirecting to dashboard...");
-        router.push("/");
-      }
-    } catch (error) {
-      console.error("Login form error:", error);
-      setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   return (
-    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50">
-        <header className="mb-6 space-y-2">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-300">SparkOps Secure Access</p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Welcome</h1>
-          <p className="text-sm text-slate-300">Sign in or create your SparkOps account.</p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-full mb-4">
+              <LogIn className="w-8 h-8 text-blue-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">SPARKOPS SECURE ACCESS</h1>
+            <p className="text-slate-400">Welcome</p>
+            <p className="text-slate-500 text-sm mt-1">Sign in or create your SparkOps account.</p>
+          </div>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-900/70 p-1">
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-              mode === "login" ? "bg-emerald-600 text-white" : "text-slate-300"
-            }`}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("signup")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-              mode === "signup" ? "bg-emerald-600 text-white" : "text-slate-300"
-            }`}
-          >
-            Sign Up
-          </button>
+          {/* Mode Toggle */}
+          <div className="flex bg-slate-700/50 rounded-lg p-1 mb-6">
+            <button
+              onClick={() => setMode("login")}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                mode === "login"
+                  ? "bg-blue-500 text-white shadow-lg"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => setMode("signup")}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                mode === "signup"
+                  ? "bg-blue-500 text-white shadow-lg"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Login Form */}
+          {mode === "login" ? (
+            <form action={login} className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Signing in...
+                  </div>
+                ) : (
+                  "Sign In to SparkOps"
+                )}
+              </button>
+            </form>
+          ) : (
+            <form action={signup} className="space-y-4">
+              <div>
+                <label htmlFor="signup-email" className="block text-sm font-medium text-slate-300 mb-2">
+                  Email
+                </label>
+                <input
+                  id="signup-email"
+                  name="email"
+                  type="email"
+                  required
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="signup-password" className="block text-sm font-medium text-slate-300 mb-2">
+                  Password
+                </label>
+                <input
+                  id="signup-password"
+                  name="password"
+                  type="password"
+                  required
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Creating account...
+                  </div>
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-slate-500 text-sm">
+              Status: <span className="text-green-400 font-medium">Connected</span>
+            </p>
+          </div>
         </div>
-
-        <form className="space-y-4" onSubmit={(event) => void onSubmit(event)}>
-          <label className="block space-y-2 text-sm text-slate-200" htmlFor="email">
-            <span>Email</span>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
-              placeholder="name@company.com"
-            />
-          </label>
-
-          <label className="block space-y-2 text-sm text-slate-200" htmlFor="password">
-            <span>Password</span>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
-              placeholder="••••••••"
-            />
-          </label>
-
-          {errorMessage ? (
-            <p className="rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{errorMessage}</p>
-          ) : null}
-
-          {successMessage ? (
-            <p className="rounded-xl border border-emerald-500/60 bg-emerald-500/10 p-3 text-sm text-emerald-100">{successMessage}</p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            {mode === "signup" ? "Create account" : "Sign In to SparkOps"}
-          </button>
-        </form>
-
-        <div className="mt-4 text-center text-xs text-slate-500">
-          Status: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "Connected" : "Config Missing"}
-        </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
