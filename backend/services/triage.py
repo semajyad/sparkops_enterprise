@@ -1,12 +1,12 @@
 """Voicemail triage service for Ladder Mode call interception.
 
-This module downloads Twilio recordings, transcribes with gpt-4o-mini-audio-preview,
+This module downloads Twilio recordings, transcribes with gpt-4o-mini-transcribe,
 classifies urgency with gpt-5-nano, and stores only minimal structured metadata.
 """
 
 from __future__ import annotations
 
-import base64
+import io
 import json
 import os
 import threading
@@ -133,36 +133,13 @@ class TriageService:
 
     def _transcribe(self, audio_bytes: bytes) -> str:
         client = self._get_openai_client()
-        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-        response = client.chat.completions.create(
-            model="gpt-4o-mini-audio-preview",
-            modalities=["text"],
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Transcribe this audio exactly."},
-                        {
-                            "type": "input_audio",
-                            "input_audio": {
-                                "data": audio_base64,
-                                "format": "wav",
-                            },
-                        },
-                    ],
-                }
-            ],
+        audio_file = io.BytesIO(audio_bytes)
+        audio_file.name = "voicemail.wav"
+        response = client.audio.transcriptions.create(
+            model="gpt-4o-mini-transcribe",
+            file=audio_file,
         )
-
-        message_content = response.choices[0].message.content
-        if isinstance(message_content, str):
-            return message_content.strip()
-
-        if isinstance(message_content, list):
-            text_chunks = [chunk.text for chunk in message_content if getattr(chunk, "type", None) == "text"]
-            return "".join(text_chunks).strip()
-
-        return ""
+        return response.text.strip()
 
     def _classify_urgency(self, transcript: str) -> tuple[str, str]:
         client = self._get_openai_client()

@@ -7,6 +7,7 @@ raw inputs into verified invoice JSON.
 from __future__ import annotations
 
 import base64
+import io
 import logging
 import os
 
@@ -192,7 +193,7 @@ def get_openai_client() -> OpenAI:
 
 
 def transcribe_audio(audio_base64: str) -> str:
-    """Transcribe base64 audio using `gpt-4o-mini-audio-preview`.
+    """Transcribe base64 audio using `gpt-4o-mini-transcribe`.
 
     Args:
         audio_base64: Base64-encoded audio file bytes.
@@ -205,39 +206,16 @@ def transcribe_audio(audio_base64: str) -> str:
     if normalized_audio_base64.startswith("data:") and "," in normalized_audio_base64:
         normalized_audio_base64 = normalized_audio_base64.split(",", 1)[1]
 
-    # Validate payload is decodable base64 before sending to model.
-    base64.b64decode(normalized_audio_base64)
+    audio_bytes = base64.b64decode(normalized_audio_base64)
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = "job_note.wav"
 
     client = get_openai_client()
-    response = client.chat.completions.create(
-        model="gpt-4o-mini-audio-preview",
-        modalities=["text"],
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Transcribe this audio exactly."},
-                    {
-                        "type": "input_audio",
-                        "input_audio": {
-                            "data": normalized_audio_base64,
-                            "format": "wav",
-                        },
-                    },
-                ],
-            }
-        ],
+    transcription = client.audio.transcriptions.create(
+        model="gpt-4o-mini-transcribe",
+        file=audio_file,
     )
-
-    message_content = response.choices[0].message.content
-    if isinstance(message_content, str):
-        return message_content.strip()
-
-    if isinstance(message_content, list):
-        text_chunks = [chunk.text for chunk in message_content if getattr(chunk, "type", None) == "text"]
-        return "".join(text_chunks).strip()
-
-    return ""
+    return transcription.text.strip()
 
 
 def embed_text(text: str) -> list[float]:
