@@ -45,8 +45,12 @@ export default function LoginPage() {
         console.log("Login Successful - User authenticated:", data.user?.id);
         console.log("Session:", data.session);
         
-        // Let middleware handle the redirect automatically
-        console.log("Login completed - middleware will handle redirect");
+        // Wait for session to be established, then refresh page for middleware
+        console.log("Waiting for session establishment...");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log("Refreshing page for middleware detection...");
+        window.location.href = "/";
       }
     } catch (error) {
       console.error("Login form error:", error);
