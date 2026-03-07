@@ -6,8 +6,8 @@
 
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 
-import { getDraftCounts } from "../lib/db";
-import { scheduleBackgroundSync, syncPendingDrafts } from "../lib/syncManager";
+import { getDraftCounts } from "@/lib/db";
+import { scheduleBackgroundSync, syncPendingDrafts } from "@/lib/syncManager";
 
 interface SyncContextValue {
   isOnline: boolean;
