@@ -14,7 +14,11 @@ from typing import Optional
 from urllib.parse import quote_plus
 
 import psycopg  # Ensure psycopg is imported
-from pgvector.sqlalchemy import Vector
+try:
+    from pgvector.sqlalchemy import Vector
+    VECTOR_AVAILABLE = True
+except ImportError:
+    VECTOR_AVAILABLE = False
 from sqlalchemy import Column, Numeric, text
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, SQLModel, create_engine
@@ -41,7 +45,7 @@ class Material(SQLModel, table=True):
     Attributes:
         sku: Unique stock keeping unit.
         name: Human-readable material name.
-        vector_embedding: 3072-dimensional semantic vector for matching.
+        vector_embedding: 3072-dimensional semantic vector for matching (optional).
         trade_price: Trade unit price used for invoicing.
     """
 
@@ -49,8 +53,11 @@ class Material(SQLModel, table=True):
 
     sku: str = Field(primary_key=True, max_length=64)
     name: str = Field(index=True, max_length=255)
-    vector_embedding: list[float] = Field(sa_column=Column(Vector(3072), nullable=False))
     trade_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    
+    # Only include vector column if pgvector is available
+    if VECTOR_AVAILABLE:
+        vector_embedding: list[float] = Field(sa_column=Column(Vector(3072), nullable=False))
 
 
 class InvoiceLine(SQLModel, table=True):
@@ -119,7 +126,7 @@ def enable_pgvector_extension(engine: Engine) -> bool:
     """Ensure pgvector extension is available in the connected database.
 
     Args:
-        engine: Active SQLAlchemy engine.
+        engine: SQLAlchemy engine instance.
 
     Returns:
         bool: True when pgvector extension is available for use.
@@ -142,22 +149,30 @@ def enable_pgvector_extension(engine: Engine) -> bool:
 
 
 def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
-    """Enable extensions and create all SQLModel tables.
+    """Create database engine and all required tables.
 
     Args:
-        engine: Optional pre-created engine.
+        engine: Optional existing engine to reuse.
 
     Returns:
-        Engine: Engine used to create schema.
+        Engine: Configured SQLAlchemy engine with tables created.
     """
 
     db_engine = engine or get_engine()
     vector_enabled = enable_pgvector_extension(db_engine)
-    if vector_enabled:
+    
+    # Create all tables, but handle vector columns gracefully
+    try:
         SQLModel.metadata.create_all(db_engine)
-    else:
+        logger.info("Database tables created successfully")
+    except Exception as exc:
+        logger.warning("Some tables failed to create due to missing pgvector: %s", exc)
+        # Create non-vector tables manually
         non_vector_tables = [
-            table for table in SQLModel.metadata.sorted_tables if table.name != Material.__tablename__
+            table for table in SQLModel.metadata.sorted_tables 
+            if table.name != Material.__tablename__
         ]
         SQLModel.metadata.create_all(db_engine, tables=non_vector_tables)
+        logger.info("Non-vector tables created successfully")
+    
     return db_engine

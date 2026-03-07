@@ -338,43 +338,120 @@ def embed_text(text: str) -> list[float]:
     return response.data[0].embedding
 
 
-def vector_match_materials(descriptions: list[str], limit: int = 1) -> list[MatchedMaterialOut]:
-    """Find nearest material matches in pgvector space.
+def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
+    """Find best material matches using vector similarity or fallback text matching.
 
     Args:
-        descriptions: Normalized invoice descriptions to match.
-        limit: Max matches returned per description.
+        descriptions: List of material descriptions to match.
+        limit: Maximum matches per description.
 
     Returns:
-        list[MatchedMaterialOut]: Similarity match candidates.
+        list[MatchedMaterialOut]: Ranked material matches.
     """
 
     matches: list[MatchedMaterialOut] = []
-    with Session(ENGINE) as session:
-        for description in descriptions:
-            try:
-                query_embedding = embed_text(description)
-            except Exception as exc:
-                logger.warning("Embedding generation failed for '%s': %s", description, exc)
-                continue
+    
+    # Check if vector functionality is available
+    try:
+        from models.database import VECTOR_AVAILABLE
+        if not VECTOR_AVAILABLE:
+            logger.warning("Vector matching not available, using text-based fallback")
+            return _text_match_materials(descriptions, limit)
+    except ImportError:
+        logger.warning("Could not check vector availability, using text-based fallback")
+        return _text_match_materials(descriptions, limit)
+    
+    # Try vector matching first
+    try:
+        with Session(ENGINE) as session:
+            for description in descriptions:
+                try:
+                    query_embedding = embed_text(description)
+                except Exception as exc:
+                    logger.warning("Embedding generation failed for '%s': %s", description, exc)
+                    continue
 
-            statement = (
-                select(Material)
-                .order_by(Material.vector_embedding.cosine_distance(query_embedding))
-                .limit(limit)
-            )
-            result = session.exec(statement).all()
-            for material in result:
-                matches.append(
-                    MatchedMaterialOut(
-                        query=description,
-                        sku=material.sku,
-                        name=material.name,
-                        trade_price=material.trade_price,
-                    )
+                statement = (
+                    select(Material)
+                    .order_by(Material.vector_embedding.cosine_distance(query_embedding))
+                    .limit(limit)
                 )
+                result = session.exec(statement).all()
+                for material in result:
+                    matches.append(
+                        MatchedMaterialOut(
+                            query=description,
+                            sku=material.sku,
+                            name=material.name,
+                            trade_price=material.trade_price,
+                        )
+                    )
 
-    return matches
+        return matches
+    except Exception as exc:
+        logger.warning("Vector matching failed, falling back to text matching: %s", exc)
+        return _text_match_materials(descriptions, limit)
+
+
+def _text_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
+    """Fallback text-based material matching using simple string similarity.
+
+    Args:
+        descriptions: List of material descriptions to match.
+        limit: Maximum matches per description.
+
+    Returns:
+        list[MatchedMaterialOut]: Ranked material matches.
+    """
+    
+    matches: list[MatchedMaterialOut] = []
+    
+    try:
+        with Session(ENGINE) as session:
+            materials = session.exec(select(Material)).all()
+            
+            for description in descriptions:
+                desc_lower = description.lower()
+                scored_materials = []
+                
+                for material in materials:
+                    # Simple text matching scoring
+                    name_lower = material.name.lower()
+                    score = 0
+                    
+                    # Exact match gets highest score
+                    if desc_lower == name_lower:
+                        score = 100
+                    # Contains match gets medium score
+                    elif desc_lower in name_lower or name_lower in desc_lower:
+                        score = 70
+                    # Word overlap gets lower score
+                    else:
+                        desc_words = set(desc_lower.split())
+                        name_words = set(name_lower.split())
+                        common_words = desc_words.intersection(name_words)
+                        if common_words:
+                            score = len(common_words) * 10
+                    
+                    if score > 0:
+                        scored_materials.append((material, score))
+                
+                # Sort by score and take top matches
+                scored_materials.sort(key=lambda x: x[1], reverse=True)
+                for material, score in scored_materials[:limit]:
+                    matches.append(
+                        MatchedMaterialOut(
+                            query=description,
+                            sku=material.sku,
+                            name=material.name,
+                            trade_price=material.trade_price,
+                        )
+                    )
+                    
+        return matches
+    except Exception as exc:
+        logger.warning("Text matching failed: %s", exc)
+        return []
 
 
 def build_invoice_lines(
