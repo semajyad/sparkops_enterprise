@@ -192,7 +192,7 @@ def get_openai_client() -> OpenAI:
 
 
 def transcribe_audio(audio_base64: str) -> str:
-    """Transcribe base64 audio using `gpt-4o-mini-transcribe`.
+    """Transcribe base64 audio using `gpt-4o-mini-audio-preview`.
 
     Args:
         audio_base64: Base64-encoded audio file bytes.
@@ -210,7 +210,7 @@ def transcribe_audio(audio_base64: str) -> str:
 
     client = get_openai_client()
     response = client.chat.completions.create(
-        model="gpt-4o-mini-transcribe",
+        model="gpt-4o-mini-audio-preview",
         modalities=["text"],
         messages=[
             {

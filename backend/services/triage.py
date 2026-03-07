@@ -1,6 +1,6 @@
 """Voicemail triage service for Ladder Mode call interception.
 
-This module downloads Twilio recordings, transcribes with gpt-4o-mini-transcribe,
+This module downloads Twilio recordings, transcribes with gpt-4o-mini-audio-preview,
 classifies urgency with gpt-5-nano, and stores only minimal structured metadata.
 """
 
@@ -135,7 +135,7 @@ class TriageService:
         client = self._get_openai_client()
         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
         response = client.chat.completions.create(
-            model="gpt-4o-mini-transcribe",
+            model="gpt-4o-mini-audio-preview",
             modalities=["text"],
             messages=[
                 {
