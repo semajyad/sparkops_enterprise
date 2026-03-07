@@ -11,6 +11,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
+import psycopg  # Ensure psycopg is imported
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Numeric, text
 from sqlalchemy.engine import Engine
