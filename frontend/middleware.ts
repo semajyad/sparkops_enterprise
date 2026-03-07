@@ -10,9 +10,9 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession();
 
   const pathname = req.nextUrl.pathname;
-  const isPublicPath = pathname === "/login";
+  const isLoginPath = pathname === "/login";
 
-  if (!session && !isPublicPath) {
+  if (!session && !isLoginPath) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
@@ -21,7 +21,7 @@ export async function middleware(req: NextRequest) {
 
   if (session && pathname === "/login") {
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/";
+    redirectUrl.pathname = "/capture";
     return NextResponse.redirect(redirectUrl);
   }
 

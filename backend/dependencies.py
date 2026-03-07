@@ -29,22 +29,12 @@ security = HTTPBearer(auto_error=False)
 
 
 def _decode_supabase_jwt(token: str) -> dict[str, object]:
-    # For development: accept mock tokens
-    if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAx"):
-        return {
-            "sub": "00000000-0000-0000-0000-000000000001",
-            "user_id": "00000000-0000-0000-0000-000000000001",
-            "organization_id": "00000000-0000-0000-0000-000000000001",
-            "role": "OWNER",
-            "aud": "authenticated",
-            "iss": "sparkops"
-        }
-    
-    # Original Supabase JWT decoding for production
     secret = os.getenv("SUPABASE_JWT_SECRET")
     if not secret:
-        # For development: use a default secret
-        secret = "sparkops-dev-secret-key"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SUPABASE_JWT_SECRET is not configured.",
+        )
 
     try:
         payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
@@ -63,17 +53,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token.")
 
     payload = _decode_supabase_jwt(credentials.credentials)
-    
-    # For development: handle mock user directly
-    if payload.get("sub") == "00000000-0000-0000-0000-000000000001":
-        return AuthenticatedUser(
-            id=UUID("00000000-0000-0000-0000-000000000001"),
-            organization_id=UUID("00000000-0000-0000-0000-000000000001"),
-            role="OWNER",
-            full_name="Development User"
-        )
-    
-    # Original user lookup for production
+
     subject = payload.get("sub")
     if not isinstance(subject, str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token missing subject.")

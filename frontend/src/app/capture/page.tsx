@@ -5,6 +5,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSync } from "@/components/SyncProvider";
 import { useAuth } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 import { saveJobDraft } from "@/lib/db";
 import { syncPendingDrafts } from "@/lib/syncManager";
 
@@ -58,12 +59,8 @@ export default function CapturePage() {
       throw new Error("You must be logged in to upload capture data.");
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/ingest`, {
+    const response = await apiFetch(`${API_BASE_URL}/api/ingest`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
       body: JSON.stringify({
         audio_base64: audioBase64,
       }),

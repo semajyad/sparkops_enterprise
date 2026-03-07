@@ -896,7 +896,7 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
 async def upload_materials_csv(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    current_user: AuthenticatedUser = Depends(require_owner),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> MaterialsUploadResponse:
     """Accept a wholesaler CSV and process material upserts asynchronously."""
 
