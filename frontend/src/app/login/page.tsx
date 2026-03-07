@@ -1,15 +1,21 @@
 "use client";
 
 import { LogIn, Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type AuthMode = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+
+  // Initialize Supabase client only on client side
+  useEffect(() => {
+    setSupabase(createClient());
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +26,11 @@ export default function LoginPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    
+    if (!supabase) {
+      setErrorMessage("Supabase client not initialized");
+      return;
+    }
     setErrorMessage("");
     setSuccessMessage("");
     setIsSubmitting(true);
