@@ -17,7 +17,7 @@ export default function Home(): React.JSX.Element {
     <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50 md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-emerald-300/80">SparkOps Dashboard</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Kia Ora, Dave.</h1>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Hi, Dave.</h1>
         <p className="mt-2 text-sm text-slate-300">Your live operations snapshot for today.</p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
