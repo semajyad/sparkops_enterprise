@@ -23,16 +23,24 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useMemo(() => createClientComponentClient(), []);
+  const supabase = useMemo(() => {
+    // Don't create Supabase client during build time
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return createClientComponentClient();
+  }, []);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!supabase) return;
+    
     let isMounted = true;
 
     async function hydrateAuth(): Promise<void> {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase!.auth.getSession();
       if (!isMounted) {
         return;
       }
@@ -44,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase!.auth.onAuthStateChange((_event, nextSession) => {
       if (!isMounted) {
         return;
       }

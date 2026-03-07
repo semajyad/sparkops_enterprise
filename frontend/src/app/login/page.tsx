@@ -1,11 +1,11 @@
 "use client";
 
 import { LogIn, Loader2 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, Suspense } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,5 +91,21 @@ export default function LoginPage() {
         </form>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
+        <section className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50">
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+          </div>
+        </section>
+      </main>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
