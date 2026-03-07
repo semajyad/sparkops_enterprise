@@ -27,10 +27,11 @@ class InvoiceTotals:
     total: Decimal
 
 
-def _to_money(value: Decimal) -> Decimal:
+def _to_money(value: Decimal | int | float | str) -> Decimal:
     """Round to NZ currency precision (2dp)."""
 
-    return value.quantize(TWO_DP, rounding=ROUND_HALF_UP)
+    decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+    return decimal_value.quantize(TWO_DP, rounding=ROUND_HALF_UP)
 
 
 def calculate_line_total(qty: Decimal, unit_price: Decimal) -> Decimal:
@@ -42,7 +43,7 @@ def calculate_line_total(qty: Decimal, unit_price: Decimal) -> Decimal:
 def calculate_subtotal(lines: Iterable[InvoiceMathLine]) -> Decimal:
     """Subtotal = sum of all line totals."""
 
-    subtotal = sum(calculate_line_total(line.qty, line.unit_price) for line in lines)
+    subtotal = sum((calculate_line_total(line.qty, line.unit_price) for line in lines), Decimal("0.00"))
     return _to_money(subtotal)
 
 
