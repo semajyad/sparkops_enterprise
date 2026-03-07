@@ -4,7 +4,7 @@
  * Provider that keeps offline sync process alive across app navigation.
  */
 
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { getDraftCounts } from "@/lib/db";
 import { scheduleBackgroundSync, syncPendingDrafts } from "@/lib/syncManager";
@@ -105,4 +105,8 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
   );
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+}
+
+export function useSync(): SyncContextValue {
+  return useContext(SyncContext);
 }

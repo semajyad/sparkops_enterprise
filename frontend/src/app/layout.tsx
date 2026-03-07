@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { MobileNav } from "@/components/MobileNav";
 import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
 
@@ -29,7 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SyncProvider>{children}</SyncProvider>
+        <SyncProvider>
+          <div className="pb-20">{children}</div>
+          <MobileNav />
+        </SyncProvider>
       </body>
     </html>
   );

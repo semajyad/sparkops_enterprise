@@ -1,10 +1,11 @@
 "use client";
 
-import { Camera, LoaderCircle, Mic, RefreshCw, Square, Upload } from "lucide-react";
-import { ChangeEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { SyncContext } from "@/components/SyncProvider";
+import { useSync } from "@/components/SyncProvider";
 import { saveJobDraft } from "@/lib/db";
+import { syncPendingDrafts } from "@/lib/syncManager";
 
 function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,7 +26,7 @@ function fileToBase64(file: Blob): Promise<string> {
 }
 
 export default function CapturePage() {
-  const { isOnline, isSyncing, pendingCount, triggerSync, refreshCounts } = useContext(SyncContext);
+  const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
 
   const [voiceText, setVoiceText] = useState("");
   const [audioBlob, setAudioBlob] = useState<string>("");
@@ -153,6 +154,7 @@ export default function CapturePage() {
         voice_text: voiceText.trim() || undefined,
         audio_blob_base64: audioBlob || undefined,
         receipt_image_base64: receiptBase64 || undefined,
+        sync_status: "pending",
       });
 
       setVoiceText("");
@@ -167,6 +169,7 @@ export default function CapturePage() {
 
       setStatusMessage("Draft saved offline and queued for sync.");
       await refreshCounts();
+      window.alert("Draft Saved");
     } finally {
       setIsSavingDraft(false);
     }
@@ -176,11 +179,16 @@ export default function CapturePage() {
     setIsSyncingNow(true);
     setStatusMessage("Syncing pending drafts...");
     try {
-      await triggerSync();
+      if (!window.navigator.onLine) {
+        throw new Error("offline");
+      }
+      const result = await syncPendingDrafts();
       await refreshCounts();
       setStatusMessage("Pending drafts sync complete.");
+      window.alert(`Sync Complete: ${result.synced} drafts uploaded.`);
     } catch {
       setStatusMessage("Sync failed. Please try again.");
+      window.alert("Sync Failed: Check network connection.");
     } finally {
       setIsSyncingNow(false);
     }
@@ -286,7 +294,7 @@ export default function CapturePage() {
           disabled={isSavingDraft || isRecording || !hasMeaningfulContent()}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-4 text-lg font-bold text-white transition hover:bg-emerald-500 active:opacity-80 disabled:opacity-50"
         >
-          {isSavingDraft ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+          {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
           Save Draft Offline Now
         </button>
 
@@ -296,7 +304,7 @@ export default function CapturePage() {
           disabled={isSyncingNow || isRecording || pendingCount === 0}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 active:opacity-80 disabled:opacity-50"
         >
-          {isSyncingNow ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {isSyncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Force Sync Pending Drafts
         </button>
 
