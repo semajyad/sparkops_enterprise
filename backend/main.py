@@ -24,6 +24,8 @@ except ImportError:  # pragma: no cover - compatibility with legacy OpenAI SDK
     OpenAI = None  # type: ignore[assignment]
 
 from models.database import Material, create_db_and_tables, get_engine
+from routers.eta import router as eta_router
+from routers.twilio import router as twilio_router
 from services.math_utils import (
     InvoiceMathLine,
     calculate_invoice_totals,
@@ -48,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(twilio_router)
+app.include_router(eta_router)
 
 translator_service = KiwiTranslator()
 vision_service = ReceiptVisionEngine()

@@ -190,3 +190,103 @@ Failure reason:
    - `npm run test:e2e`
 2. Run `npm audit` and apply safe dependency upgrades.
 3. Add explicit UI lane for `failed` sync records (retry/inspect controls).
+
+---
+
+# Sprint 3 Addendum — The Gatekeeper (Smart Triage & Ladder Mode)
+
+## Implemented Scope
+
+### Backend (FastAPI)
+
+- Twilio voice webhook: `POST /api/twilio/voice`
+- Twilio recording callback: `POST /api/twilio/recording`
+- Ladder mode state APIs:
+  - `GET /api/twilio/ladder-mode`
+  - `POST /api/twilio/ladder-mode`
+- Voicemail feed API: `GET /api/twilio/voicemails`
+- ETA link APIs:
+  - `POST /api/eta/generate`
+  - `GET /api/eta/lookup/{tracking_id}`
+
+AI model usage aligned to cost constraints:
+
+- Voicemail transcription: `gpt-4o-mini-transcribe`
+- Urgency classification: `gpt-5-nano`
+
+Privacy handling:
+
+- Audio is downloaded only for processing and immediately discarded in memory after transcription/classification.
+- Persisted payload stores structured metadata only (urgency, summary, transcript, identifiers).
+
+### Frontend (Next.js App Router)
+
+- Ladder dashboard: `frontend/src/app/ladder/page.tsx`
+  - Large Ladder Mode toggle
+  - Polling voicemail feed sorted by urgency
+  - High/Medium visual urgency encoding
+- Public tracking page: `frontend/src/app/tracking/[id]/page.tsx`
+  - Read-only client page
+  - Mock map visualization + ETA + status text
+
+### Staging Deployment Config
+
+- Backend:
+  - `backend/Dockerfile` (production-friendly, port 8000 exposed)
+  - `backend/railway.json`
+- Frontend:
+  - `frontend/next.config.ts` production optimizations
+  - `frontend/vercel.json`
+- Stack template:
+  - `docker-compose.prod.yml`
+  - `STAGING.env.example` (Twilio/OpenAI/Supabase keys scaffold)
+
+## Sprint 3 Test Coverage
+
+### Backend pytest integration (Twilio)
+
+File: `backend/tests/integration/test_twilio_webhooks.py`
+
+Covered scenarios:
+
+1. Voice webhook returns valid TwiML with greeting + recording callback.
+2. Recording callback processes payload and returns triage output.
+3. Invalid signature path rejects forged webhooks with HTTP 403.
+
+Execution note:
+
+- Local run currently skips due missing psycopg runtime wrapper (libpq binding environment issue), but test file is in place and CI/staging ready where psycopg runtime is complete.
+
+### Frontend Jest
+
+Sprint 3 file:
+
+- `frontend/src/components/__tests__/LadderModeToggle.test.tsx`
+
+Covered scenarios:
+
+1. Toggle renders active state semantics (`aria-checked=true`).
+2. Toggle click emits next boolean state to handler.
+
+Execution result:
+
+- `npm test -- --runInBand` passed (`3 suites`, `6 tests`).
+
+## Twilio Webhook Security Validation
+
+- Signature validation function checks `X-Twilio-Signature` when `TWILIO_AUTH_TOKEN` is set.
+- Endpoints reject invalid signatures with 403.
+- Test case included for forged-request rejection path.
+
+## Deployment Readiness Status
+
+- ✅ Backend containerization and Railway config added.
+- ✅ Frontend Vercel config added.
+- ✅ Shared staging environment variable template added.
+- ✅ Sprint 3 backend/frontend code paths integrated into existing stack.
+
+## Known Limitations
+
+1. Current voicemail and tracking stores are in-memory for sprint velocity (non-durable across process restarts).
+2. Live SMS delivery requires valid Twilio credentials in staging.
+3. Local backend pytest integration run depends on local psycopg binary/runtime availability.
