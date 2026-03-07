@@ -4,12 +4,13 @@ import { LogIn, Loader2 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 
 type AuthMode = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

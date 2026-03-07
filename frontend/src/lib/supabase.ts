@@ -1,17 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// HARDCODED UNBLOCK - REVERT TO ENV VARS LATER
+const FORCE_URL = "https://mpdvcydpiatasvreqlvx.supabase.co";
+const FORCE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wZHZjeWRwaWF0YXN2cmVxbHZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1ODA3MTIsImV4cCI6MjA4ODE1NjcxMn0.V2g1_2A1C14kbO7zW3oTss_sswGtP4A9LOEtXBRPxwg";
 
-if (typeof window !== "undefined") {
-  console.log("Supabase Config Check:");
-  console.log("- URL Exists:", !!supabaseUrl);
-  console.log("- Key Exists:", !!supabaseKey);
-  console.log("- Key Prefix:", supabaseKey ? `${supabaseKey.substring(0, 5)}...` : "NONE");
-}
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error("Missing Supabase Environment Variables");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const createClient = () => {
+  console.log("⚠️ Using Hardcoded Supabase Credentials");
+  return createClientComponentClient({
+    supabaseUrl: FORCE_URL,
+    supabaseKey: FORCE_KEY,
+  });
+};
