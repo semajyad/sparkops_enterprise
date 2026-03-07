@@ -45,12 +45,9 @@ export default function LoginPage() {
         console.log("Login Successful - User authenticated:", data.user?.id);
         console.log("Session:", data.session);
         
-        // Wait for session to be established, then refresh page for middleware
-        console.log("Waiting for session establishment...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        console.log("Refreshing page for middleware detection...");
-        window.location.href = "/";
+        // Simple redirect after successful login
+        console.log("Redirecting to dashboard...");
+        router.push("/");
       }
     } catch (error) {
       console.error("Login form error:", error);
