@@ -136,3 +136,7 @@ jspm_packages/
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Frontend canonical source libs must be committed
+!frontend/src/lib/
+!frontend/src/lib/**
