@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from uuid import UUID
@@ -13,6 +14,9 @@ from sqlalchemy import text
 from sqlmodel import Session
 
 from database import engine
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,7 @@ security = HTTPBearer(auto_error=False)
 def _decode_supabase_jwt(token: str) -> dict[str, object]:
     secret = os.getenv("SUPABASE_JWT_SECRET")
     if not secret:
+        logger.error("SUPABASE_JWT_SECRET is not configured in runtime environment")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="SUPABASE_JWT_SECRET is not configured.",
@@ -38,12 +43,50 @@ def _decode_supabase_jwt(token: str) -> dict[str, object]:
 
     try:
         payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
+    except jwt.ExpiredSignatureError as exc:
+        logger.warning("Supabase bearer token expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
     except jwt.PyJWTError as exc:
+        logger.exception("Supabase bearer token decode failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
 
     if not isinstance(payload, dict):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token payload.")
     return payload
+
+
+def _provision_fallback_profile(session: Session, user_id: UUID, payload: dict[str, object]) -> tuple[UUID, str, str | None]:
+    email = payload.get("email")
+    full_name = payload.get("full_name")
+
+    if not isinstance(full_name, str) or not full_name.strip():
+        full_name = None
+    derived_org_name = full_name or (email if isinstance(email, str) and email.strip() else f"SparkOps Org {user_id}")
+
+    org_id_row = session.exec(
+        text("INSERT INTO public.organizations(name) VALUES (:name) RETURNING id"),
+        params={"name": derived_org_name},
+    ).first()
+    if org_id_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create fallback organization.",
+        )
+
+    organization_id = UUID(str(org_id_row[0]))
+
+    session.exec(
+        text(
+            """
+            INSERT INTO public.profiles(id, organization_id, role, full_name)
+            VALUES (:id, :organization_id, 'OWNER', :full_name)
+            """
+        ),
+        params={"id": str(user_id), "organization_id": str(organization_id), "full_name": full_name},
+    )
+    session.commit()
+    logger.warning("Provisioned fallback profile for user_id=%s", user_id)
+    return organization_id, "OWNER", full_name
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> AuthenticatedUser:
@@ -64,29 +107,46 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token subject is invalid.") from exc
 
     with Session(engine) as session:
-        row = session.exec(
-            text(
-                """
-                SELECT organization_id, role, full_name
-                FROM public.profiles
-                WHERE id = :user_id
-                LIMIT 1
-                """
-            ),
-            params={"user_id": str(user_id)},
-        ).first()
+        try:
+            row = session.exec(
+                text(
+                    """
+                    SELECT organization_id, role, full_name
+                    FROM public.profiles
+                    WHERE id = :user_id
+                    LIMIT 1
+                    """
+                ),
+                params={"user_id": str(user_id)},
+            ).first()
 
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile not found for authenticated user.")
+            if row is None:
+                logger.warning("Profile not found for user_id=%s; provisioning fallback profile", user_id)
+                organization_id, role_normalized, full_name = _provision_fallback_profile(session, user_id, payload)
+            else:
+                organization_id_raw, role, full_name = row
+                organization_id = UUID(str(organization_id_raw))
+                role_normalized = str(role or "").upper()
+        except HTTPException:
+            session.rollback()
+            raise
+        except ValueError as exc:
+            session.rollback()
+            logger.exception("Profile row has invalid UUID values for user_id=%s", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Profile organization_id is invalid.",
+            ) from exc
+        except Exception as exc:
+            session.rollback()
+            logger.exception("Auth profile lookup/provision failed for user_id=%s", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resolve authenticated profile.",
+            ) from exc
 
-    organization_id_raw, role, full_name = row
-    try:
-        organization_id = UUID(str(organization_id_raw))
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Profile organization_id is invalid.") from exc
-
-    role_normalized = str(role or "").upper()
     if role_normalized not in {"OWNER", "EMPLOYEE"}:
+        logger.error("Profile role is invalid for user_id=%s role=%s", user_id, role_normalized)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile role is invalid.")
 
     return AuthenticatedUser(
