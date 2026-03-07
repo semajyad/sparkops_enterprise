@@ -4,13 +4,12 @@ import { LogIn, Loader2 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 type AuthMode = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,12 +28,15 @@ export default function LoginPage() {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) {
+          console.error("Signup Failed:", error);
           throw new Error(error.message);
         }
         setSuccessMessage("Sign-up successful. If email confirmation is enabled, check your inbox.");
       } else {
+        console.log("Attempting Direct Login...");
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
+          console.error("Login Failed:", error);
           throw new Error(error.message);
         }
       }
