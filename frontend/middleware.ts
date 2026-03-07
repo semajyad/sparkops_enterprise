@@ -12,19 +12,15 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isLoginPath = pathname === "/login";
 
-  if (!session && !isLoginPath) {
+  // Only redirect to login if not authenticated and not already on login page
+  if (!session && !isLoginPath && pathname !== "/") {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (session && pathname === "/login") {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/";
-    return NextResponse.redirect(redirectUrl);
-  }
-
+  // Don't redirect from login page - let client-side handle it
   return res;
 }
 
