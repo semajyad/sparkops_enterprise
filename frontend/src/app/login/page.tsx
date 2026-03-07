@@ -118,7 +118,7 @@ export default function LoginPage() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            {mode === "signup" ? "Create account" : "Sign in"}
+            {mode === "signup" ? "Create account" : "Sign In to SparkOps"}
           </button>
         </form>
 
