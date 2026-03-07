@@ -96,7 +96,7 @@ class StagingLoginTest:
                 
                 print("  📝 Testing backend auth endpoint...")
                 # Step 2: Test backend auth endpoint with proper staging token
-                mock_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwib3JnYW5pemF0aW9uX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwicm9sZSI6Ik9XTkVSIiwiZXhwIjoxNzcyOTk4NzYyLCJpYXQiOjE3NzI5MTIzNjIsImlzcyI6InNwYXJrb3BzIn0.W1hgfaCMaGP2iu_RaSzPK4jD-O477jFMKTY0xZ2uCwk"
+                mock_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwib3JnYW5pemF0aW9uX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwicm9sZSI6Ik9XTkVSIiwiZXhwIjoxNzczMDAwNjcxLCJpYXQiOjE3NzI5MTQyNzEsImlzcyI6InNwYXJrb3BzIn0.jBfrvrOcAx52rohBiobkRsmVs0qze7jzk9wT_PYDddY"
                 
                 response = await client.get(
                     f"{BACKEND_URL}/api/auth/me",
