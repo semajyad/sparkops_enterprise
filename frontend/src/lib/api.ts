@@ -1,9 +1,8 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from "@/lib/supabase";
 
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const supabase = createClientComponentClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
