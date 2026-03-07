@@ -1,15 +1,12 @@
 "use client";
 
-/**
- * Capture UI for offline-first SparkOps job drafting.
- */
-
-import { ChangeEvent, useContext, useMemo, useState } from "react";
+import { Camera, LoaderCircle, Mic, RefreshCw, Square, Upload } from "lucide-react";
+import { ChangeEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { SyncContext } from "@/components/SyncProvider";
-import { saveJobDraft, updateDraft } from "@/lib/db";
+import { saveJobDraft } from "@/lib/db";
 
-function toBase64(file: File): Promise<string> {
+function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -27,21 +24,22 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-type DraftBuffer = {
-  id?: number;
-  voice_text?: string;
-  audio_blob_base64?: string;
-  receipt_image_base64?: string;
-};
-
 export default function CapturePage() {
   const { isOnline, isSyncing, pendingCount, triggerSync, refreshCounts } = useContext(SyncContext);
 
   const [voiceText, setVoiceText] = useState("");
-  const [audioBase64, setAudioBase64] = useState<string | undefined>(undefined);
-  const [receiptBase64, setReceiptBase64] = useState<string | undefined>(undefined);
-  const [draftBuffer, setDraftBuffer] = useState<DraftBuffer>({});
+  const [audioBlob, setAudioBlob] = useState<string>("");
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [receiptBase64, setReceiptBase64] = useState<string>("");
+  const [receiptPreview, setReceiptPreview] = useState<string>("");
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string>("");
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSyncingNow, setIsSyncingNow] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Ready for offline capture.");
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
 
   const networkLabel = useMemo(() => {
     if (isSyncing) {
@@ -50,33 +48,17 @@ export default function CapturePage() {
     return isOnline ? "Online" : "Offline";
   }, [isOnline, isSyncing]);
 
-  async function persistDraft(nextBuffer: DraftBuffer): Promise<DraftBuffer> {
-    const payload = {
-      voice_text: nextBuffer.voice_text,
-      audio_blob_base64: nextBuffer.audio_blob_base64,
-      receipt_image_base64: nextBuffer.receipt_image_base64,
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
+  }, [audioPreviewUrl]);
 
-    if (typeof nextBuffer.id === "number") {
-      await updateDraft({
-        id: nextBuffer.id,
-        timestamp: Date.now(),
-        sync_status: "pending",
-        ...payload,
-      });
-      return nextBuffer;
-    }
-
-    const id = await saveJobDraft(payload);
-    return { ...nextBuffer, id };
-  }
-
-  function hasMeaningfulContent(buffer: DraftBuffer): boolean {
-    return Boolean(
-      buffer.voice_text?.trim() ||
-        buffer.audio_blob_base64 ||
-        buffer.receipt_image_base64
-    );
+  function hasMeaningfulContent(): boolean {
+    return Boolean(voiceText.trim() || audioBlob || receiptBase64);
   }
 
   const statusClass = useMemo(() => {
@@ -89,23 +71,57 @@ export default function CapturePage() {
     return "bg-rose-500 text-rose-950";
   }, [isOnline, isSyncing]);
 
-  async function handleAudioFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0];
-    if (!file) {
+  async function startRecording(): Promise<void> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatusMessage("This browser does not support microphone recording.");
       return;
     }
-    const base64 = await toBase64(file);
-    setAudioBase64(base64);
-    const nextBuffer: DraftBuffer = {
-      ...draftBuffer,
-      voice_text: voiceText.trim() || undefined,
-      audio_blob_base64: base64,
-      receipt_image_base64: receiptBase64,
-    };
-    const persisted = await persistDraft(nextBuffer);
-    setDraftBuffer(persisted);
-    setStatusMessage("Audio captured and saved to IndexedDB instantly.");
-    await refreshCounts();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      setAudioChunks([]);
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+          setAudioChunks((prev) => [...prev, event.data]);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const base64 = await fileToBase64(blob);
+        setAudioBlob(base64);
+
+        if (audioPreviewUrl) {
+          URL.revokeObjectURL(audioPreviewUrl);
+        }
+        setAudioPreviewUrl(URL.createObjectURL(blob));
+
+        recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+        setStatusMessage("Audio recording captured successfully.");
+      };
+
+      mediaRecorder.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setStatusMessage("Recording in progress...");
+    } catch {
+      setStatusMessage("Microphone access denied or unavailable.");
+      setIsRecording(false);
+    }
+  }
+
+  function stopRecording(): void {
+    if (!mediaRecorder.current || mediaRecorder.current.state === "inactive") {
+      return;
+    }
+    mediaRecorder.current.stop();
+    setIsRecording(false);
   }
 
   async function handleReceiptFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -113,75 +129,69 @@ export default function CapturePage() {
     if (!file) {
       return;
     }
-    const base64 = await toBase64(file);
+
+    const base64 = await fileToBase64(file);
     setReceiptBase64(base64);
-    const nextBuffer: DraftBuffer = {
-      ...draftBuffer,
-      voice_text: voiceText.trim() || undefined,
-      audio_blob_base64: audioBase64,
-      receipt_image_base64: base64,
-    };
-    const persisted = await persistDraft(nextBuffer);
-    setDraftBuffer(persisted);
-    setStatusMessage("Receipt captured and saved to IndexedDB instantly.");
-    await refreshCounts();
+    setReceiptPreview(`data:${file.type || "image/jpeg"};base64,${base64}`);
+    setStatusMessage("Receipt image captured and preview ready.");
   }
 
-  async function handleVoiceChange(event: ChangeEvent<HTMLTextAreaElement>): Promise<void> {
+  function handleVoiceChange(event: ChangeEvent<HTMLTextAreaElement>): void {
     const value = event.target.value;
     setVoiceText(value);
-
-    const nextBuffer: DraftBuffer = {
-      ...draftBuffer,
-      voice_text: value.trim() || undefined,
-      audio_blob_base64: audioBase64,
-      receipt_image_base64: receiptBase64,
-    };
-
-    if (!hasMeaningfulContent(nextBuffer)) {
-      return;
-    }
-
-    const persisted = await persistDraft(nextBuffer);
-    setDraftBuffer(persisted);
-    setStatusMessage("Voice text cached locally for zombie-mode safety.");
-    await refreshCounts();
   }
 
   async function saveOfflineDraft(): Promise<void> {
-    const nextBuffer: DraftBuffer = {
-      ...draftBuffer,
-      voice_text: voiceText.trim() || undefined,
-      audio_blob_base64: audioBase64,
-      receipt_image_base64: receiptBase64,
-    };
-
-    if (!hasMeaningfulContent(nextBuffer)) {
+    if (!hasMeaningfulContent()) {
       setStatusMessage("Add voice text, audio, or receipt before saving.");
       return;
     }
 
-    const persisted = await persistDraft(nextBuffer);
-    setDraftBuffer(persisted);
+    setIsSavingDraft(true);
+    try {
+      await saveJobDraft({
+        voice_text: voiceText.trim() || undefined,
+        audio_blob_base64: audioBlob || undefined,
+        receipt_image_base64: receiptBase64 || undefined,
+      });
 
-    setStatusMessage("Draft persisted locally and queued for sync.");
-    setVoiceText("");
-    setAudioBase64(undefined);
-    setReceiptBase64(undefined);
-    setDraftBuffer({});
-    await refreshCounts();
+      setVoiceText("");
+      setAudioBlob("");
+      setAudioChunks([]);
+      setReceiptBase64("");
+      setReceiptPreview("");
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+      setAudioPreviewUrl("");
 
-    if (isOnline) {
-      void triggerSync();
+      setStatusMessage("Draft saved offline and queued for sync.");
+      await refreshCounts();
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  async function handleForceSync(): Promise<void> {
+    setIsSyncingNow(true);
+    setStatusMessage("Syncing pending drafts...");
+    try {
+      await triggerSync();
+      await refreshCounts();
+      setStatusMessage("Pending drafts sync complete.");
+    } catch {
+      setStatusMessage("Sync failed. Please try again.");
+    } finally {
+      setIsSyncingNow(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#284b63_0%,_#0d1b2a_40%,_#0b111c_100%)] p-6 text-slate-100 md:p-10">
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-white/20 bg-white/5 p-6 backdrop-blur md:p-8">
+    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
+      <section className="mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-2xl border border-slate-700 bg-slate-800 p-5 shadow-2xl shadow-slate-950/50 sm:p-6 md:p-8">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">SparkOps Basement Interface</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-300">SparkOps Basement Interface</p>
             <h1 className="text-3xl font-bold tracking-tight text-white">Capture Job Data Instantly</h1>
           </div>
           <div className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
@@ -189,7 +199,7 @@ export default function CapturePage() {
           </div>
         </header>
 
-        <label className="text-sm font-semibold text-cyan-100" htmlFor="voiceText">
+        <label className="text-sm font-semibold text-slate-200" htmlFor="voiceText">
           Voice Notes (text)
         </label>
         <textarea
@@ -197,40 +207,100 @@ export default function CapturePage() {
           value={voiceText}
           onChange={(event) => void handleVoiceChange(event)}
           placeholder="e.g. Chucked a Hori in the cupboard, swapped breaker, tested circuits"
-          className="min-h-32 rounded-2xl border border-white/20 bg-black/30 p-4 text-base text-white placeholder:text-slate-400 focus:border-cyan-300 focus:outline-none"
+          className="min-h-32 rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-base text-white placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
         />
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-200/60 bg-cyan-500/10 p-6 text-center transition hover:bg-cyan-500/20">
-            <span className="text-lg font-bold">Record Voice</span>
-            <span className="mt-1 text-sm text-cyan-100/80">Capture audio clip</span>
-            <input className="hidden" type="file" accept="audio/*" capture="user" onChange={handleAudioFile} />
-          </label>
+          <div className="rounded-xl border border-slate-700 bg-slate-800/80 p-4">
+            <p className="text-sm font-semibold text-slate-200">Voice Recording</p>
 
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200/60 bg-emerald-500/10 p-6 text-center transition hover:bg-emerald-500/20">
-            <span className="text-lg font-bold">Scan Receipt</span>
-            <span className="mt-1 text-sm text-emerald-100/80">Upload or snap image</span>
-            <input className="hidden" type="file" accept="image/*" capture="environment" onChange={handleReceiptFile} />
-          </label>
+            {isRecording ? (
+              <div className="mt-3 flex items-center gap-3 rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+                <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-rose-500" />
+                Recording...
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex gap-2">
+              {!isRecording ? (
+                <button
+                  type="button"
+                  onClick={() => void startRecording()}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm font-semibold transition hover:opacity-90 active:opacity-80 disabled:opacity-50"
+                >
+                  <Mic className="h-4 w-4" />
+                  Record Voice
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-3 text-sm font-semibold transition hover:opacity-90 active:opacity-80 disabled:opacity-50"
+                >
+                  <Square className="h-4 w-4" />
+                  Stop Recording
+                </button>
+              )}
+            </div>
+
+            {audioPreviewUrl ? (
+              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+                <p className="mb-2 text-xs text-slate-300">Playback Preview</p>
+                <audio controls src={audioPreviewUrl} className="w-full" />
+                <p className="mt-2 text-xs text-slate-400">Captured chunks: {audioChunks.length}</p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-800/80 p-4">
+            <p className="text-sm font-semibold text-slate-200">Receipt Capture</p>
+
+            {receiptPreview ? (
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-700">
+                <img src={receiptPreview} alt="Receipt preview" className="h-36 w-full object-cover" />
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm font-semibold transition hover:opacity-90 active:opacity-80 disabled:opacity-50"
+            >
+              {receiptPreview ? <Upload className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+              {receiptPreview ? "Replace Receipt" : "Scan Receipt"}
+            </button>
+            <input
+              ref={imageInputRef}
+              className="hidden"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => void handleReceiptFile(event)}
+            />
+          </div>
         </div>
 
         <button
           type="button"
-          onClick={saveOfflineDraft}
-          className="rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 px-6 py-4 text-lg font-bold text-slate-950 shadow-[0_8px_30px_rgba(45,212,191,0.35)] transition hover:scale-[1.01]"
+          onClick={() => void saveOfflineDraft()}
+          disabled={isSavingDraft || isRecording || !hasMeaningfulContent()}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-4 text-lg font-bold text-white transition hover:bg-emerald-500 active:opacity-80 disabled:opacity-50"
         >
+          {isSavingDraft ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
           Save Draft Offline Now
         </button>
 
         <button
           type="button"
-          onClick={() => void triggerSync()}
-          className="rounded-2xl border border-white/25 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+          onClick={() => void handleForceSync()}
+          disabled={isSyncingNow || isRecording || pendingCount === 0}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 active:opacity-80 disabled:opacity-50"
         >
+          {isSyncingNow ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Force Sync Pending Drafts
         </button>
 
-        <p className="rounded-xl bg-black/30 p-3 text-sm text-slate-200">{statusMessage}</p>
+        <p className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-slate-200">{statusMessage}</p>
       </section>
     </main>
   );
