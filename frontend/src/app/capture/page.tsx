@@ -7,7 +7,7 @@
 import { ChangeEvent, useContext, useMemo, useState } from "react";
 
 import { SyncContext } from "@/components/SyncProvider";
-import { saveJobDraft, updateDraft } from "@/lib/db";
+import { saveJobDraft, updateDraft } from "../../lib/db";
 
 function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -204,7 +204,7 @@ export default function CapturePage() {
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-200/60 bg-cyan-500/10 p-6 text-center transition hover:bg-cyan-500/20">
             <span className="text-lg font-bold">Record Voice</span>
             <span className="mt-1 text-sm text-cyan-100/80">Capture audio clip</span>
-            <input className="hidden" type="file" accept="audio/*" capture="microphone" onChange={handleAudioFile} />
+            <input className="hidden" type="file" accept="audio/*" capture="user" onChange={handleAudioFile} />
           </label>
 
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200/60 bg-emerald-500/10 p-6 text-center transition hover:bg-emerald-500/20">

@@ -7,7 +7,7 @@
 import { ChangeEvent, useContext, useMemo, useState } from "react";
 
 import { SyncContext } from "@/components/SyncProvider";
-import { saveJobDraft, updateDraft } from "@/lib/db";
+import { saveJobDraft, updateDraft } from "../lib/db";
 
 function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
