@@ -113,16 +113,13 @@ def get_database_url() -> str:
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     
     if supabase_url and supabase_key:
-        # Convert Supabase URL to SQLAlchemy format
-        if supabase_url.startswith("https://"):
-            db_url = supabase_url.replace("https://", "postgresql+psycopg://")
-            # Append service role key as password
-            if "@" in db_url:
-                db_url = db_url.replace("@", f":{supabase_key}@")
-            else:
-                # Fallback format
-                project_ref = supabase_url.split("https://")[1].split(".")[0]
-                db_url = f"postgresql+psycopg://postgres.{project_ref}:{supabase_key}@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+        # Extract project reference from Supabase URL
+        # Example: https://mpdvcydpiatasvreqlvx.supabase.co
+        if "supabase.co" in supabase_url:
+            project_ref = supabase_url.split("https://")[1].split(".")[0]
+            # Construct direct Supabase PostgreSQL connection string
+            db_url = f"postgresql+psycopg://postgres.{project_ref}:{supabase_key}@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+            logger.info(f"Connecting to Supabase project: {project_ref}")
             return db_url
 
     # Fallback to other database URLs
