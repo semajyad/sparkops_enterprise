@@ -45,14 +45,8 @@ export default function LoginPage() {
         console.log("Login Successful - User authenticated:", data.user?.id);
         console.log("Session:", data.session);
         
-        // Wait a moment for auth state to update
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        console.log("Attempting redirect to dashboard...");
-        router.push("/");
-        console.log("Redirect command executed");
-        router.refresh();
-        console.log("Router refresh executed");
+        // Let middleware handle the redirect
+        console.log("Login completed - middleware will handle redirect");
       }
     } catch (error) {
       console.error("Login form error:", error);
