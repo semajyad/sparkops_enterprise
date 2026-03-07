@@ -34,16 +34,28 @@ export default function LoginPage() {
         setSuccessMessage("Sign-up successful. If email confirmation is enabled, check your inbox.");
       } else {
         console.log("Attempting Direct Login...");
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        console.log("Login Response:", { data, error });
+        
         if (error) {
           console.error("Login Failed:", error);
           throw new Error(error.message);
         }
+        
+        console.log("Login Successful - User authenticated:", data.user?.id);
+        console.log("Session:", data.session);
+        
+        // Wait a moment for auth state to update
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.log("Attempting redirect to dashboard...");
+        router.push("/");
+        console.log("Redirect command executed");
+        router.refresh();
+        console.log("Router refresh executed");
       }
-
-      router.push("/");
-      router.refresh();
     } catch (error) {
+      console.error("Login form error:", error);
       setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
     } finally {
       setIsSubmitting(false);
