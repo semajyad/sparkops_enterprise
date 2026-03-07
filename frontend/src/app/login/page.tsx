@@ -41,7 +41,7 @@ export default function LoginPage() {
         }
       }
 
-      router.push("/capture");
+      router.push("/");
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
