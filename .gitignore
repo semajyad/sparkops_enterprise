@@ -140,3 +140,5 @@ jspm_packages/
 # Frontend canonical source libs must be committed
 !frontend/src/lib/
 !frontend/src/lib/**
+!frontend/lib/
+!frontend/lib/**
