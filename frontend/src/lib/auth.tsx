@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api";
 
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") {
       return null;
     }
-    return createClientComponentClient();
+    return createClient();
   }, []);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole>(null);
@@ -121,7 +121,7 @@ export function useAuth(): AuthContextValue {
 
 export async function clearAuthState(): Promise<void> {
   // Clear Supabase session
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
   await supabase.auth.signOut();
   
   // Clear all localStorage data
