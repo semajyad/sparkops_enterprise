@@ -7,9 +7,9 @@ raw inputs into verified invoice JSON.
 from __future__ import annotations
 
 import base64
-import io
 import logging
 import os
+
 from decimal import Decimal
 from typing import Any
 
@@ -201,15 +201,43 @@ def transcribe_audio(audio_base64: str) -> str:
         str: Transcribed text.
     """
 
-    audio_bytes = base64.b64decode(audio_base64)
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = "job_note.wav"
+    normalized_audio_base64 = audio_base64.strip()
+    if normalized_audio_base64.startswith("data:") and "," in normalized_audio_base64:
+        normalized_audio_base64 = normalized_audio_base64.split(",", 1)[1]
+
+    # Validate payload is decodable base64 before sending to model.
+    base64.b64decode(normalized_audio_base64)
+
     client = get_openai_client()
-    transcription = client.audio.transcriptions.create(
+    response = client.chat.completions.create(
         model="gpt-4o-mini-transcribe",
-        file=audio_file,
+        modalities=["text"],
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Transcribe this audio exactly."},
+                    {
+                        "type": "input_audio",
+                        "input_audio": {
+                            "data": normalized_audio_base64,
+                            "format": "wav",
+                        },
+                    },
+                ],
+            }
+        ],
     )
-    return transcription.text.strip()
+
+    message_content = response.choices[0].message.content
+    if isinstance(message_content, str):
+        return message_content.strip()
+
+    if isinstance(message_content, list):
+        text_chunks = [chunk.text for chunk in message_content if getattr(chunk, "type", None) == "text"]
+        return "".join(text_chunks).strip()
+
+    return ""
 
 
 def embed_text(text: str) -> list[float]:

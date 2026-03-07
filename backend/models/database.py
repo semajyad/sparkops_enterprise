@@ -77,10 +77,13 @@ def get_database_url() -> str:
         str: SQLAlchemy-compatible PostgreSQL URL.
     """
 
-    return os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg://postgres:postgres@localhost:5432/sparkops",
-    )
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        return database_url
+
+    return "postgresql+psycopg://postgres:postgres@localhost:5432/sparkops"
 
 
 def get_engine(database_url: Optional[str] = None) -> Engine:
