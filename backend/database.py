@@ -31,10 +31,12 @@ if not DATABASE_URL:
 
 if not DATABASE_URL:
     print("WARNING: DATABASE_URL not found, using localhost fallback.")
-    DATABASE_URL = "postgresql://postgres:password@localhost:5432/sparkops_db"
+    DATABASE_URL = "postgresql+psycopg://postgres:password@localhost:5432/sparkops_db"
 
 # Fix Railway's `postgres://` schema for SQLAlchemy compatibility.
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 engine = create_engine(DATABASE_URL, echo=True)
