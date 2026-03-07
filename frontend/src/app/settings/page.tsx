@@ -12,7 +12,7 @@ type ImportSummary = {
   message: string;
 };
 
-export default function MaterialsSettingsPage() {
+export default function SettingsPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -92,8 +92,8 @@ export default function MaterialsSettingsPage() {
       <section className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50">
         <header className="mb-6 space-y-2">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-300">Settings</p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Materials Upload</h1>
-          <p className="text-sm text-slate-300">Upload wholesaler price lists with columns: sku, description, price.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Material Settings</h1>
+          <p className="text-sm text-slate-300">Bulk import wholesaler price lists with columns: sku, name, price.</p>
         </header>
 
         <label

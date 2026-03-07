@@ -20,7 +20,7 @@ from uuid import UUID
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pydub import AudioSegment
 from sqlalchemy import text
@@ -200,6 +200,16 @@ class MaterialsUploadResponse(BaseModel):
     status: str
     message: str
     filename: str
+
+
+class MaterialsImportResponse(BaseModel):
+    """Summary response for synchronous materials import processing."""
+
+    status: str
+    imported_count: int
+    failed_count: int
+    total_rows: int
+    message: str
 
 
 def get_openai_client() -> OpenAI:
@@ -415,6 +425,52 @@ def _parse_materials_csv(csv_bytes: bytes) -> list[tuple[str, str, Decimal]]:
     return rows
 
 
+def _parse_materials_csv_tolerant(csv_bytes: bytes) -> tuple[list[tuple[str, str, Decimal]], int]:
+    """Parse CSV and skip malformed rows while counting failures."""
+
+    decoded = csv_bytes.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(decoded))
+    if not reader.fieldnames:
+        raise ValueError("CSV must include headers: sku, name, price.")
+
+    normalized_headers = {header.strip().lower() for header in reader.fieldnames if header}
+    required_headers = {"sku", "name", "price"}
+    if not required_headers.issubset(normalized_headers):
+        raise ValueError("CSV headers must include sku, name, price.")
+
+    rows: list[tuple[str, str, Decimal]] = []
+    failed_rows = 0
+
+    for line_number, row in enumerate(reader, start=2):
+        normalized_row = {
+            str(key).strip().lower(): value
+            for key, value in row.items()
+            if key is not None
+        }
+        sku = str(normalized_row.get("sku", "")).strip()
+        name = str(normalized_row.get("name", "")).strip()
+        raw_price = str(normalized_row.get("price", "")).strip()
+
+        if not sku and not name and not raw_price:
+            continue
+
+        if not sku or not name or not raw_price:
+            failed_rows += 1
+            logger.warning("Skipping malformed materials CSV row %s: missing required fields", line_number)
+            continue
+
+        try:
+            price = Decimal(raw_price)
+        except Exception:
+            failed_rows += 1
+            logger.warning("Skipping malformed materials CSV row %s: invalid price '%s'", line_number, raw_price)
+            continue
+
+        rows.append((sku, name, price))
+
+    return rows, failed_rows
+
+
 def _materials_supports_vector_column() -> bool:
     """Return True when materials.vector_embedding exists in active DB schema."""
 
@@ -461,7 +517,7 @@ def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: lis
                     params={
                         "sku": sku,
                         "name": description,
-                        "trade_price": price,
+                        "trade_price": str(price),
                         "vector_embedding": embedding,
                     },
                 )
@@ -482,7 +538,7 @@ def _upsert_materials_rows(rows: list[tuple[str, str, Decimal]], embeddings: lis
                     params={
                         "sku": sku,
                         "name": description,
-                        "trade_price": price,
+                        "trade_price": str(price),
                     },
                 )
                 upserted += 1
@@ -511,6 +567,39 @@ def process_materials_upload(csv_bytes: bytes, filename: str) -> None:
         logger.info("Materials upload completed: filename=%s upserted=%s", filename, total_upserted)
     except Exception:
         logger.exception("Materials upload failed: filename=%s", filename)
+
+
+def import_materials(csv_bytes: bytes, filename: str) -> MaterialsImportResponse:
+    """Import materials synchronously and return import summary."""
+
+    rows, failed_rows = _parse_materials_csv_tolerant(csv_bytes)
+    imported_count = 0
+
+    if not rows and failed_rows == 0:
+        raise ValueError("CSV contains no material rows.")
+
+    with_vector = _materials_supports_vector_column()
+    batch_size = 50
+
+    for offset in range(0, len(rows), batch_size):
+        batch_rows = rows[offset : offset + batch_size]
+        descriptions = [name for _, name, _ in batch_rows]
+        try:
+            embeddings = embed_text_batch(descriptions) if with_vector else []
+            imported_count += _upsert_materials_rows(batch_rows, embeddings, with_vector=with_vector)
+        except Exception as exc:
+            failed_rows += len(batch_rows)
+            logger.warning("Skipping materials batch %s-%s due to import error: %s", offset, offset + len(batch_rows), exc)
+
+    total_rows = imported_count + failed_rows
+    status = "completed" if imported_count > 0 else "completed_with_errors"
+    return MaterialsImportResponse(
+        status=status,
+        imported_count=imported_count,
+        failed_count=failed_rows,
+        total_rows=total_rows,
+        message=f"Imported {imported_count} items, {failed_rows} failed from {filename}.",
+    )
 
 
 def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
@@ -782,6 +871,65 @@ async def upload_materials_csv(background_tasks: BackgroundTasks, file: UploadFi
         status="accepted",
         message="Processing materials CSV in the background.",
         filename=filename,
+    )
+
+
+@app.post("/api/materials/import", response_model=MaterialsImportResponse)
+async def import_materials_csv(file: UploadFile = File(...)) -> MaterialsImportResponse:
+    """Bulk-import wholesaler materials and return import summary."""
+
+    filename = file.filename or "materials.csv"
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
+
+    try:
+        return import_materials(contents, filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Materials import failed")
+        raise HTTPException(status_code=500, detail=f"Materials import failed: {exc}") from exc
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobDraftResponse)
+def get_job_draft(job_id: UUID) -> JobDraftResponse:
+    """Return a saved JobDraft payload by id."""
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        return JobDraftResponse(
+            id=draft.id,
+            raw_transcript=draft.raw_transcript,
+            extracted_data=draft.extracted_data,
+            status=draft.status,
+            created_at=draft.created_at,
+        )
+
+
+@app.get("/api/jobs/{job_id}/pdf")
+def download_job_invoice_pdf(job_id: UUID) -> StreamingResponse:
+    """Generate and return a PDF invoice for the specified JobDraft."""
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+    from services.pdf import generate_invoice_pdf
+
+    pdf_bytes = generate_invoice_pdf(draft, ENGINE)
+    filename = f"sparkops-invoice-{job_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

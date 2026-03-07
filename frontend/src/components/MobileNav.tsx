@@ -32,8 +32,8 @@ export function MobileNav(): React.JSX.Element {
         Ladder
       </Link>
       <Link
-        href="/settings/materials"
-        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/settings/materials"))}`}
+        href="/settings"
+        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/settings"))}`}
       >
         <Boxes className="h-5 w-5" />
         Materials
