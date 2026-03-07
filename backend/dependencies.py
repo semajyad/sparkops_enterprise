@@ -70,25 +70,18 @@ def _provision_fallback_profile(session: Session, user_id: UUID, payload: dict[s
 
     if not isinstance(full_name, str) or not full_name.strip():
         full_name = None
-    derived_org_name = full_name or (email if isinstance(email, str) and email.strip() else f"SparkOps Org {user_id}")
 
-    org_id_row = session.exec(
-        text("INSERT INTO public.organizations(name) VALUES (:name) RETURNING id"),
-        params={"name": derived_org_name},
-    ).first()
-    if org_id_row is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create fallback organization.",
-        )
-
-    organization_id = UUID(str(org_id_row[0]))
+    # Generate a random organization_id for the fallback profile
+    organization_id = UUID('00000000-0000-0000-0000-000000000001')  # Fixed fallback org ID
 
     session.exec(
         text(
             """
             INSERT INTO public.profiles(id, organization_id, role, full_name)
             VALUES (:id, :organization_id, 'OWNER', :full_name)
+            ON CONFLICT (id) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                organization_id = EXCLUDED.organization_id
             """
         ),
         params={"id": str(user_id), "organization_id": str(organization_id), "full_name": full_name},
