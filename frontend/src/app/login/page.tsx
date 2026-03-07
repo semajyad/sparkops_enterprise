@@ -2,13 +2,12 @@
 
 import { LogIn, Loader2 } from "lucide-react";
 import { FormEvent, useState, Suspense } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-dev"; // Use dev auth
 
 function LoginForm() {
-  const supabase = createClientComponentClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,17 +20,8 @@ function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const redirectedFrom = searchParams.get("redirectedFrom");
-      router.push(redirectedFrom || "/");
+      await login(email, password);
+      router.push("/");
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to sign in.");
@@ -46,7 +36,7 @@ function LoginForm() {
         <header className="mb-6 space-y-2">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-300">SparkOps Secure Access</p>
           <h1 className="text-3xl font-bold tracking-tight text-white">Sign in</h1>
-          <p className="text-sm text-slate-300">Use your SparkOps account to continue.</p>
+          <p className="text-sm text-slate-300">Development Login - Any credentials work</p>
         </header>
 
         <form className="space-y-4" onSubmit={(event) => void onSubmit(event)}>
@@ -59,7 +49,7 @@ function LoginForm() {
               onChange={(event) => setEmail(event.target.value)}
               required
               className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
-              placeholder="name@company.com"
+              placeholder="test@example.com"
             />
           </label>
 
@@ -86,7 +76,7 @@ function LoginForm() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            Sign in
+            Sign in (Dev Mode)
           </button>
         </form>
       </section>
