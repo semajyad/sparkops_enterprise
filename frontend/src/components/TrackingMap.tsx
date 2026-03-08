@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip } from "react-leaflet";
+import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
 import { useMap } from "react-leaflet";
 
 type Coordinate = {
@@ -9,9 +9,17 @@ type Coordinate = {
   lng: number;
 };
 
+type MapJob = {
+  id: string;
+  clientName: string;
+  timeLabel: string;
+  coordinate: Coordinate;
+  navigateUrl: string;
+};
+
 type TrackingMapProps = {
   current: Coordinate;
-  nextJob: Coordinate;
+  jobs: MapJob[];
 };
 
 function FollowCurrentLocation({ current }: { current: Coordinate }): null {
@@ -27,15 +35,14 @@ function FollowCurrentLocation({ current }: { current: Coordinate }): null {
   return null;
 }
 
-export function TrackingMap({ current, nextJob }: TrackingMapProps): React.JSX.Element {
+export function TrackingMap({ current, jobs }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
-  const next: [number, number] = [nextJob.lat, nextJob.lng];
 
   return (
     <MapContainer center={center} zoom={14} className="h-[380px] w-full rounded-2xl" scrollWheelZoom>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png"
       />
       <FollowCurrentLocation current={current} />
 
@@ -45,13 +52,29 @@ export function TrackingMap({ current, nextJob }: TrackingMapProps): React.JSX.E
         </Tooltip>
       </CircleMarker>
 
-      <CircleMarker center={next} radius={8} pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.9 }}>
-        <Tooltip direction="top" offset={[0, -8]} permanent>
-          Next Job
-        </Tooltip>
-      </CircleMarker>
-
-      <Polyline positions={[center, next]} pathOptions={{ color: "#f59e0b", weight: 4, opacity: 0.7 }} />
+      {jobs.map((job) => (
+        <CircleMarker
+          key={job.id}
+          center={[job.coordinate.lat, job.coordinate.lng]}
+          radius={8}
+          pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.85 }}
+        >
+          <Popup>
+            <article className="min-w-[180px] text-slate-900">
+              <p className="text-sm font-semibold">{job.clientName}</p>
+              <p className="mt-1 text-xs text-slate-600">{job.timeLabel}</p>
+              <a
+                href={job.navigateUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950"
+              >
+                Navigate
+              </a>
+            </article>
+          </Popup>
+        </CircleMarker>
+      ))}
     </MapContainer>
   );
 }

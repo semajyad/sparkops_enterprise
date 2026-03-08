@@ -1,10 +1,10 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { signOut } from "@/app/login/actions";
-import { updateProfile } from "@/app/profile/actions";
+import { inviteUser, listTeamMembers, updateProfile } from "@/app/profile/actions";
 import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +17,16 @@ type AuthMePayload = {
   role: string;
   email?: string | null;
   full_name?: string | null;
+};
+
+type TeamMember = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "OWNER" | "EMPLOYEE";
+  status: "ACTIVE" | "PENDING";
+  invited_at: string | null;
+  last_sign_in_at: string | null;
 };
 
 export default function ProfilePage(): React.JSX.Element {
@@ -33,6 +43,14 @@ export default function ProfilePage(): React.JSX.Element {
   const [organizationInput, setOrganizationInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isPendingUpdate, startUpdateTransition] = useTransition();
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFullName, setInviteFullName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"SPARKY" | "OWNER">("SPARKY");
+  const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<TeamMember[]>([]);
+  const [teamMessage, setTeamMessage] = useState<string | null>(null);
+  const [isTeamLoading, setIsTeamLoading] = useState(false);
+  const [isInviting, startInviteTransition] = useTransition();
 
   useEffect(() => {
     if (authLoading) {
@@ -151,6 +169,31 @@ export default function ProfilePage(): React.JSX.Element {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  const refreshTeamMembers = useCallback(async (): Promise<void> => {
+    if (String(details?.role ?? "").toUpperCase() !== "OWNER") {
+      setActiveUsers([]);
+      setPendingInvites([]);
+      return;
+    }
+
+    setIsTeamLoading(true);
+    const result = await listTeamMembers();
+    if (!result.success) {
+      setTeamMessage(result.message);
+      setActiveUsers([]);
+      setPendingInvites([]);
+    } else {
+      setTeamMessage(null);
+      setActiveUsers(result.activeUsers);
+      setPendingInvites(result.pendingInvites);
+    }
+    setIsTeamLoading(false);
+  }, [details?.role]);
+
+  useEffect(() => {
+    void refreshTeamMembers();
+  }, [refreshTeamMembers]);
+
   function onSubmitProfileUpdate(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
 
@@ -179,6 +222,27 @@ export default function ProfilePage(): React.JSX.Element {
               : prev,
           );
           setIsEditOpen(false);
+        }
+      });
+    });
+  }
+
+  function onSubmitInvite(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+
+    const formData = new FormData();
+    formData.set("email", inviteEmail);
+    formData.set("full_name", inviteFullName);
+    formData.set("role", inviteRole);
+
+    startInviteTransition(() => {
+      void inviteUser(formData).then(async (result) => {
+        setTeamMessage(result.message);
+        if (result.success) {
+          setInviteEmail("");
+          setInviteFullName("");
+          setInviteRole("SPARKY");
+          await refreshTeamMembers();
         }
       });
     });
@@ -216,40 +280,44 @@ export default function ProfilePage(): React.JSX.Element {
 
         {isEditOpen ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center">
-            <section className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl shadow-black/70">
-              <h2 className="text-lg font-semibold text-slate-100">Edit Profile</h2>
-              <form className="mt-4 space-y-4" onSubmit={onSubmitProfileUpdate}>
-                <label className="block text-sm text-slate-200">
-                  Full Name
-                  <input
-                    type="text"
-                    required
-                    value={fullNameInput}
-                    onChange={(event) => setFullNameInput(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-slate-100"
-                  />
-                </label>
-                <label className="block text-sm text-slate-200">
-                  Email
-                  <input
-                    type="email"
-                    required
-                    value={emailInput}
-                    onChange={(event) => setEmailInput(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-slate-100"
-                  />
-                </label>
-                <label className="block text-sm text-slate-200">
-                  Organization
-                  <input
-                    type="text"
-                    required
-                    value={organizationInput}
-                    onChange={(event) => setOrganizationInput(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-slate-100"
-                  />
-                </label>
-                <div className="flex items-center justify-end gap-2">
+            <section className="flex h-[85vh] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70 sm:h-auto sm:max-h-[85vh]">
+              <div className="border-b border-slate-700 px-5 py-4">
+                <h2 className="text-lg font-semibold text-slate-100">Edit Profile</h2>
+              </div>
+              <form className="flex h-full flex-col" onSubmit={onSubmitProfileUpdate}>
+                <div className="space-y-4 overflow-y-auto px-5 py-4">
+                  <label className="block text-sm text-slate-200">
+                    Full Name
+                    <input
+                      type="text"
+                      required
+                      value={fullNameInput}
+                      onChange={(event) => setFullNameInput(event.target.value)}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    />
+                  </label>
+                  <label className="block text-sm text-slate-200">
+                    Email
+                    <input
+                      type="email"
+                      required
+                      value={emailInput}
+                      onChange={(event) => setEmailInput(event.target.value)}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    />
+                  </label>
+                  <label className="block text-sm text-slate-200">
+                    Organization
+                    <input
+                      type="text"
+                      required
+                      value={organizationInput}
+                      onChange={(event) => setOrganizationInput(event.target.value)}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-700 bg-slate-900/95 px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur">
                   <button
                     type="button"
                     onClick={() => setIsEditOpen(false)}
@@ -268,6 +336,93 @@ export default function ProfilePage(): React.JSX.Element {
               </form>
             </section>
           </div>
+        ) : null}
+
+        {String(details?.role ?? "").toUpperCase() === "OWNER" ? (
+          <section className="mt-6 border-t border-slate-800 pt-6">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Team Management</h2>
+            <p className="mt-2 text-sm text-slate-400">Invite Apprentices/Journeymen and monitor who has accepted.</p>
+
+            <form className="mt-4 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 sm:grid-cols-2" onSubmit={onSubmitInvite}>
+              <label className="text-sm text-slate-200 sm:col-span-2">
+                Email
+                <input
+                  type="email"
+                  required
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="apprentice@sparkops.co.nz"
+                />
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Full Name
+                <input
+                  type="text"
+                  required
+                  value={inviteFullName}
+                  onChange={(event) => setInviteFullName(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="Sam Sparks"
+                />
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Role
+                <select
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "SPARKY")}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                >
+                  <option value="SPARKY">Sparky</option>
+                  <option value="OWNER">Owner</option>
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                disabled={isInviting}
+                className="sm:col-span-2 min-h-11 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+              >
+                {isInviting ? "Sending Invite..." : "Invite User"}
+              </button>
+            </form>
+
+            {teamMessage ? <p className="mt-3 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">{teamMessage}</p> : null}
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-300">Active Users</h3>
+                {isTeamLoading ? <p className="mt-2 text-sm text-slate-400">Loading team...</p> : null}
+                {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-2 text-sm text-slate-400">No active users yet.</p> : null}
+                <ul className="mt-3 space-y-2">
+                  {activeUsers.map((member) => (
+                    <li key={member.id} className="rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm">
+                      <p className="font-semibold text-slate-100">{member.full_name}</p>
+                      <p className="text-slate-400">{member.email}</p>
+                      <p className="text-xs uppercase tracking-wide text-amber-200">{member.role}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-300">Pending Invites</h3>
+                {isTeamLoading ? <p className="mt-2 text-sm text-slate-400">Loading invites...</p> : null}
+                {!isTeamLoading && pendingInvites.length === 0 ? <p className="mt-2 text-sm text-slate-400">No pending invites.</p> : null}
+                <ul className="mt-3 space-y-2">
+                  {pendingInvites.map((member) => (
+                    <li key={member.id} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+                      <p className="font-semibold text-amber-100">{member.full_name}</p>
+                      <p className="text-amber-200/80">{member.email}</p>
+                      <p className="text-xs uppercase tracking-wide text-amber-300">Awaiting acceptance</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          </section>
         ) : null}
 
         <section className="mt-6 space-y-3">

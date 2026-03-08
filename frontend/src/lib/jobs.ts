@@ -14,6 +14,13 @@ export type JobListItem = {
   created_at: string;
   client_name: string;
   extracted_data?: {
+    client?: string;
+    job_title?: string;
+    location?: string;
+    address?: string;
+    scheduled_date?: string | null;
+    latitude?: number | string;
+    longitude?: number | string;
     line_items?: JobLineItem[];
   };
 };

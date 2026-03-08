@@ -482,6 +482,19 @@ class AuthMeResponse(BaseModel):
 
 
 
+class ManualJobCreateRequest(BaseModel):
+
+    """Payload for manually creating a draft job."""
+
+    client_name: str = Field(min_length=1, max_length=255)
+    title: str = Field(min_length=1, max_length=500)
+    location: str = Field(min_length=1, max_length=500)
+    scheduled_date: str | None = Field(default=None, max_length=64)
+
+
+
+
+
 def get_openai_client() -> OpenAI:
 
     """Return a configured OpenAI client.
@@ -1941,43 +1954,71 @@ async def import_materials_csv(
 
 
 def _build_auth_me_response(current_user: AuthenticatedUser) -> AuthMeResponse:
-
     """Build auth handshake payload for both legacy and versioned endpoints."""
 
     return AuthMeResponse(
-
         id=current_user.id,
-
         organization_id=current_user.organization_id,
-
         role=current_user.role,
-
         email=current_user.email,
-
         full_name=current_user.full_name,
-
     )
 
 
-
 @app.get("/api/auth/me", response_model=AuthMeResponse)
-
 def auth_me(current_user: AuthenticatedUser = Depends(get_current_user)) -> AuthMeResponse:
-
     """Return authenticated user identity and role for frontend gating."""
 
     return _build_auth_me_response(current_user)
 
 
-
 @app.get("/api/v1/auth/handshake", response_model=AuthMeResponse)
-
 def auth_handshake_v1(current_user: AuthenticatedUser = Depends(get_current_user)) -> AuthMeResponse:
-
     """Versioned auth handshake contract for frontend/backend identity checks."""
 
     return _build_auth_me_response(current_user)
 
+
+@app.post("/api/v1/jobs", response_model=JobDraftResponse)
+@app.post("/api/jobs", response_model=JobDraftResponse)
+def create_manual_job_draft(
+    payload: ManualJobCreateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> JobDraftResponse:
+    """Create a manual draft job for dispatcher-entered work."""
+
+    client_name = payload.client_name.strip()
+    title = payload.title.strip()
+    location = payload.location.strip()
+    scheduled_date = payload.scheduled_date.strip() if isinstance(payload.scheduled_date, str) else ""
+
+    extracted_data: dict[str, Any] = {
+        "client": client_name,
+        "job_title": title,
+        "location": location,
+        "address": location,
+        "scheduled_date": scheduled_date or None,
+        "line_items": [],
+    }
+
+    with Session(ENGINE) as session:
+        draft = JobDraft(
+            user_id=current_user.id,
+            organization_id=current_user.organization_id,
+            raw_transcript=f"Manual job: {title}",
+            extracted_data=extracted_data,
+            status="DRAFT",
+        )
+        session.add(draft)
+        session.commit()
+        session.refresh(draft)
+        return JobDraftResponse(
+            id=draft.id,
+            raw_transcript=draft.raw_transcript,
+            extracted_data=draft.extracted_data,
+            status=draft.status,
+            created_at=draft.created_at,
+        )
 
 
 @app.get("/api/jobs", response_model=list[JobDraftListItemResponse])
@@ -1985,6 +2026,8 @@ def auth_handshake_v1(current_user: AuthenticatedUser = Depends(get_current_user
 def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user)) -> list[JobDraftListItemResponse]:
 
     """Return all visible JobDraft records for the authenticated user."""
+
+
 
     with Session(ENGINE) as session:
 

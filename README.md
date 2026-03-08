@@ -146,6 +146,7 @@ Visit: http://localhost:8000/docs
 - **Session management** with automatic refresh
 - **Protected routes** with middleware
 - **Secure API endpoints** with proper validation
+- **Team Management** with owner-only email invites via Supabase Admin API
 
 ### 📊 Dashboard & Analytics
 - **Business pulse metrics** (pending jobs, billable hours, material spend)
@@ -219,6 +220,8 @@ GET  /api/v1/auth/handshake    # Versioned auth handshake
 #### Job Management
 ```http
 POST /api/ingest               # Process voice/receipt data
+POST /api/jobs                 # Create manual draft job
+POST /api/v1/jobs              # Versioned manual draft job endpoint
 GET  /api/jobs                 # List jobs (role-filtered)
 GET  /api/jobs/{id}            # Get job details
 DELETE /api/jobs/{id}          # Delete job

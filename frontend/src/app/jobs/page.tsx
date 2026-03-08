@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Map, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
@@ -27,34 +27,76 @@ export default function JobsPage(): React.JSX.Element {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [clientName, setClientName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [location, setLocation] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
 
   useEffect(() => {
     console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
   }, [user]);
 
   useEffect(() => {
-    async function loadJobs(): Promise<void> {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await apiFetch(`${API_BASE_URL}/api/jobs`, { cache: "no-store" });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(body || `Unable to load jobs (${response.status})`);
-        }
-
-        const payload = (await response.json()) as JobListItem[];
-        setJobs(Array.isArray(payload) ? payload : []);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load jobs.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     void loadJobs();
   }, []);
+
+  async function loadJobs(): Promise<void> {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs`, { cache: "no-store" });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Unable to load jobs (${response.status})`);
+      }
+
+      const payload = (await response.json()) as JobListItem[];
+      setJobs(Array.isArray(payload) ? payload : []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load jobs.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      const payload = {
+        client_name: clientName,
+        title: jobTitle,
+        location,
+        scheduled_date: scheduledDate || null,
+      };
+
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Unable to create job (${response.status})`);
+      }
+
+      setClientName("");
+      setJobTitle("");
+      setLocation("");
+      setScheduledDate("");
+      setIsCreateOpen(false);
+      await loadJobs();
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Unable to create manual job.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
 
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -73,6 +115,16 @@ export default function JobsPage(): React.JSX.Element {
       <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Job Manager</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Job Drafts</h1>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/tracking"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-amber-500/60"
+          >
+            <Map className="h-4 w-4 text-amber-400" />
+            Open Map Hub
+          </Link>
+        </div>
 
         <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-300">
           <Search className="h-4 w-4 text-amber-400" />
@@ -113,6 +165,90 @@ export default function JobsPage(): React.JSX.Element {
           ))}
         </ul>
       </section>
+
+      <button
+        type="button"
+        onClick={() => setIsCreateOpen(true)}
+        className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-slate-950 shadow-lg shadow-black/50 transition hover:bg-amber-400"
+        aria-label="Create new job"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+
+      {isCreateOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl shadow-black/70">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-100">New Job</h2>
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-600 text-slate-300"
+                aria-label="Close new job form"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form className="mt-4 grid gap-3" onSubmit={onCreateManualJob}>
+              <label className="text-sm text-slate-200">
+                Client Name
+                <input
+                  type="text"
+                  required
+                  value={clientName}
+                  onChange={(event) => setClientName(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="ACME Properties"
+                />
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Job Title / Description
+                <input
+                  type="text"
+                  required
+                  value={jobTitle}
+                  onChange={(event) => setJobTitle(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="Switchboard inspection and repairs"
+                />
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Location / Address
+                <input
+                  type="text"
+                  required
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="123 Queen Street, Auckland"
+                />
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Scheduled Date
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(event) => setScheduledDate(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="mt-2 min-h-11 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+              >
+                {isCreating ? "Creating Draft..." : "Create Draft Job"}
+              </button>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
+

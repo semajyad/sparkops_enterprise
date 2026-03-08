@@ -190,3 +190,38 @@ def test_owner_can_list_all_org_job_drafts(sqlite_engine) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert len(payload) == 2
+
+
+def test_create_manual_job_draft(sqlite_engine) -> None:
+    owner_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="OWNER",
+        full_name="Dispatch Owner",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: owner_user
+
+    client = TestClient(main.app)
+    response = client.post(
+        "/api/jobs",
+        json={
+            "client_name": "Harbor Electrical Ltd",
+            "title": "Fuse board replacement",
+            "location": "22 Marine Parade, Auckland",
+            "scheduled_date": "2026-03-10",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "DRAFT"
+    assert payload["raw_transcript"] == "Manual job: Fuse board replacement"
+    assert payload["extracted_data"]["client"] == "Harbor Electrical Ltd"
+    assert payload["extracted_data"]["job_title"] == "Fuse board replacement"
+    assert payload["extracted_data"]["address"] == "22 Marine Parade, Auckland"
+
+    list_response = client.get("/api/jobs")
+    assert list_response.status_code == 200
+    jobs = list_response.json()
+    assert len(jobs) == 1
+    assert jobs[0]["client_name"] == "Harbor Electrical Ltd"
