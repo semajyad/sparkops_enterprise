@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useLiveQuery } from "dexie-react-hooks";
 import { Map, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { db, putJobInCache } from "@/lib/db";
 import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
+import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const STALE_CACHE_MS = 5 * 60 * 1000;
 
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
@@ -23,9 +25,8 @@ function statusBadgeClass(status: string): string {
 
 export default function JobsPage(): React.JSX.Element {
   const { user } = useAuth();
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -38,29 +39,51 @@ export default function JobsPage(): React.JSX.Element {
     console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
   }, [user]);
 
-  useEffect(() => {
-    void loadJobs();
-  }, []);
+  const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
 
-  async function loadJobs(): Promise<void> {
-    setLoading(true);
+  useEffect(() => {
+    let cancelled = false;
+    setIsRevalidating(true);
     setError(null);
 
-    try {
-      const response = await apiFetch(`${API_BASE_URL}/api/jobs`, { cache: "no-store" });
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || `Unable to load jobs (${response.status})`);
-      }
+    void backgroundSync()
+      .catch((syncError) => {
+        if (!cancelled) {
+          setError(syncError instanceof Error ? syncError.message : "Unable to refresh jobs.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsRevalidating(false);
+        }
+      });
 
-      const payload = (await response.json()) as JobListItem[];
-      setJobs(Array.isArray(payload) ? payload : []);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load jobs.");
-    } finally {
-      setLoading(false);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const jobs: JobListItem[] = useMemo(
+    () =>
+      (cachedJobs ?? []).map((job) => ({
+        id: job.id,
+        status: job.status,
+        created_at: job.created_at,
+        client_name: job.client_name,
+        extracted_data: job.extracted_data,
+      })),
+    [cachedJobs]
+  );
+
+  const hasLocalData = jobs.length > 0;
+
+  const staleData = useMemo(() => {
+    if (jobs.length === 0 || !cachedJobs) {
+      return false;
     }
-  }
+    const cutoff = Date.now() - STALE_CACHE_MS;
+    return cachedJobs.every((job) => (job.stale_at ?? 0) < cutoff);
+  }, [cachedJobs, jobs.length]);
 
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -69,28 +92,36 @@ export default function JobsPage(): React.JSX.Element {
 
     try {
       const payload = {
-        client_name: clientName,
-        title: jobTitle,
-        location,
+        client_name: clientName.trim(),
+        title: jobTitle.trim(),
+        location: location.trim(),
         scheduled_date: scheduledDate || null,
       };
 
-      const response = await apiFetch(`${API_BASE_URL}/api/jobs`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || `Unable to create job (${response.status})`);
-      }
+      const optimisticId = `local-${crypto.randomUUID()}`;
+      await putJobInCache(
+        toCachedJob({
+          id: optimisticId,
+          client_name: payload.client_name,
+          status: "SYNCING",
+          date_scheduled: payload.scheduled_date,
+          extracted_data: {
+            client: payload.client_name,
+            job_title: payload.title,
+            location: payload.location,
+            scheduled_date: payload.scheduled_date,
+          },
+          sync_status: "pending",
+        })
+      );
+      await queueJobCreate(payload);
+      await backgroundSync();
 
       setClientName("");
       setJobTitle("");
       setLocation("");
       setScheduledDate("");
       setIsCreateOpen(false);
-      await loadJobs();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Unable to create manual job.");
     } finally {
@@ -137,10 +168,12 @@ export default function JobsPage(): React.JSX.Element {
           />
         </label>
 
-        {loading ? <p className="mt-4 text-sm text-slate-300">Loading jobs...</p> : null}
+        {!hasLocalData && isRevalidating ? <p className="mt-4 text-sm text-slate-300">Loading jobs from local cache...</p> : null}
+        {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-slate-400">Refreshing in background...</p> : null}
+        {staleData ? <p className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">Showing cached jobs while revalidating in background.</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
 
-        {!loading && filteredJobs.length === 0 ? (
+        {!isRevalidating && filteredJobs.length === 0 ? (
           <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">No jobs found for your search.</p>
         ) : null}
 

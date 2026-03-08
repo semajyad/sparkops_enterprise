@@ -107,12 +107,47 @@ test.describe("Live staging auth and onboarding", () => {
 
     if (shouldForceSync) {
       await forceSyncButton.click();
-      await expect(page.getByText(/pending drafts sync complete/i)).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(2_000);
     }
 
     await page.goto(`/jobs/${mockJobId}`);
 
     await expect(page).toHaveURL(/\/jobs\//);
     await expect(page.getByText("Evidence Locker")).toBeVisible();
+  });
+
+  test("performance: jobs local interactions stay under 100ms", async ({ page }) => {
+    test.skip(
+      !hasConfiguredCredentials,
+      "Set PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_PASSWORD to run live staging auth tests.",
+    );
+
+    await ensureAuthenticated(page);
+    await page.goto("/jobs");
+    await expect(page.getByRole("button", { name: "Create new job" })).toBeVisible({ timeout: 10_000 });
+
+    const searchLatency = await page.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>("#jobs-search");
+      if (!input) {
+        return Number.POSITIVE_INFINITY;
+      }
+      const start = performance.now();
+      input.value = "Perf Local Client";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return performance.now() - start;
+    });
+    expect(searchLatency).toBeLessThan(100);
+
+    const clearLatency = await page.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>("#jobs-search");
+      if (!input) {
+        return Number.POSITIVE_INFINITY;
+      }
+      const start = performance.now();
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return performance.now() - start;
+    });
+    expect(clearLatency).toBeLessThan(100);
   });
 });

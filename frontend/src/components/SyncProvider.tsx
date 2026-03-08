@@ -7,6 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { getDraftCounts } from "@/lib/db";
+import { backgroundSync } from "@/lib/syncService";
 import { scheduleBackgroundSync, syncPendingDrafts } from "@/lib/syncManager";
 
 interface SyncContextValue {
@@ -48,7 +49,7 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
 
     setIsSyncing(true);
     try {
-      await syncPendingDrafts();
+      await Promise.all([syncPendingDrafts(), backgroundSync()]);
       await refreshCounts();
     } finally {
       setIsSyncing(false);
@@ -74,6 +75,7 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
 
     void refreshCounts();
     void scheduleBackgroundSync();
+    void backgroundSync();
     void runSync();
 
     const handleOnline = () => {

@@ -130,6 +130,13 @@ Visit: http://localhost:8000/docs
 - **Auto-sync** when connection returns ("Zombie Mode")
 - **Manual sync** with retry logic and error handling
 
+### ⚡ Local-First Data Layer (Sprint 4)
+- **Dexie schema** now includes `jobs`, `clients`, `products`, and `sync_queue` tables.
+- **Jobs screen and dashboard** render from local IndexedDB cache first using `useLiveQuery`.
+- **Delta revalidation** runs in the background (`updated_at > last_sync` filter on client side) to avoid blocking UI reads.
+- **Optimistic writes** create local jobs immediately and queue network writes via `sync_queue`.
+- **Stale-while-revalidate** indicators show cached data state while silent refresh updates the cache.
+
 ### 📞 Smart Triage (Ladder Mode)
 - **Call interception** via Twilio webhooks
 - **Voicemail transcription** with urgency classification
@@ -539,6 +546,12 @@ For technical support or questions:
 - **Page Load Time**: <2s (first contentful paint)
 - **Offline Sync**: <5s after connection restore
 - **AI Processing**: <30s for voice/receipt ingestion
+- **Main Screen Interaction Time**: <100ms (validated in `tests/e2e/live_staging.spec.ts` performance case)
+
+```bash
+# Staging interaction SLA validation
+PLAYWRIGHT_TEST_EMAIL=... PLAYWRIGHT_TEST_PASSWORD=... npx playwright test
+```
 
 ### Business Metrics
 - **Job Processing Accuracy**: >95%

@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * IndexedDB storage layer for offline SparkOps job capture.
+ * Dexie-backed IndexedDB storage layer for offline SparkOps local-first data.
  */
+
+import Dexie, { type Table } from "dexie";
 
 export type SyncStatus = "pending" | "synced" | "failed";
 
@@ -15,36 +17,211 @@ export interface JobDraft {
   sync_status: SyncStatus;
 }
 
+export interface CachedJob {
+  id: string;
+  status: string;
+  client_name: string;
+  date_scheduled: string | null;
+  sync_status: SyncStatus;
+  created_at: string;
+  updated_at: string;
+  extracted_data?: Record<string, unknown>;
+  stale_at?: number;
+}
+
+export interface CachedClient {
+  id: string;
+  name: string;
+  updated_at: string;
+}
+
+export interface CachedProduct {
+  id: string;
+  name: string;
+  updated_at: string;
+}
+
+export type SyncQueueEntity = "job" | "safety_test";
+export type SyncQueueAction = "create" | "update";
+
+export interface SyncQueueItem {
+  id?: number;
+  entity_type: SyncQueueEntity;
+  action: SyncQueueAction;
+  payload: Record<string, unknown>;
+  status: SyncStatus;
+  created_at: number;
+  updated_at: number;
+  retry_count: number;
+  last_error?: string;
+}
+
 const DB_NAME = "sparkops-offline-db";
-const DB_VERSION = 1;
-const STORE_NAME = "jobDrafts";
+const STALE_CACHE_MS = 5 * 60 * 1000;
+const LAST_JOB_SYNC_KEY = "sparkops:last-job-sync";
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+class SparkOpsDexie extends Dexie {
+  jobDrafts!: Table<JobDraft, number>;
+  jobs!: Table<CachedJob, string>;
+  clients!: Table<CachedClient, string>;
+  products!: Table<CachedProduct, string>;
+  sync_queue!: Table<SyncQueueItem, number>;
 
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-        store.createIndex("sync_status", "sync_status", { unique: false });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-      }
-    };
+  constructor() {
+    super(DB_NAME);
+    this.version(1).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+    });
+    this.version(2).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+  }
+}
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+export const db = new SparkOpsDexie();
+
+function now(): number {
+  return Date.now();
+}
+
+function safeIsoDate(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+  return new Date().toISOString();
+}
+
+export function getLastJobSyncAt(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(LAST_JOB_SYNC_KEY);
+}
+
+export function setLastJobSyncAt(value: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(LAST_JOB_SYNC_KEY, value);
+}
+
+export async function upsertJobs(rows: Array<Record<string, unknown>>): Promise<number> {
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  const mapped: CachedJob[] = [];
+  for (const row of rows) {
+    const id = String(row.id ?? "").trim();
+    if (!id) {
+      continue;
+    }
+
+    const extractedData = row.extracted_data;
+    mapped.push({
+      id,
+      status: String(row.status ?? "DRAFT"),
+      client_name: String(row.client_name ?? (typeof extractedData === "object" && extractedData ? (extractedData as Record<string, unknown>).client ?? "" : "") ?? "Unknown Client"),
+      date_scheduled:
+        typeof row.date_scheduled === "string"
+          ? row.date_scheduled
+          : typeof extractedData === "object" && extractedData
+            ? ((extractedData as Record<string, unknown>).scheduled_date as string | null | undefined) ?? null
+            : null,
+      sync_status: (String(row.sync_status ?? "synced") as SyncStatus) || "synced",
+      created_at: safeIsoDate(row.created_at),
+      updated_at: safeIsoDate(row.updated_at ?? row.created_at),
+      extracted_data: typeof extractedData === "object" && extractedData ? (extractedData as Record<string, unknown>) : undefined,
+      stale_at: now() + STALE_CACHE_MS,
+    });
+  }
+
+  await db.jobs.bulkPut(mapped);
+  return mapped.length;
+}
+
+export async function listJobsFromCache(): Promise<CachedJob[]> {
+  return db.jobs.orderBy("updated_at").reverse().toArray();
+}
+
+export async function getJobFromCache(id: string): Promise<CachedJob | undefined> {
+  return db.jobs.get(id);
+}
+
+export async function putJobInCache(job: CachedJob): Promise<void> {
+  await db.jobs.put(job);
+}
+
+export async function upsertClients(rows: CachedClient[]): Promise<void> {
+  if (rows.length === 0) {
+    return;
+  }
+  await db.clients.bulkPut(rows);
+}
+
+export async function upsertProducts(rows: CachedProduct[]): Promise<void> {
+  if (rows.length === 0) {
+    return;
+  }
+  await db.products.bulkPut(rows);
+}
+
+export async function enqueueSyncAction(
+  item: Omit<SyncQueueItem, "id" | "created_at" | "updated_at" | "retry_count" | "status"> & {
+    status?: SyncStatus;
+  }
+): Promise<number> {
+  return db.sync_queue.add({
+    entity_type: item.entity_type,
+    action: item.action,
+    payload: item.payload,
+    status: item.status ?? "pending",
+    created_at: now(),
+    updated_at: now(),
+    retry_count: 0,
   });
 }
 
-function txRequest<T = unknown>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+export async function getPendingSyncQueueItems(): Promise<SyncQueueItem[]> {
+  return db.sync_queue.where("status").equals("pending").sortBy("created_at");
+}
+
+export async function markSyncQueueItemSynced(id: number): Promise<void> {
+  await db.sync_queue.delete(id);
+}
+
+export async function markSyncQueueItemFailed(id: number, message: string): Promise<void> {
+  const existing = await db.sync_queue.get(id);
+  await db.sync_queue.update(id, {
+    status: "failed",
+    updated_at: now(),
+    retry_count: (existing?.retry_count ?? 0) + 1,
+    last_error: message.slice(0, 280),
   });
+}
+
+export async function resetSyncQueueItemToPending(id: number): Promise<void> {
+  await db.sync_queue.update(id, {
+    status: "pending",
+    updated_at: now(),
+  });
+}
+
+export async function getSyncQueueCounts(): Promise<{ pending: number; synced: number; failed: number }> {
+  const rows = await db.sync_queue.toArray();
+  return rows.reduce(
+    (acc, row) => {
+      if (row.status === "pending") acc.pending += 1;
+      if (row.status === "synced") acc.synced += 1;
+      if (row.status === "failed") acc.failed += 1;
+      return acc;
+    },
+    { pending: 0, synced: 0, failed: 0 }
+  );
 }
 
 export async function saveJobDraft(
@@ -52,36 +229,15 @@ export async function saveJobDraft(
     sync_status?: SyncStatus;
   }
 ): Promise<number> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const store = tx.objectStore(STORE_NAME);
-
-  const request = store.add({
+  return db.jobDrafts.add({
     ...draft,
-    timestamp: Date.now(),
+    timestamp: now(),
     sync_status: draft.sync_status ?? "pending",
   } satisfies JobDraft);
-
-  const id = (await txRequest(request)) as number;
-
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-
-  db.close();
-  return id;
 }
 
 export async function getPendingDrafts(): Promise<JobDraft[]> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readonly");
-  const store = tx.objectStore(STORE_NAME);
-  const index = store.index("sync_status");
-  const request = index.getAll("pending");
-  const rows = (await txRequest(request)) as JobDraft[];
-  db.close();
+  const rows = await db.jobDrafts.where("sync_status").equals("pending").toArray();
   return rows.sort((a, b) => a.timestamp - b.timestamp);
 }
 
@@ -89,27 +245,11 @@ export async function updateDraft(draft: JobDraft): Promise<void> {
   if (typeof draft.id !== "number") {
     throw new Error("Draft id is required to update records.");
   }
-
-  const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const store = tx.objectStore(STORE_NAME);
-  store.put(draft);
-
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-
-  db.close();
+  await db.jobDrafts.put(draft);
 }
 
 export async function getDraftCounts(): Promise<{ pending: number; synced: number; failed: number }> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readonly");
-  const store = tx.objectStore(STORE_NAME);
-  const rows = ((await txRequest(store.getAll())) as JobDraft[]) ?? [];
-  db.close();
+  const rows = (await db.jobDrafts.toArray()) ?? [];
 
   return rows.reduce(
     (acc, row) => {

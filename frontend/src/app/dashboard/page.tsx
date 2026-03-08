@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useLiveQuery } from "dexie-react-hooks";
 import { Activity, Clock3, Hammer, ReceiptText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
+import { AuthSessionExpiredError } from "@/lib/api";
 import { clearAuthState, useAuth } from "@/lib/auth";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { db } from "@/lib/db";
 import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { backgroundSync } from "@/lib/syncService";
 
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
@@ -26,13 +27,25 @@ function statusBadgeClass(status: string): string {
 export default function DashboardPage(): React.JSX.Element {
   const { user, session, role, mode } = useAuth();
   const router = useRouter();
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const metadataName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
   const { isInstallAvailable, promptInstall } = usePWAInstall();
+  const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
+
+  const jobs: JobListItem[] = useMemo(
+    () =>
+      (cachedJobs ?? []).map((job) => ({
+        id: job.id,
+        status: job.status,
+        created_at: job.created_at,
+        client_name: job.client_name,
+        extracted_data: job.extracted_data,
+      })),
+    [cachedJobs]
+  );
 
   const displayName = metadataName || profileName;
   const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
@@ -42,7 +55,6 @@ export default function DashboardPage(): React.JSX.Element {
   useEffect(() => {
     async function loadJobs(): Promise<void> {
       if (!session?.access_token) {
-        setJobs([]);
         setLoading(false);
         return;
       }
@@ -53,10 +65,8 @@ export default function DashboardPage(): React.JSX.Element {
       setProfileName(null);
 
       try {
-        const [jobsResponse, sessionIdentityResponse] = await Promise.all([
-          apiFetch(`${API_BASE_URL}/api/jobs`, {
-            cache: "no-store",
-          }),
+        const [syncResult, sessionIdentityResponse] = await Promise.all([
+          backgroundSync(),
           fetch("/api/auth/session", {
             cache: "no-store",
             headers: {
@@ -64,6 +74,8 @@ export default function DashboardPage(): React.JSX.Element {
             },
           }),
         ]);
+
+        void syncResult;
 
         if (sessionIdentityResponse.ok) {
           const identityPayload = (await sessionIdentityResponse.json()) as {
@@ -73,32 +85,9 @@ export default function DashboardPage(): React.JSX.Element {
           setProfileName(normalizedName || null);
         }
 
-        if (!jobsResponse.ok) {
-          if (jobsResponse.status === 401) {
-            throw new AuthSessionExpiredError("Session expired. Please sign in again.");
-          }
-
-          let responseMessage = `Failed to load jobs (${jobsResponse.status})`;
-          const contentType = jobsResponse.headers.get("content-type")?.toLowerCase() ?? "";
-          if (contentType.includes("application/json")) {
-            const payload = (await jobsResponse.json()) as { error?: string; message?: string };
-            responseMessage = payload.error ?? payload.message ?? responseMessage;
-          } else {
-            const body = (await jobsResponse.text()).trim();
-            if (body && !body.startsWith("{")) {
-              responseMessage = body;
-            }
-          }
-
-          throw new Error(responseMessage);
-        }
-
-        const payload = await parseApiJson<JobListItem[]>(jobsResponse);
-        setJobs(Array.isArray(payload) ? payload : []);
       } catch (loadError) {
         if (loadError instanceof AuthSessionExpiredError) {
           setIsSessionExpired(true);
-          setJobs([]);
           setError(null);
         } else {
           setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard pulse.");

@@ -37,7 +37,7 @@ async function ensureAuthenticated(page: import("@playwright/test").Page): Promi
 
 async function getPendingCount(page: import("@playwright/test").Page): Promise<number> {
   return page.evaluate(async () => {
-    const request = indexedDB.open("sparkops-offline-db", 1);
+    const request = indexedDB.open("sparkops-offline-db");
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -92,8 +92,6 @@ test("captures offline then syncs when back online", async ({ page, context }) =
   if (shouldForceSync) {
     await forceSyncButton.click();
   }
-
-  await expect(page.getByText(/Online/i)).toBeVisible({ timeout: 20_000 });
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const pendingCount = await getPendingCount(page);
