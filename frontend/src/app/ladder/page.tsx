@@ -3,6 +3,8 @@
 import { LoaderCircle, RefreshCcw, ShieldCheck, Siren } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { apiFetch, parseApiJson } from "@/lib/api";
+
 type Urgency = "High" | "Medium" | "Low";
 
 type VoicemailItem = {
@@ -37,16 +39,16 @@ export default function LadderPage(): React.JSX.Element {
     setIsRefreshing(true);
     try {
       const [modeRes, feedRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" }),
-        fetch(`${API_BASE_URL}/api/twilio/voicemails`, { cache: "no-store" }),
+        apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" }),
+        apiFetch(`${API_BASE_URL}/api/twilio/voicemails`, { cache: "no-store" }),
       ]);
 
       if (!modeRes.ok || !feedRes.ok) {
         throw new Error("Unable to refresh ladder state.");
       }
 
-      const modeData = (await modeRes.json()) as { enabled: boolean };
-      const feedData = (await feedRes.json()) as { items: VoicemailItem[] };
+      const modeData = await parseApiJson<{ enabled: boolean }>(modeRes);
+      const feedData = await parseApiJson<{ items: VoicemailItem[] }>(feedRes);
       setEnabled(Boolean(modeData.enabled));
       setItems(feedData.items ?? []);
     } catch (error) {
@@ -60,13 +62,12 @@ export default function LadderPage(): React.JSX.Element {
     setIsSaving(true);
     setMessage("Updating ladder mode...");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/twilio/ladder-mode`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
       });
       if (!res.ok) {
-        const payload = (await res.json()) as { error?: string };
+        const payload = (await parseApiJson<{ error?: string }>(res).catch(() => ({ error: "Failed to update ladder mode." }))) as { error?: string };
         throw new Error(payload.error ?? "Failed to update ladder mode.");
       }
 

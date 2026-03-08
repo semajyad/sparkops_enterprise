@@ -30,9 +30,9 @@ export default function DashboardPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
-  const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const metadataName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
 
-  const displayName = profileName || user?.user_metadata?.full_name || profileEmail || user?.email || "Sparky";
+  const displayName = metadataName || profileName;
   const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
   const recentActivity = jobs.slice(0, 5);
 
@@ -48,7 +48,6 @@ export default function DashboardPage(): React.JSX.Element {
       setError(null);
       setIsSessionExpired(false);
       setProfileName(null);
-      setProfileEmail(null);
 
       try {
         const [jobsResponse, sessionIdentityResponse] = await Promise.all([
@@ -65,9 +64,7 @@ export default function DashboardPage(): React.JSX.Element {
             user?: { full_name?: string | null; email?: string | null } | null;
           };
           const normalizedName = typeof identityPayload.user?.full_name === "string" ? identityPayload.user.full_name.trim() : "";
-          const normalizedEmail = typeof identityPayload.user?.email === "string" ? identityPayload.user.email.trim() : "";
           setProfileName(normalizedName || null);
-          setProfileEmail(normalizedEmail || null);
         }
 
         if (!jobsResponse.ok) {
@@ -117,8 +114,16 @@ export default function DashboardPage(): React.JSX.Element {
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Command Center</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Welcome {displayName}</h1>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+          Welcome {displayName ?? "Sparky"}
+        </h1>
         <p className="mt-2 text-sm text-slate-300">Your business pulse right now.</p>
+
+        {!displayName ? (
+          <p className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Your profile name is missing. <Link href="/profile" className="font-semibold text-amber-300 underline">Update Profile</Link> to personalize your dashboard.
+          </p>
+        ) : null}
 
         {loading ? (
           <p className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/60 p-4 text-sm text-slate-300">Loading pulse data...</p>
@@ -144,7 +149,7 @@ export default function DashboardPage(): React.JSX.Element {
 
         {!loading && jobs.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-6">
-            <h2 className="text-xl font-semibold text-white">Welcome {displayName}</h2>
+            <h2 className="text-xl font-semibold text-white">Welcome {displayName ?? "Sparky"}</h2>
             <p className="mt-2 text-sm text-slate-300">You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline.</p>
             <Link
               href="/capture"

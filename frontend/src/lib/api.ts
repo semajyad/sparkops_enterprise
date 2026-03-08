@@ -45,19 +45,30 @@ async function getLatestAccessToken(): Promise<string | null> {
   return currentSession.access_token;
 }
 
-export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function getBackendHeaders(initHeaders?: HeadersInit): Promise<Headers> {
   const token = await getLatestAccessToken();
-  const headers = new Headers(init.headers ?? {});
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  if (!token) {
+    throw new AuthSessionExpiredError("No active session. Redirecting to /login.");
   }
+
+  const headers = new Headers(initHeaders ?? {});
+  headers.set("Authorization", `Bearer ${token}`);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  return headers;
+}
+
+export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = await getBackendHeaders(init.headers ?? {});
 
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
   }
 
-  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+  if (init.body instanceof FormData) {
+    headers.delete("Content-Type");
+  } else if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 

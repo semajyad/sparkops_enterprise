@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "SparkOps Basement Interface",
   description: "Offline-first voice and receipt capture for NZ electricians.",
   manifest: "/manifest.json",
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -28,7 +32,11 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    apple: [{ url: "/favicon.ico" }],
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 };
 

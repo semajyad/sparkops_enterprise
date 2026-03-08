@@ -130,22 +130,23 @@ describe("api helpers", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("omits authorization when there is no session and preserves multipart uploads", async () => {
+  it("throws when there is no session", async () => {
     getSession.mockResolvedValue({ data: { session: null } });
-    fetchMock.mockResolvedValue(responseDouble({ status: 200, jsonBody: {} }));
-
-    const formData = new FormData();
-    formData.append("file", "abc");
-    await apiFetch("https://example.com/upload", { method: "POST", body: formData });
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const headers = new Headers(init.headers);
-    expect(headers.get("Authorization")).toBeNull();
-    expect(headers.get("Content-Type")).toBeNull();
+    await expect(apiFetch("https://example.com/upload", { method: "POST" })).rejects.toThrow(
+      "No active session. Redirecting to /login.",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("preserves explicitly provided Accept and Content-Type headers", async () => {
-    getSession.mockResolvedValue({ data: { session: null } });
+    getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "token-123",
+          expires_at: Math.floor(Date.now() / 1000) + 120,
+        },
+      },
+    });
     fetchMock.mockResolvedValue(responseDouble({ status: 200, jsonBody: {} }));
 
     await apiFetch("https://example.com/custom", {
