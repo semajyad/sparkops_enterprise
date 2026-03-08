@@ -70,7 +70,7 @@ from database import engine as database_engine
 
 from dependencies import AuthenticatedUser, get_current_user, require_owner
 
-from models.database import Invite, JobDraft, Material, SafetyTest, create_db_and_tables
+from models.database import Invite, JobDraft, Material, OrganizationSettings, SafetyTest, Vehicle, create_db_and_tables
 
 
 
@@ -549,6 +549,63 @@ class InviteResponse(BaseModel):
     invited_by_user_id: UUID
     created_at: datetime
     accepted_at: datetime | None = None
+
+
+class OrganizationSettingsResponse(BaseModel):
+    """Organization-level branding and billing settings payload."""
+
+    organization_id: UUID
+    logo_url: str | None = None
+    business_name: str | None = None
+    gst_number: str | None = None
+    bank_account_name: str | None = None
+    bank_account_number: str | None = None
+    updated_at: datetime
+
+
+class OrganizationSettingsUpsertRequest(BaseModel):
+    """Owner-updatable organization settings payload."""
+
+    logo_url: str | None = Field(default=None, max_length=1000)
+    business_name: str | None = Field(default=None, max_length=255)
+    gst_number: str | None = Field(default=None, max_length=64)
+    bank_account_name: str | None = Field(default=None, max_length=255)
+    bank_account_number: str | None = Field(default=None, max_length=128)
+
+
+class VehicleCreateRequest(BaseModel):
+    """Owner payload to create a fleet vehicle."""
+
+    name: str = Field(min_length=1, max_length=255)
+    plate: str = Field(min_length=1, max_length=64)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class VehicleUpdateRequest(BaseModel):
+    """Owner payload to update a fleet vehicle."""
+
+    name: str = Field(min_length=1, max_length=255)
+    plate: str = Field(min_length=1, max_length=64)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class VehicleResponse(BaseModel):
+    """Fleet vehicle payload for admin suite."""
+
+    id: UUID
+    organization_id: UUID
+    name: str
+    plate: str
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class VehicleDeleteResponse(BaseModel):
+    """Delete acknowledgment for fleet vehicle."""
+
+    status: str
+    id: UUID
 
 
 def get_openai_client() -> OpenAI:
@@ -1357,6 +1414,30 @@ def _to_invite_response(record: Invite) -> InviteResponse:
     )
 
 
+def _to_org_settings_response(record: OrganizationSettings) -> OrganizationSettingsResponse:
+    return OrganizationSettingsResponse(
+        organization_id=record.organization_id,
+        logo_url=record.logo_url,
+        business_name=record.business_name,
+        gst_number=record.gst_number,
+        bank_account_name=record.bank_account_name,
+        bank_account_number=record.bank_account_number,
+        updated_at=record.updated_at,
+    )
+
+
+def _to_vehicle_response(record: Vehicle) -> VehicleResponse:
+    return VehicleResponse(
+        id=record.id,
+        organization_id=record.organization_id,
+        name=record.name,
+        plate=record.plate,
+        notes=record.notes,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
 @app.get("/api/v1/invites", response_model=list[InviteResponse])
 @app.get("/api/invites", response_model=list[InviteResponse])
 def list_pending_invites(current_user: AuthenticatedUser = Depends(require_owner)) -> list[InviteResponse]:
@@ -1416,12 +1497,136 @@ def create_invite(
         return _to_invite_response(invite)
 
 
+@app.get("/api/v1/admin/settings", response_model=OrganizationSettingsResponse)
+@app.get("/api/admin/settings", response_model=OrganizationSettingsResponse)
+def get_organization_settings(current_user: AuthenticatedUser = Depends(require_owner)) -> OrganizationSettingsResponse:
+    """Return owner organization's branding and billing profile."""
+
+    with Session(ENGINE) as session:
+        settings = session.get(OrganizationSettings, current_user.organization_id)
+        if settings is None:
+            settings = OrganizationSettings(organization_id=current_user.organization_id)
+            session.add(settings)
+            session.commit()
+            session.refresh(settings)
+        return _to_org_settings_response(settings)
+
+
+@app.put("/api/v1/admin/settings", response_model=OrganizationSettingsResponse)
+@app.put("/api/admin/settings", response_model=OrganizationSettingsResponse)
+def upsert_organization_settings(
+    payload: OrganizationSettingsUpsertRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> OrganizationSettingsResponse:
+    """Create/update owner organization's branding and billing profile."""
+
+    with Session(ENGINE) as session:
+        settings = session.get(OrganizationSettings, current_user.organization_id)
+        if settings is None:
+            settings = OrganizationSettings(organization_id=current_user.organization_id)
+
+        settings.logo_url = payload.logo_url.strip() if isinstance(payload.logo_url, str) and payload.logo_url.strip() else None
+        settings.business_name = payload.business_name.strip() if isinstance(payload.business_name, str) and payload.business_name.strip() else None
+        settings.gst_number = payload.gst_number.strip() if isinstance(payload.gst_number, str) and payload.gst_number.strip() else None
+        settings.bank_account_name = payload.bank_account_name.strip() if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip() else None
+        settings.bank_account_number = payload.bank_account_number.strip() if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip() else None
+        settings.updated_at = datetime.now(timezone.utc)
+
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+        return _to_org_settings_response(settings)
+
+
+@app.get("/api/v1/admin/vehicles", response_model=list[VehicleResponse])
+@app.get("/api/admin/vehicles", response_model=list[VehicleResponse])
+def list_vehicles(current_user: AuthenticatedUser = Depends(require_owner)) -> list[VehicleResponse]:
+    """List owner organization's fleet vehicles."""
+
+    with Session(ENGINE) as session:
+        rows = session.exec(
+            select(Vehicle)
+            .where(Vehicle.organization_id == current_user.organization_id)
+            .order_by(Vehicle.updated_at.desc())
+        ).all()
+        return [_to_vehicle_response(vehicle) for vehicle in rows]
+
+
+@app.post("/api/v1/admin/vehicles", response_model=VehicleResponse)
+@app.post("/api/admin/vehicles", response_model=VehicleResponse)
+def create_vehicle(
+    payload: VehicleCreateRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> VehicleResponse:
+    """Create a fleet vehicle for the owner organization."""
+
+    timestamp = datetime.now(timezone.utc)
+    with Session(ENGINE) as session:
+        vehicle = Vehicle(
+            organization_id=current_user.organization_id,
+            name=payload.name.strip(),
+            plate=payload.plate.strip().upper(),
+            notes=payload.notes.strip() if isinstance(payload.notes, str) and payload.notes.strip() else None,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        session.add(vehicle)
+        session.commit()
+        session.refresh(vehicle)
+        return _to_vehicle_response(vehicle)
+
+
+@app.put("/api/v1/admin/vehicles/{vehicle_id}", response_model=VehicleResponse)
+@app.put("/api/admin/vehicles/{vehicle_id}", response_model=VehicleResponse)
+def update_vehicle(
+    vehicle_id: UUID,
+    payload: VehicleUpdateRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> VehicleResponse:
+    """Update an existing fleet vehicle."""
+
+    with Session(ENGINE) as session:
+        vehicle = session.get(Vehicle, vehicle_id)
+        if vehicle is None:
+            raise HTTPException(status_code=404, detail="Vehicle not found.")
+        if vehicle.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Vehicle does not belong to your organization.")
+
+        vehicle.name = payload.name.strip()
+        vehicle.plate = payload.plate.strip().upper()
+        vehicle.notes = payload.notes.strip() if isinstance(payload.notes, str) and payload.notes.strip() else None
+        vehicle.updated_at = datetime.now(timezone.utc)
+
+        session.add(vehicle)
+        session.commit()
+        session.refresh(vehicle)
+        return _to_vehicle_response(vehicle)
+
+
+@app.delete("/api/v1/admin/vehicles/{vehicle_id}", response_model=VehicleDeleteResponse)
+@app.delete("/api/admin/vehicles/{vehicle_id}", response_model=VehicleDeleteResponse)
+def delete_vehicle(vehicle_id: UUID, current_user: AuthenticatedUser = Depends(require_owner)) -> VehicleDeleteResponse:
+    """Delete a fleet vehicle."""
+
+    with Session(ENGINE) as session:
+        vehicle = session.get(Vehicle, vehicle_id)
+        if vehicle is None:
+            raise HTTPException(status_code=404, detail="Vehicle not found.")
+        if vehicle.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Vehicle does not belong to your organization.")
+
+        session.delete(vehicle)
+        session.commit()
+    return VehicleDeleteResponse(status="deleted", id=vehicle_id)
+
+
 @app.post("/api/v1/jobs", response_model=JobDraftResponse)
 @app.post("/api/jobs", response_model=JobDraftResponse)
 def create_job_draft(
     payload: ManualJobCreateRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> JobDraftResponse:
+    """Create a new job draft."""
 
     client_name = payload.client_name.strip()
     title = payload.title.strip()
@@ -1616,8 +1821,8 @@ def complete_job_draft(
         compliance_status, missing_items, compliance_note = _compute_guardrail_status(draft.raw_transcript, tests)
         if compliance_status != "GREEN_SHIELD":
             raise HTTPException(
-                status_code=409,
-                detail=f"Job is not compliant to complete. Missing: {', '.join(missing_items) if missing_items else 'required evidence'}.",
+                status_code=400,
+                detail=f"missing: {', '.join(missing_items) if missing_items else 'required evidence'}",
             )
 
         from services.pdf import generate_certificate_pdf

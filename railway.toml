@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+# BACKEND SERVICE
+[service.sparkops_staging_backend]
+root = "backend"
+watchPatterns = ["backend/**"]
+
+# FRONTEND SERVICE
+[service.sparkops_staging_frontend]
+root = "frontend"
+watchPatterns = ["frontend/**"]

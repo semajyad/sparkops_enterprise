@@ -23,6 +23,29 @@ function statusBadgeClass(status: string): string {
   return "border-slate-600 bg-slate-700/50 text-slate-200";
 }
 
+type ComplianceChecklistItem = {
+  label: string;
+  key: "safety" | "photos" | "voice";
+};
+
+const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
+  { key: "safety", label: "Safety Tests" },
+  { key: "photos", label: "Photos" },
+  { key: "voice", label: "Voice Note" },
+];
+
+function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
+  const normalized = message.toLowerCase();
+  const matches = CHECKLIST_CATALOG.filter((item) => {
+    if (item.key === "safety") return normalized.includes("earth loop") || normalized.includes("polarity") || normalized.includes("safety");
+    if (item.key === "photos") return normalized.includes("photo");
+    if (item.key === "voice") return normalized.includes("voice");
+    return false;
+  });
+
+  return matches.length > 0 ? matches : CHECKLIST_CATALOG;
+}
+
 export default function JobReviewPage(): React.JSX.Element {
   const params = useParams<{ id?: string | string[] }>();
   const routeId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -34,6 +57,8 @@ export default function JobReviewPage(): React.JSX.Element {
   const [isCompleting, setIsCompleting] = useState(false);
   const [localError, setLocalError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
+  const [complianceChecklist, setComplianceChecklist] = useState<ComplianceChecklistItem[]>([]);
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
   const guardrailClass =
@@ -132,8 +157,22 @@ export default function JobReviewPage(): React.JSX.Element {
         body: JSON.stringify({ client_email: clientEmail }),
       });
       if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || `Complete failed (${response.status})`);
+        let errorMessage = "";
+        const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+        if (contentType.includes("application/json")) {
+          const payload = (await response.json()) as { error?: string };
+          errorMessage = typeof payload.error === "string" ? payload.error : "";
+        } else {
+          errorMessage = await response.text();
+        }
+
+        if (response.status === 400 && errorMessage.toLowerCase().startsWith("missing:")) {
+          setComplianceChecklist(parseMissingChecklist(errorMessage));
+          setIsComplianceModalOpen(true);
+          return;
+        }
+
+        throw new Error(errorMessage || `Complete failed (${response.status})`);
       }
 
       setToast("✅ Certificate Sent to Client!");
@@ -287,6 +326,43 @@ export default function JobReviewPage(): React.JSX.Element {
         ) : (
           <p className="rounded-xl border border-rose-500/60 bg-rose-500/10 p-4 text-sm text-rose-100">Job draft not found.</p>
         )}
+
+        {isComplianceModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+            <section className="w-full max-w-md rounded-2xl border border-rose-500/50 bg-slate-900 p-5 shadow-2xl shadow-black/70">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-300">Job Completion Blocked</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Missing compliance evidence</h2>
+              <p className="mt-2 text-sm text-slate-300">Add the missing checklist items from Capture, then complete this job again.</p>
+
+              <ul className="mt-4 space-y-2">
+                {complianceChecklist.map((item) => (
+                  <li key={item.key}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsComplianceModalOpen(false);
+                        router.push("/capture");
+                      }}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-left text-sm font-semibold text-slate-100 transition hover:border-amber-500/60"
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsComplianceModalOpen(false)}
+                  className="min-h-11 rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {errorMessage || localError ? (
           <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{localError || errorMessage}</p>

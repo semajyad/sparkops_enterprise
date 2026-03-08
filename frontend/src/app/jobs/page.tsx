@@ -10,7 +10,7 @@ import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, putJobInCache } from "@/lib/db";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
-import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
+import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
 
@@ -44,13 +44,20 @@ export default function JobsPage(): React.JSX.Element {
   }, []);
 
   const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
+  const hasResolvedCache = Array.isArray(cachedJobs);
+  const cacheIsEmpty = hasResolvedCache && cachedJobs.length === 0;
 
   useEffect(() => {
+    if (!hasResolvedCache) {
+      return;
+    }
+
     let cancelled = false;
-    setIsRevalidating(true);
+    setIsRevalidating(!cacheIsEmpty);
     setError(null);
 
-    void backgroundSync()
+    const syncTask = cacheIsEmpty ? pull() : backgroundSync();
+    void syncTask
       .catch((syncError) => {
         if (!cancelled) {
           setError(syncError instanceof Error ? syncError.message : "Unable to refresh jobs.");
@@ -65,7 +72,7 @@ export default function JobsPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cacheIsEmpty, hasResolvedCache]);
 
   const jobs: JobListItem[] = useMemo(
     () =>
@@ -181,7 +188,6 @@ export default function JobsPage(): React.JSX.Element {
           />
         </label>
 
-        {!hasLocalData && isRevalidating ? <p className="mt-4 text-sm text-slate-300">Loading jobs from local cache...</p> : null}
         {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-slate-400">Refreshing in background...</p> : null}
         {staleData ? <p className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">Showing cached jobs while revalidating in background.</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}

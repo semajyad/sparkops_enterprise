@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
@@ -31,12 +32,12 @@ type TeamMember = {
 };
 
 export default function ProfilePage(): React.JSX.Element {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading, mode, setMode } = useAuth();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
   const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null; organization: string | null } | null>(null);
   const [ladderEnabled, setLadderEnabled] = useState(false);
   const [isSavingLadder, setIsSavingLadder] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [fullNameInput, setFullNameInput] = useState("");
@@ -70,13 +71,19 @@ export default function ProfilePage(): React.JSX.Element {
           prev
             ? {
                 ...prev,
+                organization_id: cached.organization_id ?? prev.organization_id,
                 role: cached.role ?? prev.role,
                 email: cached.email ?? prev.email,
                 full_name: cached.full_name ?? prev.full_name,
               }
-            : prev,
+            : {
+                id: "",
+                organization_id: cached.organization_id ?? "",
+                role: cached.role ?? "",
+                email: cached.email,
+                full_name: cached.full_name,
+              },
         );
-        setLoading(false);
       })
       .catch(() => {
         // cache hydration is best-effort
@@ -93,7 +100,6 @@ export default function ProfilePage(): React.JSX.Element {
     }
 
     async function loadProfile(): Promise<void> {
-      setLoading(true);
       setMessage(null);
 
       try {
@@ -120,7 +126,6 @@ export default function ProfilePage(): React.JSX.Element {
 
         if (!session?.access_token) {
           setDetails(null);
-          setLoading(false);
           return;
         }
 
@@ -161,15 +166,16 @@ export default function ProfilePage(): React.JSX.Element {
         sessionIdentity?.organization ||
         (typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "") ||
         null,
+      organization_id: details?.organization_id ?? null,
       role: details?.role ?? null,
     };
 
-    if (!cachedPayload.full_name && !cachedPayload.email && !cachedPayload.organization && !cachedPayload.role) {
+    if (!cachedPayload.full_name && !cachedPayload.email && !cachedPayload.organization && !cachedPayload.organization_id && !cachedPayload.role) {
       return;
     }
 
     void setProfileCache(cachedPayload);
-  }, [details?.email, details?.full_name, details?.role, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
+  }, [details?.email, details?.full_name, details?.organization_id, details?.role, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
 
   async function onLadderChange(next: boolean): Promise<void> {
     const previous = ladderEnabled;
@@ -209,6 +215,8 @@ export default function ProfilePage(): React.JSX.Element {
   const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
+  const displayOrganizationId = details?.organization_id || "Unknown";
+  const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
 
   useEffect(() => {
     setFullNameInput(displayName === "Sparky" ? "" : displayName);
@@ -341,7 +349,7 @@ export default function ProfilePage(): React.JSX.Element {
         {loading ? (
           <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
             <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
-            Loading profile...
+            Syncing profile in background...
           </div>
         ) : null}
 
@@ -349,8 +357,44 @@ export default function ProfilePage(): React.JSX.Element {
           <p><span className="font-semibold text-slate-100">Email:</span> {displayEmail}</p>
           <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
           <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
-          <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization ID:</span> {details?.organization_id ?? "Unknown"}</p>
+          <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization ID:</span> {displayOrganizationId}</p>
         </div>
+
+        {isOwner ? (
+          <section className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Control Mode</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setMode("FIELD")}
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  mode === "FIELD"
+                    ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
+                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
+                }`}
+              >
+                Field Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("ADMIN")}
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  mode === "ADMIN"
+                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
+                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
+                }`}
+              >
+                Admin Mode
+              </button>
+            </div>
+            <Link
+              href="/admin"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
+            >
+              Open Admin Dashboard
+            </Link>
+          </section>
+        ) : null}
 
         <div className="mt-4">
           <button
@@ -422,7 +466,7 @@ export default function ProfilePage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {String(details?.role ?? "").toUpperCase() === "OWNER" ? (
+        {isOwner ? (
           <section className="mt-6 border-t border-slate-800 pt-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Team Management</h2>
             <p className="mt-2 text-sm text-slate-400">Invite Apprentices/Sparkies and monitor who has accepted.</p>

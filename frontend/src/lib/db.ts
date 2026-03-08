@@ -54,6 +54,35 @@ export async function getTeamCache(): Promise<CachedTeamState | undefined> {
   return db.team_state.get("team");
 }
 
+export async function setAdminSettingsCache(payload: Omit<CachedAdminState, "key" | "updated_at">): Promise<void> {
+  await db.admin_state.put({
+    key: "admin",
+    ...payload,
+    updated_at: now(),
+  });
+}
+
+export async function getAdminSettingsCache(): Promise<CachedAdminState | undefined> {
+  return db.admin_state.get("admin");
+}
+
+export async function listVehiclesFromCache(): Promise<CachedVehicle[]> {
+  return db.vehicles.orderBy("updated_at").reverse().toArray();
+}
+
+export async function upsertVehicleInCache(
+  vehicle: Omit<CachedVehicle, "updated_at"> & { updated_at?: number },
+): Promise<void> {
+  await db.vehicles.put({
+    ...vehicle,
+    updated_at: vehicle.updated_at ?? now(),
+  });
+}
+
+export async function deleteVehicleFromCache(id: string): Promise<void> {
+  await db.vehicles.delete(id);
+}
+
 export interface CachedJob {
   id: string;
   status: string;
@@ -96,7 +125,26 @@ export interface CachedProfileState {
   full_name: string | null;
   email: string | null;
   organization: string | null;
+  organization_id: string | null;
   role: string | null;
+  updated_at: number;
+}
+
+export interface CachedAdminState {
+  key: "admin";
+  logo_url: string | null;
+  business_name: string | null;
+  gst_number: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  updated_at: number;
+}
+
+export interface CachedVehicle {
+  id: string;
+  name: string;
+  plate: string;
+  notes?: string | null;
   updated_at: number;
 }
 
@@ -196,6 +244,8 @@ class SparkOpsDexie extends Dexie {
   map_state!: Table<CachedMapState, "tracking">;
   profile_state!: Table<CachedProfileState, "profile">;
   team_state!: Table<CachedTeamState, "team">;
+  admin_state!: Table<CachedAdminState, "admin">;
+  vehicles!: Table<CachedVehicle, string>;
   sync_queue!: Table<SyncQueueItem, number>;
 
   constructor() {
@@ -228,6 +278,19 @@ class SparkOpsDexie extends Dexie {
       map_state: "key,updated_at",
       profile_state: "key,updated_at",
       team_state: "key,updated_at",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+    this.version(5).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at",
+      job_details: "id,updated_at,status",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      map_state: "key,updated_at",
+      profile_state: "key,updated_at",
+      team_state: "key,updated_at",
+      admin_state: "key,updated_at",
+      vehicles: "id,updated_at,plate,name",
       sync_queue: "++id,status,entity_type,created_at,retry_count",
     });
   }

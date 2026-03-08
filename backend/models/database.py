@@ -147,6 +147,34 @@ class Invite(SQLModel, table=True):
     accepted_at: datetime | None = Field(default=None, nullable=True)
 
 
+class OrganizationSettings(SQLModel, table=True):
+    """Organization-level branding and billing profile used by Admin Suite."""
+
+    __tablename__ = "organization_settings"
+
+    organization_id: UUID = Field(primary_key=True)
+    logo_url: str | None = Field(default=None, max_length=1000)
+    business_name: str | None = Field(default=None, max_length=255)
+    gst_number: str | None = Field(default=None, max_length=64)
+    bank_account_name: str | None = Field(default=None, max_length=255)
+    bank_account_number: str | None = Field(default=None, max_length=128)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Vehicle(SQLModel, table=True):
+    """Organization fleet vehicle records for owner admin controls."""
+
+    __tablename__ = "vehicles"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    organization_id: UUID = Field(index=True, nullable=False)
+    name: str = Field(max_length=255)
+    plate: str = Field(max_length=64)
+    notes: str | None = Field(default=None, max_length=500)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class UserSettings(SQLModel, table=True):
     """Global user-configurable defaults used during invoice pricing."""
 
@@ -267,6 +295,31 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS compliance_status VARCHAR(32),
                     ADD COLUMN IF NOT EXISTS certificate_pdf_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    ALTER TABLE IF EXISTS public.organization_settings
+                    ADD COLUMN IF NOT EXISTS logo_url VARCHAR(1000),
+                    ADD COLUMN IF NOT EXISTS business_name VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS gst_number VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(128),
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    ALTER TABLE IF EXISTS public.vehicles
+                    ADD COLUMN IF NOT EXISTS notes VARCHAR(500),
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     """
                 )
             )
