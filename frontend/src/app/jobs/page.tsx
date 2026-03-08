@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Map, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +15,6 @@ const STALE_CACHE_MS = 5 * 60 * 1000;
 
 export default function JobsPage(): React.JSX.Element {
   const { user } = useAuth();
-  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,13 +31,14 @@ export default function JobsPage(): React.JSX.Element {
   }, [user]);
 
   useEffect(() => {
-    if (searchParams.get("deleted") === "1") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("deleted") === "1") {
       setToast("Draft Deleted");
       const timer = window.setTimeout(() => setToast(null), 2400);
       return () => window.clearTimeout(timer);
     }
     return;
-  }, [searchParams]);
+  }, []);
 
   const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
 
