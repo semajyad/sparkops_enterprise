@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
   role: null,
-  mode: "ADMIN",
+  mode: "FIELD",
   setMode: () => undefined,
   loading: true,
 });
@@ -43,13 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<AppRole>(null);
   const [mode, setModeState] = useState<AppMode>(() => {
     if (typeof window === "undefined") {
-      return "ADMIN";
+      return "FIELD";
     }
     const storedMode = window.localStorage.getItem(MODE_STORAGE_KEY);
-    return storedMode === "FIELD" || storedMode === "ADMIN" ? storedMode : "ADMIN";
+    return storedMode === "FIELD" || storedMode === "ADMIN" ? storedMode : "FIELD";
   });
   const [loading, setLoading] = useState(true);
-  const effectiveMode: AppMode = role === "OWNER" ? mode : "ADMIN";
+  const effectiveMode: AppMode = role === "OWNER" ? mode : "FIELD";
 
   const setMode = useCallback(
     (next: AppMode): void => {

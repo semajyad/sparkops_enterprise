@@ -1,4 +1,4 @@
-"""SparkOps Sprint 1 API entrypoint.
+﻿"""SparkOps Sprint 1 API entrypoint.
 
 
 
@@ -558,6 +558,7 @@ class OrganizationSettingsResponse(BaseModel):
     logo_url: str | None = None
     business_name: str | None = None
     gst_number: str | None = None
+    terms_and_conditions: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
     updated_at: datetime
@@ -569,6 +570,7 @@ class OrganizationSettingsUpsertRequest(BaseModel):
     logo_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
+    terms_and_conditions: str | None = Field(default=None, max_length=5000)
     bank_account_name: str | None = Field(default=None, max_length=255)
     bank_account_number: str | None = Field(default=None, max_length=128)
 
@@ -1420,6 +1422,7 @@ def _to_org_settings_response(record: OrganizationSettings) -> OrganizationSetti
         logo_url=record.logo_url,
         business_name=record.business_name,
         gst_number=record.gst_number,
+        terms_and_conditions=record.terms_and_conditions,
         bank_account_name=record.bank_account_name,
         bank_account_number=record.bank_account_number,
         updated_at=record.updated_at,
@@ -1528,6 +1531,11 @@ def upsert_organization_settings(
         settings.logo_url = payload.logo_url.strip() if isinstance(payload.logo_url, str) and payload.logo_url.strip() else None
         settings.business_name = payload.business_name.strip() if isinstance(payload.business_name, str) and payload.business_name.strip() else None
         settings.gst_number = payload.gst_number.strip() if isinstance(payload.gst_number, str) and payload.gst_number.strip() else None
+        settings.terms_and_conditions = (
+            payload.terms_and_conditions.strip()
+            if isinstance(payload.terms_and_conditions, str) and payload.terms_and_conditions.strip()
+            else None
+        )
         settings.bank_account_name = payload.bank_account_name.strip() if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip() else None
         settings.bank_account_number = payload.bank_account_number.strip() if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip() else None
         settings.updated_at = datetime.now(timezone.utc)

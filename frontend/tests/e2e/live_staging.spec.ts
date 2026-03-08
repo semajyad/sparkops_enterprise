@@ -26,7 +26,9 @@ test.describe("Live staging auth and onboarding", () => {
     await ensureAuthenticated(page);
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { level: 1, name: /Welcome/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start New Job" })).toBeVisible();
+    const startJobCta = page.getByRole("link", { name: "Start New Job" });
+    const recentActivity = page.getByRole("heading", { level: 2, name: "Recent Activity" });
+    await expect(startJobCta.or(recentActivity)).toBeVisible();
 
     await page.goto("/profile");
     await expect(page.getByRole("heading", { level: 1, name: /Profile|Sparky/i })).toBeVisible();

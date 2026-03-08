@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { signOut } from "@/app/login/actions";
-import { inviteUser, listTeamMembers, updateProfile } from "@/app/profile/actions";
+import { updateProfile } from "@/app/profile/actions";
 import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { getProfileCache, getTeamCache, setProfileCache, setTeamCache } from "@/lib/db";
+import { getProfileCache, setProfileCache } from "@/lib/db";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -19,16 +19,6 @@ type AuthMePayload = {
   role: string;
   email?: string | null;
   full_name?: string | null;
-};
-
-type TeamMember = {
-  id: string;
-  email: string;
-  full_name: string;
-  role: "OWNER" | "EMPLOYEE";
-  status: "ACTIVE" | "PENDING";
-  invited_at: string | null;
-  last_sign_in_at: string | null;
 };
 
 export default function ProfilePage(): React.JSX.Element {
@@ -45,14 +35,6 @@ export default function ProfilePage(): React.JSX.Element {
   const [organizationInput, setOrganizationInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isPendingUpdate, startUpdateTransition] = useTransition();
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteFullName, setInviteFullName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"SPARKY" | "OWNER">("SPARKY");
-  const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<TeamMember[]>([]);
-  const [teamMessage, setTeamMessage] = useState<string | null>(null);
-  const [isTeamLoading, setIsTeamLoading] = useState(false);
-  const [isInviting, startInviteTransition] = useTransition();
 
   useEffect(() => {
     let cancelled = false;
@@ -233,58 +215,6 @@ export default function ProfilePage(): React.JSX.Element {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const refreshTeamMembers = useCallback(async (): Promise<void> => {
-    if (String(details?.role ?? "").toUpperCase() !== "OWNER") {
-      setActiveUsers([]);
-      setPendingInvites([]);
-      return;
-    }
-
-    setIsTeamLoading(true);
-    const result = await listTeamMembers();
-    if (!result.success) {
-      setTeamMessage(result.message);
-      setActiveUsers([]);
-      setPendingInvites([]);
-    } else {
-      setTeamMessage(null);
-      setActiveUsers(result.activeUsers);
-      setPendingInvites(result.pendingInvites);
-      await setTeamCache({
-        activeUsers: result.activeUsers,
-        pendingInvites: result.pendingInvites,
-      });
-    }
-    setIsTeamLoading(false);
-  }, [details?.role]);
-
-  useEffect(() => {
-    if (String(details?.role ?? "").toUpperCase() !== "OWNER") {
-      return;
-    }
-
-    let cancelled = false;
-    void getTeamCache()
-      .then((cached) => {
-        if (!cached || cancelled) {
-          return;
-        }
-        setActiveUsers(cached.activeUsers);
-        setPendingInvites(cached.pendingInvites);
-        setIsTeamLoading(false);
-      })
-      .catch(() => {
-        // cache hydration is best-effort
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [details?.role]);
-
-  useEffect(() => {
-    void refreshTeamMembers();
-  }, [refreshTeamMembers]);
 
   function onSubmitProfileUpdate(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -319,32 +249,45 @@ export default function ProfilePage(): React.JSX.Element {
     });
   }
 
-  function onSubmitInvite(event: React.FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-
-    const formData = new FormData();
-    formData.set("email", inviteEmail);
-    formData.set("full_name", inviteFullName);
-    formData.set("role", inviteRole);
-
-    startInviteTransition(() => {
-      void inviteUser(formData).then(async (result) => {
-        setTeamMessage(result.message);
-        if (result.success) {
-          setInviteEmail("");
-          setInviteFullName("");
-          setInviteRole("SPARKY");
-          await refreshTeamMembers();
-        }
-      });
-    });
-  }
-
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
-        <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
+          </div>
+
+          {isOwner ? (
+            <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Mode</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setMode("FIELD")}
+                  className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                    mode === "FIELD"
+                      ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
+                      : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
+                  }`}
+                >
+                  Sparky Mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("ADMIN")}
+                  className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                    mode === "ADMIN"
+                      ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
+                      : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
+                  }`}
+                >
+                  Boss Mode
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </div>
 
         {loading ? (
           <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
@@ -361,39 +304,12 @@ export default function ProfilePage(): React.JSX.Element {
         </div>
 
         {isOwner ? (
-          <section className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Control Mode</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setMode("FIELD")}
-                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                  mode === "FIELD"
-                    ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
-                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
-                }`}
-              >
-                Field Mode
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("ADMIN")}
-                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                  mode === "ADMIN"
-                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
-                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
-                }`}
-              >
-                Admin Mode
-              </button>
-            </div>
-            <Link
-              href="/admin"
-              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
-            >
-              Open Admin Dashboard
-            </Link>
-          </section>
+          <Link
+            href="/admin"
+            className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
+          >
+            Open Business Dashboard
+          </Link>
         ) : null}
 
         <div className="mt-4">
@@ -464,93 +380,6 @@ export default function ProfilePage(): React.JSX.Element {
               </form>
             </section>
           </div>
-        ) : null}
-
-        {isOwner ? (
-          <section className="mt-6 border-t border-slate-800 pt-6">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Team Management</h2>
-            <p className="mt-2 text-sm text-slate-400">Invite Apprentices/Sparkies and monitor who has accepted.</p>
-
-            <form className="mt-4 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 sm:grid-cols-2" onSubmit={onSubmitInvite}>
-              <label className="text-sm text-slate-200 sm:col-span-2">
-                Email
-                <input
-                  type="email"
-                  required
-                  value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  placeholder="apprentice@sparkops.co.nz"
-                />
-              </label>
-
-              <label className="text-sm text-slate-200">
-                Full Name
-                <input
-                  type="text"
-                  required
-                  value={inviteFullName}
-                  onChange={(event) => setInviteFullName(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  placeholder="Sam Sparks"
-                />
-              </label>
-
-              <label className="text-sm text-slate-200">
-                Role
-                <select
-                  value={inviteRole}
-                  onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "SPARKY")}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
-                >
-                  <option value="SPARKY">Sparky</option>
-                  <option value="OWNER">Owner</option>
-                </select>
-              </label>
-
-              <button
-                type="submit"
-                disabled={isInviting}
-                className="sm:col-span-2 min-h-11 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
-              >
-                {isInviting ? "Sending Invite..." : "Invite User"}
-              </button>
-            </form>
-
-            {teamMessage ? <p className="mt-3 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">{teamMessage}</p> : null}
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-300">Active Users</h3>
-                {isTeamLoading ? <p className="mt-2 text-sm text-slate-400">Loading team...</p> : null}
-                {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-2 text-sm text-slate-400">No active users yet.</p> : null}
-                <ul className="mt-3 space-y-2">
-                  {activeUsers.map((member) => (
-                    <li key={member.id} className="rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm">
-                      <p className="font-semibold text-slate-100">{member.full_name}</p>
-                      <p className="text-slate-400">{member.email}</p>
-                      <p className="text-xs uppercase tracking-wide text-amber-200">{member.role}</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-300">Pending Invites</h3>
-                {isTeamLoading ? <p className="mt-2 text-sm text-slate-400">Loading invites...</p> : null}
-                {!isTeamLoading && pendingInvites.length === 0 ? <p className="mt-2 text-sm text-slate-400">No pending invites.</p> : null}
-                <ul className="mt-3 space-y-2">
-                  {pendingInvites.map((member) => (
-                    <li key={member.id} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
-                      <p className="font-semibold text-amber-100">{member.full_name}</p>
-                      <p className="text-amber-200/80">{member.email}</p>
-                      <p className="text-xs uppercase tracking-wide text-amber-300">Awaiting acceptance</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          </section>
         ) : null}
 
         <section className="mt-6 space-y-3">

@@ -189,11 +189,12 @@ export default function JobsPage(): React.JSX.Element {
         </label>
 
         {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-slate-400">Refreshing in background...</p> : null}
+        {!hasResolvedCache ? <p className="mt-4 text-xs text-slate-400">Loading local jobs...</p> : null}
         {staleData ? <p className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">Showing cached jobs while revalidating in background.</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
         {toast ? <p className="mt-4 rounded-xl border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-100">{toast}</p> : null}
 
-        {!isRevalidating && filteredJobs.length === 0 ? (
+        {hasResolvedCache && !isRevalidating && filteredJobs.length === 0 ? (
           <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">No jobs found for your search.</p>
         ) : null}
 

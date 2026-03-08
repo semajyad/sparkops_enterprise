@@ -26,12 +26,14 @@ describe("Capture page network indicators", () => {
   it("shows Offline indicator when connection is down", () => {
     renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 3 });
 
-    expect(screen.getByText(/Offline · 3 pending/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Sync status: Offline/i)).not.toBeNull();
+    expect(screen.queryByText(/3 pending/i)).not.toBeNull();
   });
 
   it("shows Syncing indicator while sync is in progress", () => {
     renderWithSyncState({ isOnline: true, isSyncing: true, pendingCount: 2 });
 
-    expect(screen.getByText(/Syncing · 2 pending/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Sync status: Syncing/i)).not.toBeNull();
+    expect(screen.queryByText(/2 pending/i)).not.toBeNull();
   });
 });

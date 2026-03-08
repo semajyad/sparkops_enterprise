@@ -67,7 +67,7 @@ export default function CapturePage() {
 
   const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
 
-  const { session, role, mode, setMode } = useAuth();
+  const { session, role } = useAuth();
 
 
 
@@ -90,6 +90,7 @@ export default function CapturePage() {
   const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState("Ready for offline capture.");
+  const [syncHint, setSyncHint] = useState<string | null>(null);
   const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -107,17 +108,32 @@ export default function CapturePage() {
 
 
 
-  const networkLabel = useMemo(() => {
-
-    if (isSyncing) {
-
-      return "Syncing";
-
+  const syncIndicator = useMemo(() => {
+    if (isSyncing || isSyncingNow) {
+      return {
+        colorClass: "bg-amber-400",
+        pulseClass: "animate-pulse",
+        label: "Sync status: Syncing",
+        hint: "Syncing changes to cloud...",
+      };
     }
 
-    return isOnline ? "Online" : "Offline";
+    if (!isOnline) {
+      return {
+        colorClass: "bg-rose-500",
+        pulseClass: "",
+        label: "Sync status: Offline",
+        hint: "Offline - changes are saved locally.",
+      };
+    }
 
-  }, [isOnline, isSyncing]);
+    return {
+      colorClass: "bg-emerald-400",
+      pulseClass: "",
+      label: "Sync status: All saved",
+      hint: "All changes saved to cloud.",
+    };
+  }, [isOnline, isSyncing, isSyncingNow]);
 
 
 
@@ -208,26 +224,6 @@ export default function CapturePage() {
     return Boolean(voiceText.trim() || audioBlob || receiptBase64);
 
   }
-
-
-
-  const statusClass = useMemo(() => {
-
-    if (isSyncing) {
-
-      return "bg-amber-500 text-amber-950";
-
-    }
-
-    if (isOnline) {
-
-      return "bg-emerald-500 text-emerald-950";
-
-    }
-
-    return "bg-rose-500 text-rose-950";
-
-  }, [isOnline, isSyncing]);
 
 
 
@@ -546,6 +542,14 @@ export default function CapturePage() {
     return () => window.clearInterval(interval);
   }, [isTimerRunning, timerStartedAt]);
 
+  useEffect(() => {
+    if (!syncHint) {
+      return;
+    }
+    const timer = window.setTimeout(() => setSyncHint(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [syncHint]);
+
 
 
 
@@ -571,73 +575,24 @@ export default function CapturePage() {
 
           </div>
 
-          <div className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
-
-            {networkLabel} · {pendingCount} pending
-
+          <div className="relative flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSyncHint(syncIndicator.hint)}
+              aria-label={syncIndicator.label}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-600 bg-slate-950/70"
+            >
+              <span className={`h-2 w-2 rounded-full ${syncIndicator.colorClass} ${syncIndicator.pulseClass}`}></span>
+            </button>
+            {pendingCount > 0 ? <span className="text-xs text-slate-400">{pendingCount} pending</span> : null}
+            {syncHint ? (
+              <p className="absolute right-0 top-12 z-20 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-slate-200 shadow-lg shadow-black/50">
+                {syncHint}
+              </p>
+            ) : null}
           </div>
 
         </header>
-
-        {role === "OWNER" ? (
-
-          <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Mode</p>
-
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-
-              <button
-
-                type="button"
-
-                onClick={() => setMode("ADMIN")}
-
-                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-
-                  mode === "ADMIN"
-
-                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
-
-                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
-
-                }`}
-
-              >
-
-                Admin Mode
-
-              </button>
-
-              <button
-
-                type="button"
-
-                onClick={() => setMode("FIELD")}
-
-                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-
-                  mode === "FIELD"
-
-                    ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
-
-                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
-
-                }`}
-
-              >
-
-                Field Mode
-
-              </button>
-
-            </div>
-
-          </section>
-
-        ) : null}
-
-
 
         <section className="rounded-2xl border border-slate-700 bg-slate-950/50 p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Voice First</p>
@@ -702,32 +657,32 @@ export default function CapturePage() {
             <button
               type="button"
               onClick={() => photoInputRef.current?.click()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm font-semibold transition hover:border-amber-500/60 hover:text-amber-200"
+              className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-slate-500 bg-slate-800/90 px-3 py-2 text-slate-100 transition hover:border-amber-400"
             >
-              <Camera className="h-4 w-4" />
-              Photo
+              <Camera className="h-4 w-4 text-amber-300" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide">Photo</span>
             </button>
 
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm font-semibold transition hover:border-amber-500/60 hover:text-amber-200"
+              className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-slate-500 bg-slate-800/90 px-3 py-2 text-slate-100 transition hover:border-amber-400"
             >
-              <FileUp className="h-4 w-4" />
-              File
+              <FileUp className="h-4 w-4 text-amber-300" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide">Invoice</span>
             </button>
 
             <button
               type="button"
               onClick={toggleTimer}
-              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+              className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-slate-100 transition ${
                 isTimerRunning
-                  ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
-                  : "border-slate-600 bg-slate-800/70 text-slate-200 hover:border-amber-500/60 hover:text-amber-200"
+                  ? "border-emerald-400/70 bg-emerald-500/20"
+                  : "border-slate-500 bg-slate-800/90 hover:border-amber-400"
               }`}
             >
-              <Timer className="h-4 w-4" />
-              {isTimerRunning ? "Stop" : "Time"}
+              <Timer className="h-4 w-4 text-amber-300" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide">Timer</span>
             </button>
           </div>
 

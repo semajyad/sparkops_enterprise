@@ -156,6 +156,7 @@ class OrganizationSettings(SQLModel, table=True):
     logo_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
+    terms_and_conditions: str | None = Field(default=None, max_length=5000)
     bank_account_name: str | None = Field(default=None, max_length=255)
     bank_account_number: str | None = Field(default=None, max_length=128)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
@@ -306,6 +307,7 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS logo_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS business_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS gst_number VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS terms_and_conditions VARCHAR(5000),
                     ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

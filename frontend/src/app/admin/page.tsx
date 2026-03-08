@@ -3,13 +3,16 @@
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { inviteUser, listTeamMembers } from "@/app/profile/actions";
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   deleteVehicleFromCache,
   getAdminSettingsCache,
+  getTeamCache,
   listVehiclesFromCache,
   setAdminSettingsCache,
+  setTeamCache,
   upsertVehicleInCache,
   type CachedVehicle,
 } from "@/lib/db";
@@ -20,8 +23,19 @@ type AdminSettings = {
   logo_url: string | null;
   business_name: string | null;
   gst_number: string | null;
+  terms_and_conditions: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;
+};
+
+type TeamMember = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "OWNER" | "EMPLOYEE";
+  status: "ACTIVE" | "PENDING";
+  invited_at: string | null;
+  last_sign_in_at: string | null;
 };
 
 type VehicleRecord = {
@@ -32,12 +46,13 @@ type VehicleRecord = {
   updated_at: string;
 };
 
-type AdminSection = "branding" | "details" | "fleet";
+type AdminSection = "team" | "company" | "fleet";
 
 const EMPTY_SETTINGS: AdminSettings = {
   logo_url: null,
   business_name: null,
   gst_number: null,
+  terms_and_conditions: null,
   bank_account_name: null,
   bank_account_number: null,
 };
@@ -63,14 +78,22 @@ function toCachedVehicleRecord(record: VehicleRecord): CachedVehicle {
 
 export default function AdminPage(): React.JSX.Element {
   const { loading: authLoading, role } = useAuth();
-  const [activeSection, setActiveSection] = useState<AdminSection>("branding");
+  const [activeSection, setActiveSection] = useState<AdminSection>("team");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
+  const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<TeamMember[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+  const [isTeamLoading, setIsTeamLoading] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFullName, setInviteFullName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"SPARKY" | "OWNER">("SPARKY");
   const [vehicleName, setVehicleName] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleNotes, setVehicleNotes] = useState("");
@@ -78,22 +101,28 @@ export default function AdminPage(): React.JSX.Element {
   const isOwner = role === "OWNER";
 
   const sectionTitle = useMemo(() => {
-    if (activeSection === "branding") return "Branding";
-    if (activeSection === "details") return "Business Details";
+    if (activeSection === "team") return "Team Management";
+    if (activeSection === "company") return "Company";
     return "Fleet Management";
   }, [activeSection]);
 
   const hydrateFromDexie = useCallback(async (): Promise<void> => {
-    const [cachedSettings, cachedVehicles] = await Promise.all([getAdminSettingsCache(), listVehiclesFromCache()]);
+    const [cachedSettings, cachedVehicles, cachedTeam] = await Promise.all([getAdminSettingsCache(), listVehiclesFromCache(), getTeamCache()]);
 
     if (cachedSettings) {
       setSettings({
         logo_url: cachedSettings.logo_url,
         business_name: cachedSettings.business_name,
         gst_number: cachedSettings.gst_number,
+        terms_and_conditions: cachedSettings.terms_and_conditions,
         bank_account_name: cachedSettings.bank_account_name,
         bank_account_number: cachedSettings.bank_account_number,
       });
+    }
+
+    if (cachedTeam) {
+      setActiveUsers(cachedTeam.activeUsers);
+      setPendingInvites(cachedTeam.pendingInvites);
     }
 
     if (cachedVehicles.length > 0) {
@@ -114,11 +143,13 @@ export default function AdminPage(): React.JSX.Element {
     }
 
     setIsSyncing(true);
+    setIsTeamLoading(true);
     setError(null);
     try {
-      const [settingsResponse, vehiclesResponse] = await Promise.all([
+      const [settingsResponse, vehiclesResponse, teamResult] = await Promise.all([
         apiFetch(`${API_BASE_URL}/api/admin/settings`, { cache: "no-store" }),
         apiFetch(`${API_BASE_URL}/api/admin/vehicles`, { cache: "no-store" }),
+        listTeamMembers(),
       ]);
 
       if (settingsResponse.ok) {
@@ -127,6 +158,7 @@ export default function AdminPage(): React.JSX.Element {
           logo_url: settingsPayload.logo_url,
           business_name: settingsPayload.business_name,
           gst_number: settingsPayload.gst_number,
+          terms_and_conditions: settingsPayload.terms_and_conditions,
           bank_account_name: settingsPayload.bank_account_name,
           bank_account_number: settingsPayload.bank_account_number,
         };
@@ -140,12 +172,63 @@ export default function AdminPage(): React.JSX.Element {
         setVehicles(normalized);
         await Promise.all(normalized.map(async (vehicle) => upsertVehicleInCache(toCachedVehicleRecord(vehicle))));
       }
+
+      if (teamResult.success) {
+        setActiveUsers(teamResult.activeUsers);
+        setPendingInvites(teamResult.pendingInvites);
+        await setTeamCache({
+          activeUsers: teamResult.activeUsers,
+          pendingInvites: teamResult.pendingInvites,
+        });
+        setTeamMessage(null);
+      } else {
+        setTeamMessage(teamResult.message);
+      }
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Unable to refresh admin data.");
     } finally {
       setIsSyncing(false);
+      setIsTeamLoading(false);
     }
   }, [isOwner]);
+
+  async function onInviteSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setIsInviting(true);
+    setIsTeamLoading(true);
+    setTeamMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("email", inviteEmail);
+      formData.set("full_name", inviteFullName);
+      formData.set("role", inviteRole);
+
+      const result = await inviteUser(formData);
+      setTeamMessage(result.message);
+      if (!result.success) {
+        return;
+      }
+
+      setInviteEmail("");
+      setInviteFullName("");
+      setInviteRole("SPARKY");
+
+      const teamResult = await listTeamMembers();
+      if (teamResult.success) {
+        setActiveUsers(teamResult.activeUsers);
+        setPendingInvites(teamResult.pendingInvites);
+        await setTeamCache({
+          activeUsers: teamResult.activeUsers,
+          pendingInvites: teamResult.pendingInvites,
+        });
+      }
+      setToast("User invited.");
+    } finally {
+      setIsInviting(false);
+      setIsTeamLoading(false);
+    }
+  }
 
   useEffect(() => {
     void hydrateFromDexie();
@@ -171,6 +254,7 @@ export default function AdminPage(): React.JSX.Element {
       logo_url: toNullable(toInput(settings.logo_url)),
       business_name: toNullable(toInput(settings.business_name)),
       gst_number: toNullable(toInput(settings.gst_number)),
+      terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
       bank_account_name: toNullable(toInput(settings.bank_account_name)),
       bank_account_number: toNullable(toInput(settings.bank_account_number)),
     };
@@ -193,6 +277,7 @@ export default function AdminPage(): React.JSX.Element {
         logo_url: payload.logo_url,
         business_name: payload.business_name,
         gst_number: payload.gst_number,
+        terms_and_conditions: payload.terms_and_conditions,
         bank_account_name: payload.bank_account_name,
         bank_account_number: payload.bank_account_number,
       };
@@ -295,8 +380,8 @@ export default function AdminPage(): React.JSX.Element {
           <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Admin Suite</p>
           <nav className="mt-4 space-y-2">
             {([
-              ["branding", "Branding"],
-              ["details", "Business Details"],
+              ["team", "Team"],
+              ["company", "Company"],
               ["fleet", "Fleet Management"],
             ] as Array<[AdminSection, string]>).map(([key, label]) => (
               <button
@@ -319,7 +404,85 @@ export default function AdminPage(): React.JSX.Element {
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/50">
           <h1 className="text-2xl font-semibold text-white">{sectionTitle}</h1>
 
-          {activeSection === "branding" ? (
+          {activeSection === "team" ? (
+            <div className="mt-4 space-y-4">
+              <form className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/70 p-4 sm:grid-cols-2" onSubmit={(event) => void onInviteSubmit(event)}>
+                <label className="text-sm text-slate-200 sm:col-span-2">
+                  Email
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    placeholder="tech@sparkops.co.nz"
+                  />
+                </label>
+                <label className="text-sm text-slate-200">
+                  Full Name
+                  <input
+                    required
+                    value={inviteFullName}
+                    onChange={(event) => setInviteFullName(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    placeholder="Sam Sparks"
+                  />
+                </label>
+                <label className="text-sm text-slate-200">
+                  Role
+                  <select
+                    value={inviteRole}
+                    onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "SPARKY")}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                  >
+                    <option value="SPARKY">Sparky</option>
+                    <option value="OWNER">Owner</option>
+                  </select>
+                </label>
+                <button
+                  type="submit"
+                  disabled={isInviting}
+                  className="sm:col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add User
+                </button>
+              </form>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Active Team</h2>
+                  {isTeamLoading ? <p className="mt-3 text-sm text-slate-400">Loading team...</p> : null}
+                  {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-3 text-sm text-slate-400">No active users yet.</p> : null}
+                  <ul className="mt-3 space-y-2">
+                    {activeUsers.map((member) => (
+                      <li key={member.id} className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2">
+                        <p className="text-sm font-semibold text-slate-100">{member.full_name}</p>
+                        <p className="text-xs text-slate-300">{member.email}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-amber-200">{member.role}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Pending Invites</h2>
+                  {!isTeamLoading && pendingInvites.length === 0 ? <p className="mt-3 text-sm text-slate-400">No pending invites.</p> : null}
+                  <ul className="mt-3 space-y-2">
+                    {pendingInvites.map((member) => (
+                      <li key={member.id} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                        <p className="text-sm font-semibold text-amber-100">{member.full_name}</p>
+                        <p className="text-xs text-amber-100/90">{member.email}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-amber-200">Pending</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+              {teamMessage ? <p className="rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">{teamMessage}</p> : null}
+            </div>
+          ) : null}
+
+          {activeSection === "company" ? (
             <div className="mt-4 space-y-4">
               <label className="block text-sm text-slate-200">
                 Logo URL
@@ -339,11 +502,6 @@ export default function AdminPage(): React.JSX.Element {
                   placeholder="SparkOps Electrical"
                 />
               </label>
-            </div>
-          ) : null}
-
-          {activeSection === "details" ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm text-slate-200">
                 GST Number
                 <input
@@ -351,6 +509,15 @@ export default function AdminPage(): React.JSX.Element {
                   onChange={(event) => setSettings((prev) => ({ ...prev, gst_number: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
                   placeholder="123-456-789"
+                />
+              </label>
+              <label className="block text-sm text-slate-200">
+                Terms &amp; Conditions
+                <textarea
+                  value={toInput(settings.terms_and_conditions)}
+                  onChange={(event) => setSettings((prev) => ({ ...prev, terms_and_conditions: event.target.value }))}
+                  className="mt-1 min-h-28 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="Payment terms, exclusions, and service conditions"
                 />
               </label>
               <label className="block text-sm text-slate-200">
@@ -362,7 +529,7 @@ export default function AdminPage(): React.JSX.Element {
                   placeholder="SparkOps Ltd"
                 />
               </label>
-              <label className="block text-sm text-slate-200 sm:col-span-2">
+              <label className="block text-sm text-slate-200">
                 Bank Account Number
                 <input
                   value={toInput(settings.bank_account_number)}
@@ -439,7 +606,7 @@ export default function AdminPage(): React.JSX.Element {
             </div>
           ) : null}
 
-          {activeSection !== "fleet" ? (
+          {activeSection === "company" ? (
             <div className="mt-5">
               <button
                 type="button"
@@ -448,7 +615,7 @@ export default function AdminPage(): React.JSX.Element {
                 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-500 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
               >
                 {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save {activeSection === "branding" ? "Branding" : "Details"}
+                Save Company
               </button>
             </div>
           ) : null}
