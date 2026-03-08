@@ -3,8 +3,9 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { signOut } from "@/app/login/actions";
 import { LadderModeToggle } from "@/components/LadderModeToggle";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -13,35 +14,60 @@ type AuthMePayload = {
   id: string;
   organization_id: string;
   role: string;
+  email?: string | null;
   full_name?: string | null;
 };
 
 export default function ProfilePage(): React.JSX.Element {
-  const { user } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
+  const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null } | null>(null);
   const [ladderEnabled, setLadderEnabled] = useState(false);
   const [isSavingLadder, setIsSavingLadder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
     async function loadProfile(): Promise<void> {
       setLoading(true);
       setMessage(null);
 
       try {
+        const sessionIdentityResponse = await fetch("/api/auth/session", { cache: "no-store" });
+        if (sessionIdentityResponse.ok) {
+          const identityPayload = (await sessionIdentityResponse.json()) as {
+            user?: { full_name?: string | null; email?: string | null } | null;
+          };
+          setSessionIdentity({
+            full_name: typeof identityPayload.user?.full_name === "string" ? identityPayload.user.full_name : null,
+            email: typeof identityPayload.user?.email === "string" ? identityPayload.user.email : null,
+          });
+        } else {
+          setSessionIdentity(null);
+        }
+
+        if (!session?.access_token) {
+          setDetails(null);
+          setLoading(false);
+          return;
+        }
+
         const [meResponse, ladderResponse] = await Promise.all([
           apiFetch(`${API_BASE_URL}/api/auth/me`, { cache: "no-store" }),
-          fetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" }),
+          apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" }),
         ]);
 
         if (meResponse.ok) {
-          const mePayload = (await meResponse.json()) as AuthMePayload;
+          const mePayload = await parseApiJson<AuthMePayload>(meResponse);
           setDetails(mePayload);
         }
 
         if (ladderResponse.ok) {
-          const ladderPayload = (await ladderResponse.json()) as { enabled: boolean };
+          const ladderPayload = await parseApiJson<{ enabled: boolean }>(ladderResponse);
           setLadderEnabled(Boolean(ladderPayload.enabled));
         }
       } catch (error) {
@@ -52,15 +78,14 @@ export default function ProfilePage(): React.JSX.Element {
     }
 
     void loadProfile();
-  }, []);
+  }, [authLoading, session?.access_token]);
 
   async function onLadderChange(next: boolean): Promise<void> {
     setIsSavingLadder(true);
     setMessage("Updating Ladder Mode...");
     try {
-      const response = await fetch(`${API_BASE_URL}/api/twilio/ladder-mode`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
       });
 
@@ -69,7 +94,8 @@ export default function ProfilePage(): React.JSX.Element {
         throw new Error(body || `Failed to update Ladder Mode (${response.status})`);
       }
 
-      setLadderEnabled(next);
+      const payload = await parseApiJson<{ enabled: boolean }>(response);
+      setLadderEnabled(Boolean(payload.enabled));
       setMessage(next ? "Ladder Mode activated." : "Ladder Mode disabled.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update Ladder Mode.");
@@ -78,7 +104,15 @@ export default function ProfilePage(): React.JSX.Element {
     }
   }
 
-  const displayName = details?.full_name || user?.user_metadata?.full_name || user?.email || "Sparky";
+  const displayName =
+    details?.full_name ||
+    sessionIdentity?.full_name ||
+    user?.user_metadata?.full_name ||
+    details?.email ||
+    sessionIdentity?.email ||
+    user?.email ||
+    "Sparky";
+  const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
 
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
@@ -94,7 +128,7 @@ export default function ProfilePage(): React.JSX.Element {
         ) : null}
 
         <div className="mt-6 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300 sm:grid-cols-2">
-          <p><span className="font-semibold text-slate-100">Email:</span> {user?.email ?? "Unknown"}</p>
+          <p><span className="font-semibold text-slate-100">Email:</span> {displayEmail}</p>
           <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
           <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization:</span> {details?.organization_id ?? "Unknown"}</p>
         </div>
@@ -102,6 +136,18 @@ export default function ProfilePage(): React.JSX.Element {
         <section className="mt-6 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Call Handling</h2>
           <LadderModeToggle enabled={ladderEnabled} disabled={isSavingLadder} onChange={(next) => void onLadderChange(next)} />
+        </section>
+
+        <section className="mt-6 border-t border-slate-800 pt-6">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session</h2>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
+            >
+              Logout
+            </button>
+          </form>
         </section>
 
         {message ? <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">{message}</p> : null}

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Activity, Clock3, Hammer, ReceiptText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
+import { clearAuthState, useAuth } from "@/lib/auth";
 import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -23,11 +24,15 @@ function statusBadgeClass(status: string): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { user, session } = useAuth();
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
 
-  const displayName = user?.user_metadata?.full_name || user?.email || "Sparky";
+  const displayName = profileName || user?.user_metadata?.full_name || profileEmail || user?.email || "Sparky";
   const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
   const recentActivity = jobs.slice(0, 5);
 
@@ -41,21 +46,60 @@ export default function DashboardPage(): React.JSX.Element {
 
       setLoading(true);
       setError(null);
+      setIsSessionExpired(false);
+      setProfileName(null);
+      setProfileEmail(null);
 
       try {
-        const response = await apiFetch(`${API_BASE_URL}/api/jobs`, {
-          cache: "no-store",
-        });
+        const [jobsResponse, sessionIdentityResponse] = await Promise.all([
+          apiFetch(`${API_BASE_URL}/api/jobs`, {
+            cache: "no-store",
+          }),
+          fetch("/api/auth/session", {
+            cache: "no-store",
+          }),
+        ]);
 
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(body || `Failed to load jobs (${response.status})`);
+        if (sessionIdentityResponse.ok) {
+          const identityPayload = (await sessionIdentityResponse.json()) as {
+            user?: { full_name?: string | null; email?: string | null } | null;
+          };
+          const normalizedName = typeof identityPayload.user?.full_name === "string" ? identityPayload.user.full_name.trim() : "";
+          const normalizedEmail = typeof identityPayload.user?.email === "string" ? identityPayload.user.email.trim() : "";
+          setProfileName(normalizedName || null);
+          setProfileEmail(normalizedEmail || null);
         }
 
-        const payload = (await response.json()) as JobListItem[];
+        if (!jobsResponse.ok) {
+          if (jobsResponse.status === 401) {
+            throw new AuthSessionExpiredError("Session expired. Please sign in again.");
+          }
+
+          let responseMessage = `Failed to load jobs (${jobsResponse.status})`;
+          const contentType = jobsResponse.headers.get("content-type")?.toLowerCase() ?? "";
+          if (contentType.includes("application/json")) {
+            const payload = (await jobsResponse.json()) as { error?: string; message?: string };
+            responseMessage = payload.error ?? payload.message ?? responseMessage;
+          } else {
+            const body = (await jobsResponse.text()).trim();
+            if (body && !body.startsWith("{")) {
+              responseMessage = body;
+            }
+          }
+
+          throw new Error(responseMessage);
+        }
+
+        const payload = await parseApiJson<JobListItem[]>(jobsResponse);
         setJobs(Array.isArray(payload) ? payload : []);
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard pulse.");
+        if (loadError instanceof AuthSessionExpiredError) {
+          setIsSessionExpired(true);
+          setJobs([]);
+          setError(null);
+        } else {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard pulse.");
+        }
       } finally {
         setLoading(false);
       }
@@ -63,6 +107,11 @@ export default function DashboardPage(): React.JSX.Element {
 
     void loadJobs();
   }, [session?.access_token]);
+
+  async function handleSessionReauth(): Promise<void> {
+    await clearAuthState();
+    router.replace("/login?error=Session%20expired.%20Please%20sign%20in%20again.");
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
@@ -73,6 +122,20 @@ export default function DashboardPage(): React.JSX.Element {
 
         {loading ? (
           <p className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/60 p-4 text-sm text-slate-300">Loading pulse data...</p>
+        ) : null}
+
+        {isSessionExpired ? (
+          <section className="mt-4 rounded-2xl border border-amber-400/50 bg-amber-500/10 p-5">
+            <h2 className="text-lg font-semibold text-amber-200">Session Expired</h2>
+            <p className="mt-2 text-sm text-amber-100/90">Your secure session timed out. Please sign in again to continue.</p>
+            <button
+              type="button"
+              onClick={() => void handleSessionReauth()}
+              className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+            >
+              Re-authenticate
+            </button>
+          </section>
         ) : null}
 
         {error ? (

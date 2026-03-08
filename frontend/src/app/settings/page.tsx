@@ -4,6 +4,7 @@ import { Loader2, UploadCloud } from "lucide-react";
 import { ChangeEvent, DragEvent, useMemo, useState } from "react";
 
 import { useAuth } from "@/lib/auth";
+import { apiFetch, parseApiJson } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -53,11 +54,8 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`${API_BASE_URL}/api/materials/import`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/materials/import`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
         body: formData,
       });
 
@@ -66,7 +64,7 @@ export default function SettingsPage() {
         throw new Error(body || `Upload failed (${response.status})`);
       }
 
-      const payload = (await response.json()) as ImportSummary;
+      const payload = await parseApiJson<ImportSummary>(response);
       setProgress(100);
       setStatusMessage(payload.message ?? "Processing started. Materials are being updated in the background.");
       setSummary(payload);

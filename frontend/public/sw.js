@@ -1,5 +1,5 @@
-const CACHE_NAME = "sparkops-shell-v1";
-const APP_SHELL = ["/", "/capture", "/manifest.json"];
+const CACHE_NAME = "sparkops-shell-v2";
+const APP_SHELL = ["/", "/dashboard", "/capture", "/tracking", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -23,7 +23,18 @@ self.addEventListener("fetch", (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/capture")))
+      .catch(() =>
+        caches.match(request).then((cached) => {
+          if (cached) {
+            return cached;
+          }
+          const url = new URL(request.url);
+          if (url.pathname.startsWith("/tracking")) {
+            return caches.match("/tracking");
+          }
+          return caches.match("/capture");
+        })
+      )
   );
 });
 

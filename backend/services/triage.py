@@ -36,6 +36,60 @@ class VoiceMessage:
     created_at: str
 
 
+@dataclass(frozen=True)
+class ComplianceCheck:
+    """Single compliance verification check outcome."""
+
+    key: str
+    label: str
+    present: bool
+
+
+@dataclass(frozen=True)
+class ComplianceSummary:
+    """Compliance summary generated from job transcript."""
+
+    checks: list[ComplianceCheck]
+    missing_items: list[str]
+    status: str
+    notes: str
+
+
+class ComplianceAgent:
+    """Draft compliance evidence summary from transcript content."""
+
+    REQUIRED_TESTS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+        ("earth_loop", "Earth Loop", ("earth loop", "loop impedance", "zei", "zs")),
+        ("polarity", "Polarity", ("polarity", "polarity test")),
+        ("insulation", "Insulation Resistance", ("insulation resistance", "megger", "ir test")),
+        ("rcd", "RCD Test", ("rcd", "trip time", "residual current")),
+    )
+
+    def summarize(self, transcript: str) -> ComplianceSummary:
+        text = transcript.lower()
+        checks: list[ComplianceCheck] = []
+
+        for key, label, keywords in self.REQUIRED_TESTS:
+            present = any(keyword in text for keyword in keywords)
+            checks.append(ComplianceCheck(key=key, label=label, present=present))
+
+        missing_items = [check.label for check in checks if not check.present]
+        status = "COMPLETE" if not missing_items else "ACTION_REQUIRED"
+        if not transcript.strip():
+            notes = "No transcript available. Record mandatory test evidence before issuing RoI/CoC."
+        elif missing_items:
+            notes = "Missing mandatory safety evidence for RoI/CoC draft."
+        else:
+            notes = "Transcript includes key mandatory tests for RoI/CoC draft."
+
+        return ComplianceSummary(
+            checks=checks,
+            missing_items=missing_items,
+            status=status,
+            notes=notes,
+        )
+
+
 class TriageService:
     """Service responsible for voicemail processing and Ladder Mode state."""
 
@@ -256,3 +310,4 @@ class TriageService:
 
 
 triage_service = TriageService()
+compliance_agent = ComplianceAgent()

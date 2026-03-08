@@ -27,6 +27,9 @@ test.describe("Live staging auth and onboarding", () => {
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { level: 1, name: /Welcome/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start New Job" })).toBeVisible();
+
+    await page.goto("/profile");
+    await expect(page.getByRole("heading", { level: 1, name: /Profile|Sparky/i })).toBeVisible();
   });
 
   test("critical path: auth to capture, sync, and view job detail", async ({ page }) => {

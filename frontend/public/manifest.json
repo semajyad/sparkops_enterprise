@@ -1,11 +1,13 @@
 {
-  "name": "SparkOps Basement Interface",
+  "name": "SparkOps Command Center",
   "short_name": "SparkOps",
   "description": "Offline-first voice and receipt capture for NZ electricians.",
-  "start_url": "/capture",
+  "start_url": "/tracking",
   "display": "standalone",
+  "orientation": "portrait-primary",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0b111c",
-  "theme_color": "#1f7a8c",
+  "theme_color": "#f59e0b",
   "icons": [
     {
       "src": "/favicon.ico",

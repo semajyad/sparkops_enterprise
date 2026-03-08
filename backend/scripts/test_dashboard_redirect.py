@@ -46,12 +46,9 @@ class DashboardRedirectTest:
                 
                 # Step 3: Wait for redirect
                 try:
-                    await page.wait_for_url("**/capture", timeout=5000)
-                    print("✅ Redirected to /capture")
+                    await page.wait_for_url("**/", timeout=5000)
+                    print("✅ Redirected to main dashboard")
                     self.results["login_success"] = True
-                    
-                    # Step 4: Try manual redirect to dashboard
-                    await page.goto(f"{FRONTEND_URL}/", wait_until="networkidle")
                     
                     # Check if we're authenticated
                     current_url = page.url

@@ -19,6 +19,12 @@ from services.triage import triage_service
 router = APIRouter(prefix="/api/twilio", tags=["twilio"])
 
 
+def api_success(data: object) -> dict[str, object]:
+    """Return standard API success envelope."""
+
+    return {"success": True, "data": data}
+
+
 class LadderModePayload(BaseModel):
     """Request body for ladder mode state updates."""
 
@@ -126,21 +132,21 @@ async def twilio_recording_callback(
         call_sid=call_sid,
         recording_sid=recording_sid,
     )
-    return {"status": "processed", "message": message}
+    return api_success({"status": "processed", "message": message})
 
 
 @router.get("/voicemails")
 def list_voicemails() -> dict[str, object]:
     """Return triaged voicemail feed sorted by urgency."""
 
-    return {"items": triage_service.list_voicemails()}
+    return api_success({"items": triage_service.list_voicemails()})
 
 
 @router.get("/ladder-mode")
 def get_ladder_mode() -> dict[str, bool]:
     """Return current ladder mode state."""
 
-    return {"enabled": triage_service.get_ladder_mode()}
+    return api_success({"enabled": triage_service.get_ladder_mode()})
 
 
 @router.post("/ladder-mode")
@@ -148,4 +154,4 @@ def set_ladder_mode(payload: LadderModePayload) -> dict[str, bool]:
     """Toggle ladder mode call interception behavior."""
 
     triage_service.set_ladder_mode(payload.enabled)
-    return {"enabled": triage_service.get_ladder_mode()}
+    return api_success({"enabled": triage_service.get_ladder_mode()})

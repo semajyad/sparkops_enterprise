@@ -5,10 +5,11 @@
  */
 
 import { getPendingDrafts, updateDraft } from "@/lib/db";
+import { apiFetch } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
-export async function syncPendingDrafts(accessToken?: string): Promise<{ synced: number; attempted: number }> {
+export async function syncPendingDrafts(): Promise<{ synced: number; attempted: number }> {
   const pendingDrafts = await getPendingDrafts();
   let synced = 0;
 
@@ -23,16 +24,8 @@ export async function syncPendingDrafts(accessToken?: string): Promise<{ synced:
     }
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/ingest`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/ingest`, {
         method: "POST",
-        headers,
         body: JSON.stringify({
           voice_notes: voiceText || undefined,
           audio_base64: audioBase64 || undefined,

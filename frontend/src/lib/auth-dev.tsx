@@ -1,16 +1,26 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type AppRole = "OWNER" | "EMPLOYEE" | null;
 
+type DevSession = {
+  access_token: string;
+};
+
+type DevUser = {
+  id: string;
+};
+
 type AuthContextValue = {
-  session: any;
-  user: any;
+  session: DevSession | null;
+  user: DevUser | null;
   role: AppRole;
   loading: boolean;
+  login: (_email: string, _password: string) => Promise<void>;
+  logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -18,10 +28,12 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   role: null,
   loading: true,
+  login: async () => undefined,
+  logout: () => undefined,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<DevSession | null>(null);
   const [role, setRole] = useState<AppRole>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
     } else {
-      setLoading(false);
+      Promise.resolve().then(() => setLoading(false));
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (_email: string, _password: string) => {
+    void _email;
+    void _password;
     // For development: accept any email/password and create mock session
     const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwib3JnYW5pemF0aW9uX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwicm9sZSI6Ik9XTkVSIiwiZXhwIjoxNzcyOTUxNjUyLCJpYXQiOjE3NzI4NjUyNTIsImlzcyI6InNwYXJrb3BzIn0.2mVcRc8u7I_CF_l3drWnrkbhGA3zPP0ZXwl0ALpx32Y";
     
@@ -88,5 +102,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth(): AuthContextValue & { login: (email: string, password: string) => Promise<void>; logout: () => void } {
-  return useContext(AuthContext) as any;
+  return useContext(AuthContext);
 }

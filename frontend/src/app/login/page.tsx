@@ -1,36 +1,50 @@
 "use client";
 
-import { LogIn, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { AudioLines, LogIn } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { login, signup } from "./actions";
 
 type AuthMode = "login" | "signup";
 
-export default function LoginPage() {
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+function LoginPageContent(): React.JSX.Element {
+  const searchParams = useSearchParams();
+  const initialMode: AuthMode = searchParams.get("mode") === "signup" ? "signup" : "login";
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const reduceMotion = useReducedMotion();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_52%,#020617_100%)] p-4">
       <div className="w-full max-w-md">
-        <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8">
+        <div className="rounded-3xl border border-amber-500/20 bg-slate-900/70 p-8 shadow-2xl shadow-black/60 backdrop-blur-xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-full mb-4">
-              <LogIn className="w-8 h-8 text-blue-400" />
+            <motion.button
+              type="button"
+              aria-label="SparkOps secure audio lock"
+              className="mx-auto mb-4 inline-flex min-h-14 min-w-14 items-center justify-center rounded-full border border-amber-500/60 bg-amber-500/20 text-amber-200 shadow-[0_0_35px_rgba(245,158,11,0.28)]"
+              animate={reduceMotion ? undefined : { scale: [1, 1.07, 1] }}
+              transition={reduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <AudioLines className="h-6 w-6" />
+            </motion.button>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800/80 mb-4 border border-slate-700/80">
+              <LogIn className="w-8 h-8 text-amber-400" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">SPARKOPS SECURE ACCESS</h1>
-            <p className="text-slate-400">Welcome</p>
+            <p className="text-slate-300">Welcome</p>
             <p className="text-slate-500 text-sm mt-1">Sign in or create your SparkOps account.</p>
           </div>
 
           {/* Mode Toggle */}
-          <div className="flex bg-slate-700/50 rounded-lg p-1 mb-6">
+          <div className="mb-6 flex rounded-xl border border-slate-700/70 bg-slate-800/50 p-1">
             <button
               onClick={() => setMode("login")}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+              className={`min-h-11 flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                 mode === "login"
-                  ? "bg-blue-500 text-white shadow-lg"
+                  ? "bg-amber-500 text-slate-950 shadow-lg"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -38,9 +52,9 @@ export default function LoginPage() {
             </button>
             <button
               onClick={() => setMode("signup")}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+              className={`min-h-11 flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                 mode === "signup"
-                  ? "bg-blue-500 text-white shadow-lg"
+                  ? "bg-amber-500 text-slate-950 shadow-lg"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -60,7 +74,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   placeholder="you@example.com"
                 />
               </div>
@@ -74,28 +88,34 @@ export default function LoginPage() {
                   name="password"
                   type="password"
                   required
-                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   placeholder="••••••••"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-3 font-semibold text-slate-950 transition-all hover:from-amber-400 hover:to-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Signing in...
-                  </div>
-                ) : (
-                  "Sign In to SparkOps"
-                )}
+                Sign In to SparkOps
               </button>
             </form>
           ) : (
             <form action={signup} className="space-y-4">
+              <div>
+                <label htmlFor="signup-full-name" className="block text-sm font-medium text-slate-300 mb-2">
+                  Full Name
+                </label>
+                <input
+                  id="signup-full-name"
+                  name="full_name"
+                  type="text"
+                  required
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  placeholder="Hemi Ropata"
+                />
+              </div>
+
               <div>
                 <label htmlFor="signup-email" className="block text-sm font-medium text-slate-300 mb-2">
                   Email
@@ -105,7 +125,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   placeholder="you@example.com"
                 />
               </div>
@@ -119,24 +139,16 @@ export default function LoginPage() {
                   name="password"
                   type="password"
                   required
-                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   placeholder="••••••••"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-3 font-semibold text-slate-950 transition-all hover:from-amber-400 hover:to-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating account...
-                  </div>
-                ) : (
-                  "Create Account"
-                )}
+                Create Account
               </button>
             </form>
           )}
@@ -146,9 +158,22 @@ export default function LoginPage() {
             <p className="text-slate-500 text-sm">
               Status: <span className="text-green-400 font-medium">Connected</span>
             </p>
+            <div className="mt-3 text-xs text-slate-400">
+              <Link href="/" className="hover:text-white">Back to home</Link>
+              <span className="mx-2">•</span>
+              <Link href="/signup" className="hover:text-white">Create account</Link>
+            </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage(): React.JSX.Element {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

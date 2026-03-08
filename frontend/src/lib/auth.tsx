@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, parseApiJson } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return createClient();
   }, []);
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole>(null);
   const [loading, setLoading] = useState(true);
 
@@ -41,11 +42,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     async function hydrateAuth(): Promise<void> {
-      const { data } = await supabase!.auth.getSession();
+      const [{ data }, { data: userData }] = await Promise.all([
+        supabase!.auth.getSession(),
+        supabase!.auth.getUser(),
+      ]);
       if (!isMounted) {
         return;
       }
-      setSession(data.session ?? null);
+      const sessionUserId = data.session?.user?.id ?? null;
+      const verifiedUserId = userData.user?.id ?? null;
+      if (sessionUserId && verifiedUserId && sessionUserId !== verifiedUserId) {
+        setSession(null);
+        setUser(null);
+        setRole(null);
+      } else {
+        setSession(data.session ?? null);
+        setUser(userData.user ?? data.session?.user ?? null);
+      }
       setLoading(false);
     }
 
@@ -58,9 +71,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       setSession(nextSession ?? null);
+      setUser(nextSession?.user ?? null);
       if (!nextSession) {
         setRole(null);
+        return;
       }
+
+      void supabase!.auth.getUser().then(({ data: refreshedUserData }) => {
+        if (!isMounted) {
+          return;
+        }
+        const refreshed = refreshedUserData.user;
+        if (refreshed && refreshed.id === nextSession.user.id) {
+          setUser(refreshed);
+        }
+      });
     });
 
     return () => {
@@ -77,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const response = await apiFetch(`${API_BASE_URL}/api/auth/me`, {
+        const response = await apiFetch(`${API_BASE_URL}/api/v1/auth/handshake`, {
           cache: "no-store",
         });
 
@@ -86,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const payload = (await response.json()) as { role?: string };
+        const payload = await parseApiJson<{ role?: string }>(response);
         const normalized = (payload.role ?? "").toUpperCase();
         if (normalized === "OWNER" || normalized === "EMPLOYEE") {
           setRole(normalized);
@@ -105,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         session,
-        user: session?.user ?? null,
+        user,
         role,
         loading,
       }}

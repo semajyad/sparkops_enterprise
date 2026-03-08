@@ -10,6 +10,7 @@ from uuid import UUID
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import text
 from sqlmodel import Session
 
@@ -26,13 +27,37 @@ class AuthenticatedUser:
     id: UUID
     organization_id: UUID
     role: str
+    email: str | None = None
     full_name: str | None = None
 
 
 security = HTTPBearer(auto_error=False)
 
 
-def _decode_supabase_jwt(token: str) -> dict[str, object]:
+class SupabaseJwtClaims(BaseModel):
+    """Contract for Supabase access token claims used by backend auth handshake."""
+
+    sub: UUID
+    exp: int
+    email: str | None = None
+    full_name: str | None = None
+    user_metadata: dict[str, object] | None = None
+
+
+def _claim_full_name(claims: SupabaseJwtClaims) -> str | None:
+    full_name = claims.full_name
+    if isinstance(full_name, str) and full_name.strip():
+        return full_name.strip()
+
+    metadata = claims.user_metadata if isinstance(claims.user_metadata, dict) else None
+    metadata_name = metadata.get("full_name") if metadata else None
+    if isinstance(metadata_name, str) and metadata_name.strip():
+        return metadata_name.strip()
+
+    return None
+
+
+def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
     secret = os.getenv("SUPABASE_JWT_SECRET")
     if not secret:
         logger.error("SUPABASE_JWT_SECRET is not configured in runtime environment")
@@ -42,34 +67,29 @@ def _decode_supabase_jwt(token: str) -> dict[str, object]:
         )
 
     try:
-        # Support multiple algorithms that Supabase might use
-        payload = jwt.decode(token, secret, algorithms=["HS256", "RS256"], options={"verify_aud": False})
+        payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
     except jwt.ExpiredSignatureError as exc:
         logger.warning("Supabase bearer token expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
     except jwt.InvalidAlgorithmError as exc:
-        logger.error("JWT algorithm error - trying without algorithm restriction")
-        # Fallback: try without algorithm restriction
-        try:
-            payload = jwt.decode(token, secret, options={"verify_aud": False, "verify_signature": False})
-        except jwt.PyJWTError as fallback_exc:
-            logger.exception("Supabase bearer token decode failed even without algorithm restriction")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from fallback_exc
+        logger.error("Supabase bearer token algorithm is invalid")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
     except jwt.PyJWTError as exc:
         logger.exception("Supabase bearer token decode failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
 
     if not isinstance(payload, dict):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token payload.")
-    return payload
+
+    try:
+        return SupabaseJwtClaims.model_validate(payload)
+    except ValidationError as exc:
+        logger.warning("Supabase bearer token payload failed contract validation")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token contract is invalid.") from exc
 
 
-def _provision_fallback_profile(session: Session, user_id: UUID, payload: dict[str, object]) -> tuple[UUID, str, str | None]:
-    email = payload.get("email")
-    full_name = payload.get("full_name")
-
-    if not isinstance(full_name, str) or not full_name.strip():
-        full_name = None
+def _provision_fallback_profile(session: Session, user_id: UUID, claims: SupabaseJwtClaims) -> tuple[UUID, str, str | None]:
+    full_name = _claim_full_name(claims)
 
     # Generate a random organization_id for the fallback profile
     organization_id = UUID('00000000-0000-0000-0000-000000000001')  # Fixed fallback org ID
@@ -97,16 +117,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
     if credentials is None or not credentials.credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token.")
 
-    payload = _decode_supabase_jwt(credentials.credentials)
-
-    subject = payload.get("sub")
-    if not isinstance(subject, str):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token missing subject.")
-
-    try:
-        user_id = UUID(subject)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token subject is invalid.") from exc
+    claims = _decode_supabase_jwt(credentials.credentials)
+    user_id = claims.sub
 
     with Session(engine) as session:
         try:
@@ -124,11 +136,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
 
             if row is None:
                 logger.warning("Profile not found for user_id=%s; provisioning fallback profile", user_id)
-                organization_id, role_normalized, full_name = _provision_fallback_profile(session, user_id, payload)
+                organization_id, role_normalized, full_name = _provision_fallback_profile(session, user_id, claims)
             else:
                 organization_id_raw, role, full_name = row
                 organization_id = UUID(str(organization_id_raw))
                 role_normalized = str(role or "").upper()
+                if not isinstance(full_name, str) or not full_name.strip():
+                    full_name = _claim_full_name(claims)
         except HTTPException:
             session.rollback()
             raise
@@ -155,6 +169,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         id=user_id,
         organization_id=organization_id,
         role=role_normalized,
+        email=claims.email.strip() if isinstance(claims.email, str) and claims.email.strip() else None,
         full_name=str(full_name).strip() if full_name is not None else None,
     )
 

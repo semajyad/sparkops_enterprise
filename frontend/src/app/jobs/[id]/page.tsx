@@ -4,7 +4,7 @@ import { Download, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, parseApiJson } from "@/lib/api";
 import { formatJobDate, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
 type JobDraftResponse = {
@@ -24,6 +24,21 @@ type JobDraftResponse = {
   };
   status: string;
   created_at: string;
+  invoice_summary?: {
+    subtotal?: string;
+    markup_amount?: string;
+    gst?: string;
+    total?: string;
+    material_cost_base?: string;
+    material_cost_with_markup?: string;
+    labor_total?: string;
+  };
+  compliance_summary?: {
+    status?: string;
+    notes?: string;
+    missing_items?: string[];
+    checks?: Array<{ key?: string; label?: string; present?: boolean }>;
+  };
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -60,7 +75,7 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
           throw new Error(body || `Failed to load job (${response.status})`);
         }
 
-        const payload = (await response.json()) as JobDraftResponse;
+        const payload = await parseApiJson<JobDraftResponse>(response);
         setJob(payload);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Failed to load job review.");
@@ -123,6 +138,8 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
         throw new Error(body || `Delete failed (${response.status})`);
       }
 
+      await parseApiJson<{ status: string; id: string }>(response);
+
       router.push("/jobs");
     } catch (deleteError) {
       setErrorMessage(deleteError instanceof Error ? deleteError.message : "Failed to delete this job draft.");
@@ -132,6 +149,8 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
   }
 
   const lineItems = job?.extracted_data?.line_items ?? [];
+  const invoiceSummary = job?.invoice_summary;
+  const complianceSummary = job?.compliance_summary;
 
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
@@ -171,6 +190,34 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
               <summary className="cursor-pointer text-sm font-semibold text-white">Raw Transcript</summary>
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{job.raw_transcript || "No transcript found."}</p>
             </details>
+
+            {invoiceSummary ? (
+              <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Draft Invoice Total</h2>
+                <div className="mt-3 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
+                  <p>Subtotal: <span className="font-semibold text-white">${parseNumeric(invoiceSummary.subtotal).toFixed(2)}</span></p>
+                  <p>Markup: <span className="font-semibold text-amber-300">${parseNumeric(invoiceSummary.markup_amount).toFixed(2)}</span></p>
+                  <p>GST (15%): <span className="font-semibold text-white">${parseNumeric(invoiceSummary.gst).toFixed(2)}</span></p>
+                  <p>Total: <span className="font-semibold text-emerald-300">${parseNumeric(invoiceSummary.total).toFixed(2)}</span></p>
+                </div>
+              </section>
+            ) : null}
+
+            {complianceSummary ? (
+              <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Compliance Summary</h2>
+                <p className="mt-2 text-sm text-slate-300">{complianceSummary.notes || "No compliance summary available."}</p>
+                {Array.isArray(complianceSummary.missing_items) && complianceSummary.missing_items.length > 0 ? (
+                  <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">
+                    Missing safety evidence: {complianceSummary.missing_items.join(", ")}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                    Mandatory tests detected for RoI/CoC draft.
+                  </div>
+                )}
+              </section>
+            ) : null}
 
             <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">AI Breakdown</h2>

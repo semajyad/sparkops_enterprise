@@ -134,7 +134,10 @@ def test_job_draft_fetch_and_pdf_download(sqlite_engine, monkeypatch: pytest.Mon
 
     job_response = client.get(f"/api/jobs/{draft_id}")
     assert job_response.status_code == 200
-    assert job_response.json()["id"] == str(draft_id)
+    job_payload = job_response.json()
+    assert job_payload["id"] == str(draft_id)
+    assert "extracted_data" in job_payload
+    assert job_payload["status"] == "DRAFT"
 
     pdf_response = client.get(f"/api/jobs/{draft_id}/pdf")
     assert pdf_response.status_code == 200
