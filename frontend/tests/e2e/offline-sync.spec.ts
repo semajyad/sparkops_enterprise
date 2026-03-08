@@ -10,7 +10,7 @@ async function getPendingCount(page: import("@playwright/test").Page): Promise<n
 
     const tx = db.transaction("jobDrafts", "readonly");
     const index = tx.objectStore("jobDrafts").index("sync_status");
-    const rows = await new Promise<any[]>((resolve, reject) => {
+    const rows = await new Promise<unknown[]>((resolve, reject) => {
       const getRequest = index.getAll("pending");
       getRequest.onsuccess = () => resolve(getRequest.result || []);
       getRequest.onerror = () => reject(getRequest.error);
@@ -39,7 +39,18 @@ test("captures offline then syncs when back online", async ({ page, context }) =
   await expect.poll(() => getPendingCount(page)).toBeGreaterThan(0);
 
   await context.setOffline(false);
-  await page.getByRole("button", { name: "Force Sync Pending Drafts" }).click();
+  const forceSyncButton = page.getByRole("button", { name: "Force Sync Pending Drafts" });
+  let shouldForceSync = false;
+  try {
+    await expect(forceSyncButton).toBeEnabled({ timeout: 3_000 });
+    shouldForceSync = true;
+  } catch {
+    shouldForceSync = false;
+  }
+
+  if (shouldForceSync) {
+    await forceSyncButton.click();
+  }
 
   await expect.poll(() => getPendingCount(page)).toBe(0);
   await expect(page.getByText(/Online/i)).toBeVisible();

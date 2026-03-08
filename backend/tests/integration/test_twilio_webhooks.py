@@ -16,6 +16,7 @@ def test_twilio_voice_webhook_returns_twiml(monkeypatch) -> None:
     """Verify voice webhook returns greeting + record instructions."""
 
     monkeypatch.setattr("routers.twilio.verify_twilio_request", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(triage_service, "get_ladder_mode", lambda: True)
 
     client = TestClient(main.app)
     response = client.post(
@@ -61,8 +62,9 @@ def test_twilio_recording_callback_processes_message(monkeypatch) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "processed"
-    assert payload["message"]["urgency"] == "High"
+    assert payload["success"] is True
+    assert payload["data"]["status"] == "processed"
+    assert payload["data"]["message"]["urgency"] == "High"
 
 
 def test_twilio_webhook_rejects_invalid_signature(monkeypatch) -> None:
@@ -74,4 +76,4 @@ def test_twilio_webhook_rejects_invalid_signature(monkeypatch) -> None:
     response = client.post("/api/twilio/voice", data={"From": "+64210000001"})
 
     assert response.status_code == 403
-    assert "Invalid Twilio signature" in response.json()["detail"]
+    assert "Invalid Twilio signature" in response.json()["error"]
