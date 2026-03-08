@@ -39,12 +39,15 @@ export async function GET(request: Request) {
 
   const fullNameRaw = resolvedUser.user_metadata?.full_name;
   const fullName = typeof fullNameRaw === "string" && fullNameRaw.trim() ? fullNameRaw.trim() : null;
+  const organizationRaw = resolvedUser.user_metadata?.organization;
+  const organization = typeof organizationRaw === "string" && organizationRaw.trim() ? organizationRaw.trim() : null;
 
   return NextResponse.json({
     user: {
       id: resolvedUser.id,
       email: resolvedUser.email ?? null,
       full_name: fullName,
+      organization,
     },
   });
 }

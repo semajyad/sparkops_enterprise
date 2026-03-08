@@ -74,7 +74,12 @@ export async function signup(formData: FormData) {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
       fullName: (formData.get("full_name") as string | null)?.trim() ?? "",
+      organization: (formData.get("organization") as string | null)?.trim() ?? "",
     };
+
+    if (!data.organization) {
+      redirect("/login?error=Organization%20is%20required&mode=signup");
+    }
 
     console.log("Server action: Attempting signup with email:", data.email);
 
@@ -84,6 +89,7 @@ export async function signup(formData: FormData) {
     options: {
       data: {
         full_name: data.fullName,
+        organization: data.organization,
       },
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/dashboard`,
     },

@@ -132,6 +132,20 @@ function LoginPageContent(): React.JSX.Element {
               </div>
 
               <div>
+                <label htmlFor="signup-organization" className="block text-sm font-medium text-slate-300 mb-2">
+                  Organization
+                </label>
+                <input
+                  id="signup-organization"
+                  name="organization"
+                  type="text"
+                  required
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-800/60 px-4 py-3 text-white placeholder-slate-400 transition-all focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  placeholder="Spark Electrical Ltd"
+                />
+              </div>
+
+              <div>
                 <label htmlFor="signup-password" className="block text-sm font-medium text-slate-300 mb-2">
                   Password
                 </label>

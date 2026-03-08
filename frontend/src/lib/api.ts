@@ -26,7 +26,11 @@ async function getLatestAccessToken(): Promise<string | null> {
   } = await supabase.auth.getSession();
 
   if (!currentSession) {
-    return null;
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session?.access_token) {
+      return null;
+    }
+    return data.session.access_token;
   }
 
   const expiresAt = currentSession.expires_at ?? 0;

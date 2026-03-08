@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from uuid import UUID
 
 import jwt
@@ -57,27 +58,7 @@ def _claim_full_name(claims: SupabaseJwtClaims) -> str | None:
     return None
 
 
-def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
-    secret = os.getenv("SUPABASE_JWT_SECRET")
-    if not secret:
-        logger.error("SUPABASE_JWT_SECRET is not configured in runtime environment")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="SUPABASE_JWT_SECRET is not configured.",
-        )
-
-    try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
-    except jwt.ExpiredSignatureError as exc:
-        logger.warning("Supabase bearer token expired")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
-    except jwt.InvalidAlgorithmError as exc:
-        logger.error("Supabase bearer token algorithm is invalid")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
-    except jwt.PyJWTError as exc:
-        logger.exception("Supabase bearer token decode failed")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
-
+def _validate_claims_payload(payload: object) -> SupabaseJwtClaims:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token payload.")
 
@@ -86,6 +67,51 @@ def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
     except ValidationError as exc:
         logger.warning("Supabase bearer token payload failed contract validation")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token contract is invalid.") from exc
+
+
+@lru_cache(maxsize=4)
+def _get_jwks_client(jwks_url: str) -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(jwks_url)
+
+
+def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
+    secret = os.getenv("SUPABASE_JWT_SECRET")
+    if secret:
+        try:
+            payload = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
+            return _validate_claims_payload(payload)
+        except jwt.ExpiredSignatureError as exc:
+            logger.warning("Supabase bearer token expired")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
+        except jwt.InvalidAlgorithmError:
+            logger.info("Supabase token is not HS256; attempting JWKS verification")
+        except jwt.PyJWTError:
+            logger.info("Supabase HS256 verification failed; attempting JWKS verification")
+
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
+    if not supabase_url:
+        logger.error("Supabase URL is not configured for JWKS verification")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase JWT verification config is missing.",
+        )
+
+    jwks_url = f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    try:
+        signing_key = _get_jwks_client(jwks_url).get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256", "ES256"],
+            options={"verify_aud": False},
+        )
+        return _validate_claims_payload(payload)
+    except jwt.ExpiredSignatureError as exc:
+        logger.warning("Supabase bearer token expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
+    except jwt.PyJWTError as exc:
+        logger.exception("Supabase bearer token decode failed")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
 
 
 def _provision_fallback_profile(session: Session, user_id: UUID, claims: SupabaseJwtClaims) -> tuple[UUID, str, str | None]:

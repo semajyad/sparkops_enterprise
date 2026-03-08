@@ -214,5 +214,21 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
         ]
         SQLModel.metadata.create_all(db_engine, tables=non_vector_tables)
         logger.info("Non-vector tables created successfully")
+
+    # Backwards-compatible schema guard for older deployments that created
+    # job_drafts before user_id existed on the model.
+    try:
+        with db_engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    ALTER TABLE IF EXISTS public.job_drafts
+                    ADD COLUMN IF NOT EXISTS user_id UUID,
+                    ADD COLUMN IF NOT EXISTS organization_id UUID
+                    """
+                )
+            )
+    except Exception as exc:
+        logger.warning("Unable to apply job_drafts schema guard: %s", exc)
     
     return db_engine

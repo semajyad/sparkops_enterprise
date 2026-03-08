@@ -22,6 +22,7 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
 
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const organization = String(formData.get("organization") ?? "").trim();
 
   if (!fullName) {
     return { success: false, message: "Full name is required." };
@@ -31,12 +32,17 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
     return { success: false, message: "Valid email is required." };
   }
 
+  if (!organization) {
+    return { success: false, message: "Organization is required." };
+  }
+
   const emailChanged = (user.email ?? "").toLowerCase() !== email;
 
   const { error: authError } = await supabase.auth.updateUser({
     email,
     data: {
       full_name: fullName,
+      organization,
     },
   });
 
@@ -47,7 +53,6 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
   const upsertPayload: Record<string, unknown> = {
     id: user.id,
     full_name: fullName,
-    updated_at: new Date().toISOString(),
   };
 
   const { error: profileError } = await supabase.from("profiles").upsert(upsertPayload);
@@ -61,7 +66,6 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
     id: user.id,
     full_name: fullName,
     email,
-    updated_at: new Date().toISOString(),
   });
 
   revalidatePath("/profile", "page");

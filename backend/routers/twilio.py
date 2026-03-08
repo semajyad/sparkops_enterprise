@@ -143,14 +143,14 @@ def list_voicemails() -> dict[str, object]:
 
 
 @router.get("/ladder-mode")
-def get_ladder_mode() -> dict[str, bool]:
+def get_ladder_mode() -> dict[str, object]:
     """Return current ladder mode state."""
 
     return api_success({"enabled": triage_service.get_ladder_mode()})
 
 
 @router.post("/ladder-mode")
-def set_ladder_mode(payload: LadderModePayload) -> dict[str, bool]:
+def set_ladder_mode(payload: LadderModePayload) -> dict[str, object]:
     """Toggle ladder mode call interception behavior."""
 
     triage_service.set_ladder_mode(payload.enabled)

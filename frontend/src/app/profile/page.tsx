@@ -6,7 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { signOut } from "@/app/login/actions";
 import { updateProfile } from "@/app/profile/actions";
 import { LadderModeToggle } from "@/components/LadderModeToggle";
-import { apiFetch, parseApiJson } from "@/lib/api";
+import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -22,7 +22,7 @@ type AuthMePayload = {
 export default function ProfilePage(): React.JSX.Element {
   const { user, session, loading: authLoading } = useAuth();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
-  const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null } | null>(null);
+  const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null; organization: string | null } | null>(null);
   const [ladderEnabled, setLadderEnabled] = useState(false);
   const [isSavingLadder, setIsSavingLadder] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,7 @@ export default function ProfilePage(): React.JSX.Element {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [fullNameInput, setFullNameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [organizationInput, setOrganizationInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isPendingUpdate, startUpdateTransition] = useTransition();
 
@@ -53,11 +54,12 @@ export default function ProfilePage(): React.JSX.Element {
         });
         if (sessionIdentityResponse.ok) {
           const identityPayload = (await sessionIdentityResponse.json()) as {
-            user?: { full_name?: string | null; email?: string | null } | null;
+            user?: { full_name?: string | null; email?: string | null; organization?: string | null } | null;
           };
           setSessionIdentity({
             full_name: typeof identityPayload.user?.full_name === "string" ? identityPayload.user.full_name : null,
             email: typeof identityPayload.user?.email === "string" ? identityPayload.user.email : null,
+            organization: typeof identityPayload.user?.organization === "string" ? identityPayload.user.organization : null,
           });
         } else {
           setSessionIdentity(null);
@@ -69,22 +71,27 @@ export default function ProfilePage(): React.JSX.Element {
           return;
         }
 
-        const [meResponse, ladderResponse] = await Promise.all([
-          apiFetch(`${API_BASE_URL}/api/auth/me`, { cache: "no-store" }),
-          apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" }),
-        ]);
-
+        const meResponse = await apiFetch(`${API_BASE_URL}/api/auth/me`, { cache: "no-store" });
         if (meResponse.ok) {
           const mePayload = await parseApiJson<AuthMePayload>(meResponse);
           setDetails(mePayload);
         }
 
-        if (ladderResponse.ok) {
-          const ladderPayload = await parseApiJson<{ enabled: boolean }>(ladderResponse);
-          setLadderEnabled(Boolean(ladderPayload.enabled));
+        try {
+          const ladderResponse = await apiFetch(`${API_BASE_URL}/api/twilio/ladder-mode`, { cache: "no-store" });
+          if (ladderResponse.ok) {
+            const ladderPayload = await parseApiJson<{ enabled: boolean }>(ladderResponse);
+            setLadderEnabled(Boolean(ladderPayload.enabled));
+          }
+        } catch (ladderError) {
+          console.warn("Profile: ladder-mode fetch failed", ladderError);
         }
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Unable to load profile details.");
+        if (error instanceof AuthSessionExpiredError) {
+          setMessage("Session expired. Please sign in again.");
+        } else {
+          setMessage(error instanceof Error ? error.message : "Unable to load profile details.");
+        }
       } finally {
         setLoading(false);
       }
@@ -126,11 +133,14 @@ export default function ProfilePage(): React.JSX.Element {
     user?.email ||
     "Sparky";
   const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
+  const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
+  const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
 
   useEffect(() => {
     setFullNameInput(displayName === "Sparky" ? "" : displayName);
     setEmailInput(displayEmail === "Unknown" ? "" : displayEmail);
-  }, [displayName, displayEmail]);
+    setOrganizationInput(displayOrganization === "Unknown" ? "" : displayOrganization);
+  }, [displayName, displayEmail, displayOrganization]);
 
   useEffect(() => {
     if (!toast) {
@@ -147,6 +157,7 @@ export default function ProfilePage(): React.JSX.Element {
     const formData = new FormData();
     formData.set("full_name", fullNameInput);
     formData.set("email", emailInput);
+    formData.set("organization", organizationInput);
 
     startUpdateTransition(() => {
       void updateProfile(formData).then((result) => {
@@ -156,6 +167,7 @@ export default function ProfilePage(): React.JSX.Element {
           setSessionIdentity({
             full_name: fullNameInput.trim() || null,
             email: emailInput.trim() || null,
+            organization: organizationInput.trim() || null,
           });
           setDetails((prev) =>
             prev
@@ -188,6 +200,7 @@ export default function ProfilePage(): React.JSX.Element {
         <div className="mt-6 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300 sm:grid-cols-2">
           <p><span className="font-semibold text-slate-100">Email:</span> {displayEmail}</p>
           <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
+          <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
           <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization:</span> {details?.organization_id ?? "Unknown"}</p>
         </div>
 
@@ -223,6 +236,16 @@ export default function ProfilePage(): React.JSX.Element {
                     required
                     value={emailInput}
                     onChange={(event) => setEmailInput(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-slate-100"
+                  />
+                </label>
+                <label className="block text-sm text-slate-200">
+                  Organization
+                  <input
+                    type="text"
+                    required
+                    value={organizationInput}
+                    onChange={(event) => setOrganizationInput(event.target.value)}
                     className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-slate-100"
                   />
                 </label>

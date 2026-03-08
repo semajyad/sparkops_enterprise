@@ -7,6 +7,14 @@ type CookieToSet = {
   options: CookieOptions
 }
 
+const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === 'true' || process.env.NEXT_PUBLIC_AUTH_TRACE === 'true'
+
+function authTrace(message: string): void {
+  if (AUTH_TRACE_ENABLED) {
+    console.log(message)
+  }
+}
+
 const PROTECTED_PREFIXES = ['/dashboard', '/capture', '/jobs', '/profile', '/settings', '/tracking', '/ladder']
 
 function isProtectedPath(pathname: string): boolean {
@@ -28,7 +36,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 
   const hasSupabaseCookie = request.cookies.getAll().some((cookie) => cookie.name.startsWith('sb-'))
-  console.log(`[AUTH-TRACE] Middleware: Cookie ${hasSupabaseCookie ? 'found' : 'missing'} path=${request.nextUrl.pathname}`)
+  authTrace(`[AUTH-TRACE] Middleware: Cookie ${hasSupabaseCookie ? 'found' : 'missing'} path=${request.nextUrl.pathname}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,7 +70,7 @@ export async function updateSession(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser()
   if (userError) {
-    console.log(
+    authTrace(
       `[AUTH-TRACE] Middleware: getUser error name=${userError.name} status=${String((userError as { status?: number }).status ?? 'n/a')} message=${userError.message}`
     )
   }
@@ -87,7 +95,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse
   }
 
-  console.log(`[AUTH-TRACE] Middleware: User ${hasUser ? 'found' : 'missing'} path=${request.nextUrl.pathname}`)
+  authTrace(`[AUTH-TRACE] Middleware: User ${hasUser ? 'found' : 'missing'} path=${request.nextUrl.pathname}`)
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   return supabaseResponse

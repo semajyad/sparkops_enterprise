@@ -7,6 +7,14 @@ type CookieToSet = {
   options: CookieOptions
 }
 
+const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === 'true' || process.env.NEXT_PUBLIC_AUTH_TRACE === 'true'
+
+function authTrace(message: string): void {
+  if (AUTH_TRACE_ENABLED) {
+    console.log(message)
+  }
+}
+
 export async function createClient() {
   const cookieStore = await cookies()
   const supabaseKey =
@@ -15,7 +23,7 @@ export async function createClient() {
   const cookieNames = cookieStore.getAll().map((cookie) => cookie.name)
   const hasSupabaseCookie = cookieNames.some((name) => name.startsWith('sb-'))
   const hasAuthTokenChunk = cookieNames.some((name) => name.includes('-auth-token'))
-  console.log(
+  authTrace(
     `[AUTH-TRACE] ServerClient: Cookie ${hasSupabaseCookie ? 'found' : 'missing'} auth-token=${hasAuthTokenChunk ? 'found' : 'missing'}`
   )
 
@@ -28,13 +36,13 @@ export async function createClient() {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet: CookieToSet[]) {
-          console.log(`[AUTH-TRACE] ServerClient: setAll called count=${cookiesToSet.length}`)
+          authTrace(`[AUTH-TRACE] ServerClient: setAll called count=${cookiesToSet.length}`)
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
           } catch {
-            console.log('[AUTH-TRACE] ServerClient: setAll failed in this execution context')
+            authTrace('[AUTH-TRACE] ServerClient: setAll failed in this execution context')
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
             // user sessions.
