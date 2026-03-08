@@ -58,6 +58,9 @@ export default function DashboardPage(): React.JSX.Element {
           }),
           fetch("/api/auth/session", {
             cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
           }),
         ]);
 

@@ -43,7 +43,14 @@ export default function ProfilePage(): React.JSX.Element {
       setMessage(null);
 
       try {
-        const sessionIdentityResponse = await fetch("/api/auth/session", { cache: "no-store" });
+        const sessionIdentityResponse = await fetch("/api/auth/session", {
+          cache: "no-store",
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        });
         if (sessionIdentityResponse.ok) {
           const identityPayload = (await sessionIdentityResponse.json()) as {
             user?: { full_name?: string | null; email?: string | null } | null;
