@@ -309,7 +309,7 @@ def analyze_transcript(transcript: str) -> Dict[str, Any]:
         OpenAIError: If AI service fails
         
     Example:
-        >>> result = analyze_transcript("chucked a hori in the cupboard")
+        >>> result = analyze_transcript("installed hot water cylinder in cupboard")
         >>> print(result['materials'][0])
         'Horizontal Hot Water Cylinder'
     """

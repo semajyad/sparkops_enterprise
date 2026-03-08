@@ -497,7 +497,7 @@ export default function CapturePage() {
 
           onChange={(event) => void handleVoiceChange(event)}
 
-          placeholder="e.g. Chucked a Hori in the cupboard, swapped breaker, tested circuits"
+          placeholder="e.g. Installed hot water cylinder in cupboard, swapped breaker, tested circuits"
 
           className="min-h-32 rounded-xl border border-slate-700 bg-slate-900/50 p-4 text-base text-white placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
 

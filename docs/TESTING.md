@@ -165,7 +165,7 @@ from services.triage import KiwiTriageService
 def test_extract_materials_from_transcript():
     """Test material extraction from voice transcript."""
     service = KiwiTriageService()
-    transcript = "chucked a hori in the cupboard and ran some 2.5 twin and earth"
+    transcript = "installed hot water cylinder in cupboard and ran some 2.5 twin and earth"
     
     result = service.extract_materials(transcript)
     
@@ -250,7 +250,7 @@ def test_create_job_draft():
     
     payload = {
         "audio_base64": "base64_encoded_audio_data",
-        "transcript": "chucked a hori in the cupboard",
+        "transcript": "installed hot water cylinder in cupboard",
         "type": "voice"
     }
     
@@ -311,7 +311,7 @@ def test_full_voice_ingestion_pipeline():
     valid_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     
     # Simulate voice recording
-    transcript = "chucked a hori in the cupboard at 123 Queen Street, urgent"
+    transcript = "installed hot water cylinder in cupboard at 123 Queen Street, urgent"
     
     payload = {
         "audio_base64": base64.b64encode(b"fake_audio_data").decode(),
@@ -695,7 +695,7 @@ def test_known_phrases():
     
     test_cases = [
         {
-            "transcript": "chucked a hori in the cupboard",
+            "transcript": "installed hot water cylinder in cupboard",
             "expected_materials": ["Horizontal Hot Water Cylinder"],
             "expected_labor_hours": 3
         },
@@ -830,7 +830,7 @@ def create_test_csv():
     test_data = [
         ["name", "description", "trade_price", "retail_price", "supplier", "category"],
         ["2.5mm TPS Cable", "Twin and earth cable", "2.45", "3.20", "J.A. Russell", "Cable"],
-        ["Horizontal Hot Water Cylinder", "Hori cylinder", "450.00", "580.00", "Corys", "Hot Water"],
+        ["Horizontal Hot Water Cylinder", "Hot water cylinder", "450.00", "580.00", "Corys", "Hot Water"],
         ["Junction Box", "Standard JBox", "12.50", "18.90", "J.A. Russell", "Boxes"]
     ]
     

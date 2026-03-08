@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { clearAuthState, useAuth } from "@/lib/auth";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -31,6 +32,7 @@ export default function DashboardPage(): React.JSX.Element {
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const metadataName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
+  const { isInstallAvailable, promptInstall } = usePWAInstall();
 
   const displayName = metadataName || profileName;
   const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
@@ -114,8 +116,20 @@ export default function DashboardPage(): React.JSX.Element {
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Command Center</p>
+
+        {isInstallAvailable ? (
+          <button
+            type="button"
+            onClick={() => void promptInstall()}
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-amber-400/70 bg-amber-500/25 px-4 py-3 text-left text-sm font-semibold text-amber-100 transition hover:bg-amber-500/35"
+          >
+            <span>Install SparkOps for standalone app access.</span>
+            <span className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950">Install App</span>
+          </button>
+        ) : null}
+
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-          Welcome {displayName ?? "Sparky"}
+          {displayName ? `Welcome ${displayName}` : "Welcome"}
         </h1>
         <p className="mt-2 text-sm text-slate-300">Your business pulse right now.</p>
 
@@ -149,7 +163,7 @@ export default function DashboardPage(): React.JSX.Element {
 
         {!loading && jobs.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-6">
-            <h2 className="text-xl font-semibold text-white">Welcome {displayName ?? "Sparky"}</h2>
+            <h2 className="text-xl font-semibold text-white">{displayName ? `Welcome ${displayName}` : "Welcome"}</h2>
             <p className="mt-2 text-sm text-slate-300">You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline.</p>
             <Link
               href="/capture"

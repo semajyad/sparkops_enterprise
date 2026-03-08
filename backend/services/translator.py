@@ -18,8 +18,8 @@ except ImportError:  # pragma: no cover - compatibility with legacy OpenAI SDK
 SYSTEM_PROMPT = "You are a professional NZ Quantity Surveyor. Translate slang to professional line items."
 
 HARD_CODED_TRANSLATIONS: dict[str, str] = {
-    "chucked a hori in the cupboard": "Installed Horizontal Hot Water Cylinder.",
-    "hori in the cupboard": "Installed Horizontal Hot Water Cylinder.",
+    "installed hot water cylinder in cupboard": "Installed Horizontal Hot Water Cylinder.",
+    "hot water cylinder in cupboard": "Installed Horizontal Hot Water Cylinder.",
     "ran some 2.5 twin and earth": "Installed 2.5mm TPS Cable.",
     "stuck a jbox in the roof": "Installed Junction Box in Ceiling Cavity.",
 }
@@ -110,10 +110,10 @@ class KiwiTranslator:
                             "type": "input_text",
                             "text": (
                                 "Examples:\n"
-                                "- Chucked a Hori in the cupboard => Installed Horizontal Hot Water Cylinder.\n"
-                                "- Hori in the cupboard => Installed Horizontal Hot Water Cylinder.\n"
+                                "- Installed hot water cylinder in cupboard => Installed Horizontal Hot Water Cylinder.\n"
+                                "- Sparky installed new hot water cylinder => Installed Horizontal Hot Water Cylinder.\n"
                                 "- Ran some 2.5 twin and earth => Installed 2.5mm TPS Cable.\n"
-                                "- Stuck a jbox in the roof => Installed Junction Box in Ceiling Cavity."
+                                "- Chippie and spark-chaser fitted jbox in roof => Installed Junction Box in Ceiling Cavity."
                             ),
                         },
                     ],

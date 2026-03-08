@@ -5,11 +5,11 @@ from __future__ import annotations
 from services.translator import KiwiTranslator
 
 
-def test_translator_maps_hori_phrase_exactly() -> None:
-    """Map canonical Hori phrase to professional invoice description."""
+def test_translator_maps_hot_water_cylinder_phrase_exactly() -> None:
+    """Map canonical hot water cylinder phrase to professional invoice description."""
 
     translator = KiwiTranslator(api_key=None)
-    translated = translator.translate_notes("Hori in the cupboard")
+    translated = translator.translate_notes("Hot water cylinder in cupboard")
     assert translated == ["Installed Horizontal Hot Water Cylinder."]
 
 

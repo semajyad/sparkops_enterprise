@@ -108,7 +108,7 @@ Visit: http://localhost:8000/docs
 ### 🎤 Voice Capture & AI Processing
 - **Real-time recording** with WebM audio capture
 - **GPT-5 triage** extracts client, materials, labor, and urgency
-- **Kiwi slang translation** (hori in cupboard → Horizontal Hot Water Cylinder)
+- **Kiwi slang translation** (hot water cylinder in cupboard → Horizontal Hot Water Cylinder)
 - **Automatic job classification** into materials vs labor
 - **Invoice calculation** with configurable markup rates
 
@@ -253,7 +253,7 @@ GET  /api/eta/lookup/{id}      # Lookup tracking data
 POST /api/ingest
 {
   "audio_base64": "base64_encoded_webm_audio",
-  "transcript": "chucked a hori in the cupboard",
+  "transcript": "installed hot water cylinder in cupboard",
   "type": "voice"
 }
 

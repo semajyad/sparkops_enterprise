@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Completed - SparkOps Invoice</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #f8fafc;
+        }
+        
+        /* Email container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23333" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.1;
+        }
+        
+        .logo {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fbbf24;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tagline {
+            color: #cbd5e1;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Main content */
+        .content {
+            padding: 40px 30px;
+            background: white;
+        }
+        
+        .completion-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .completion-subtitle {
+            font-size: 18px;
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 32px;
+            line-height: 1.7;
+        }
+        
+        /* Success Message */
+        .success-notice {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .success-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #065f46;
+            margin-bottom: 8px;
+        }
+        
+        .success-text {
+            font-size: 16px;
+            color: #047857;
+            line-height: 1.5;
+        }
+        
+        /* Job Summary */
+        .job-summary {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .summary-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-item:last-child {
+            margin-bottom: 0;
+            border-top: 2px solid #e2e8f0;
+            padding-top: 16px;
+            margin-top: 16px;
+        }
+        
+        .summary-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .summary-value {
+            font-size: 14px;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        
+        .summary-value.highlight {
+            color: #10b981;
+            font-size: 18px;
+        }
+        
+        .job-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #0f172a;
+        }
+        
+        /* Invoice Button */
+        .invoice-section {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .invoice-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        
+        .invoice-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Job Details */
+        .job-details {
+            margin-bottom: 32px;
+        }
+        
+        .details-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .detail-section {
+            margin-bottom: 24px;
+        }
+        
+        .detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .section-heading {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .items-list {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .item-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .item-description {
+            font-size: 14px;
+            color: #0f172a;
+            flex: 1;
+            margin-right: 16px;
+        }
+        
+        .item-details {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        
+        .item-price {
+            font-size: 14px;
+            color: #0f172a;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        /* Next Steps */
+        .next-steps {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .steps-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .step-list {
+            list-style: none;
+        }
+        
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .step-text {
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.4;
+        }
+        
+        /* Help Section */
+        .help-section {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            color: white;
+        }
+        
+        .help-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #fbbf24;
+        }
+        
+        .help-text {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        
+        .help-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .help-link {
+            color: #fbbf24;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border: 1px solid #fbbf24;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .help-link:hover {
+            background: #fbbf24;
+            color: #0f172a;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8fafc;
+            padding: 24px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 12px;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-link:hover {
+            color: #10b981;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .completion-title {
+                font-size: 24px;
+            }
+            
+            .summary-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .summary-value {
+                margin-top: 4px;
+            }
+            
+            .item-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .item-price {
+                margin-top: 4px;
+            }
+            
+            .help-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🔥 SparkOps</div>
+            <div class="tagline">Voice-to-Cash Platform for NZ Electricians</div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content">
+            <h1 class="completion-title">Job Completed Successfully!</h1>
+            <p class="completion-subtitle">
+                Great news! Your job has been processed and the invoice is ready. Here's a summary of the work completed for {{ client_name || "your client" }}.
+            </p>
+            
+            <!-- Success Message -->
+            <div class="success-notice">
+                <div class="success-icon">✅</div>
+                <h3 class="success-title">Job Processed Successfully</h3>
+                <p class="success-text">
+                    Your voice notes have been transformed into a professional invoice with AI-extracted materials and labor calculations.
+                </p>
+            </div>
+            
+            <!-- Job Summary -->
+            <div class="job-summary">
+                <h3 class="summary-title">Job Summary</h3>
+                <div class="summary-item">
+                    <span class="summary-label">Job ID</span>
+                    <span class="summary-value"><span class="job-id">{{ job_id || "JOB-12345" }}</span></span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Client</span>
+                    <span class="summary-value">{{ client_name || "Client Name" }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Date</span>
+                    <span class="summary-value">{{ completion_date || "Today" }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Status</span>
+                    <span class="summary-value">Completed</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Total Amount</span>
+                    <span class="summary-value highlight">${{ total_amount || "585.00" }}</span>
+                </div>
+            </div>
+            
+            <!-- Invoice Button -->
+            <div class="invoice-section">
+                <a href="{{ invoice_url || "https://app.sparkops.co.nz/jobs/JOB-12345/invoice" }}" class="invoice-button">
+                    📄 Download PDF Invoice
+                </a>
+            </div>
+            
+            <!-- Job Details -->
+            <div class="job-details">
+                <h3 class="details-title">Job Details</h3>
+                
+                <!-- Materials Section -->
+                <div class="detail-section">
+                    <div class="section-heading">
+                        <div class="section-icon">📦</div>
+                        <span>Materials Used</span>
+                    </div>
+                    <div class="items-list">
+                        {% for material in materials %}
+                        <div class="item-row">
+                            <div class="item-description">
+                                {{ material.description || "Material Description" }}
+                                <div class="item-details">{{ material.quantity || "1" }} × ${{ material.unit_price || "0.00" }}</div>
+                            </div>
+                            <div class="item-price">${{ material.total || "0.00" }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Labor Section -->
+                <div class="detail-section">
+                    <div class="section-heading">
+                        <div class="section-icon">👷</div>
+                        <span>Labor Services</span>
+                    </div>
+                    <div class="items-list">
+                        <div class="item-row">
+                            <div class="item-description">
+                                Electrical Installation & Labor
+                                <div class="item-details">{{ labor_hours || "0" }} hours @ ${{ labor_rate || "95.00" }}/hr</div>
+                            </div>
+                            <div class="item-price">${{ labor_total || "0.00" }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Next Steps -->
+            <div class="next-steps">
+                <h3 class="steps-title">Next Steps</h3>
+                <ul class="step-list">
+                    <li class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-text">Review the invoice details and make any necessary adjustments</div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-text">Send the invoice to your client via email or SMS</div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-text">Track payment status and follow up if needed</div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-text">Record the payment and update job status to complete</div>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Help Section -->
+            <div class="help-section">
+                <h3 class="help-title">Need Help?</h3>
+                <p class="help-text">
+                    Have questions about your invoice or need to make changes? Our support team is here to help.
+                </p>
+                <div class="help-links">
+                    <a href="{{ dashboard_url || "https://app.sparkops.co.nz/dashboard" }}" class="help-link">
+                        📊 View Dashboard
+                    </a>
+                    <a href="{{ support_url || "mailto:support@sparkops.co.nz" }}" class="help-link">
+                        💬 Contact Support
+                    </a>
+                    <a href="{{ help_url || "https://docs.sparkops.co.nz/invoices" }}" class="help-link">
+                        📚 Invoice Guide
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                © 2024 SparkOps. Transforming voice into value for NZ electrical contractors.
+            </p>
+            <div class="footer-links">
+                <a href="{{ privacy_url || "https://sparkops.co.nz/privacy" }}" class="footer-link">
+                    Privacy Policy
+                </a>
+                <a href="{{ terms_url || "https://sparkops.co.nz/terms" }}" class="footer-link">
+                    Terms of Service
+                </a>
+                <a href="{{ unsubscribe_url || "#" }}" class="footer-link">
+                    Unsubscribe
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

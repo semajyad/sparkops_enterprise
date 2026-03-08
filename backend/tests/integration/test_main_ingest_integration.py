@@ -78,7 +78,7 @@ def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.M
 
 
 
-    monkeypatch.setattr(main, "transcribe_audio", lambda _audio_base64: "Hori in the cupboard")
+    monkeypatch.setattr(main, "transcribe_audio", lambda _audio_base64: "Hot water cylinder in cupboard")
 
     monkeypatch.setattr(
 
@@ -152,7 +152,7 @@ def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.M
 
 
 
-    assert payload["raw_transcript"] == "Hori in the cupboard"
+    assert payload["raw_transcript"] == "Hot water cylinder in cupboard"
 
     assert payload["status"] == "DRAFT"
 

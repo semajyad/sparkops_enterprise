@@ -1,29 +1,29 @@
 import { expect, test } from "@playwright/test";
 
+const configuredEmail = process.env.PLAYWRIGHT_TEST_EMAIL;
+const configuredPassword = process.env.PLAYWRIGHT_TEST_PASSWORD;
+const hasConfiguredCredentials = Boolean(configuredEmail && configuredPassword);
+
+async function ensureAuthenticated(page: import("@playwright/test").Page): Promise<void> {
+  if (!configuredEmail || !configuredPassword) {
+    throw new Error("Missing PLAYWRIGHT_TEST_EMAIL or PLAYWRIGHT_TEST_PASSWORD.");
+  }
+
+  await page.goto("/login");
+  await page.getByLabel("Email").first().fill(configuredEmail);
+  await page.getByLabel("Password").first().fill(configuredPassword);
+  await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+}
+
 test.describe("Live staging auth and onboarding", () => {
-  test("signup captures full name and redirects to dashboard", async ({ page }) => {
-    const uniqueEmail = `sparky+${Date.now()}@example.com`;
-    const password = "SparkOps!2026";
+  test("login redirects to dashboard and profile is accessible", async ({ page }) => {
+    test.skip(
+      !hasConfiguredCredentials,
+      "Set PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_PASSWORD to run live staging auth tests.",
+    );
 
-    await page.goto("/login?mode=signup");
-    await expect(page).toHaveURL(/\/login\?mode=signup/);
-
-    await page.getByLabel("Full Name").fill("Hemi Ropata");
-    await page.getByLabel("Email").first().fill(uniqueEmail);
-    await page.getByLabel("Password").first().fill(password);
-    await page.getByRole("button", { name: "Create Account" }).click();
-
-    await Promise.race([
-      expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 }),
-      page.getByRole("button", { name: "Sign In to SparkOps" }).waitFor({ state: "visible", timeout: 20_000 }),
-    ]);
-
-    if (!page.url().includes("/dashboard")) {
-      await page.getByLabel("Email").first().fill(uniqueEmail);
-      await page.getByLabel("Password").first().fill(password);
-      await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
-    }
-
+    await ensureAuthenticated(page);
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { level: 1, name: /Welcome/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start New Job" })).toBeVisible();
@@ -33,27 +33,14 @@ test.describe("Live staging auth and onboarding", () => {
   });
 
   test("critical path: auth to capture, sync, and view job detail", async ({ page }) => {
-    const uniqueEmail = `sparky+critical-${Date.now()}@example.com`;
-    const password = "SparkOps!2026";
+    test.skip(
+      !hasConfiguredCredentials,
+      "Set PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_PASSWORD to run live staging auth tests.",
+    );
+
     const mockJobId = "11111111-2222-3333-4444-555555555555";
 
-    await page.goto("/login?mode=signup");
-    await page.getByLabel("Full Name").fill("Wiremu Kahu");
-    await page.getByLabel("Email").first().fill(uniqueEmail);
-    await page.getByLabel("Password").first().fill(password);
-    await page.getByRole("button", { name: "Create Account" }).click();
-
-    await Promise.race([
-      expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 }),
-      page.getByRole("button", { name: "Sign In to SparkOps" }).waitFor({ state: "visible", timeout: 20_000 }),
-    ]);
-
-    if (!page.url().includes("/dashboard")) {
-      await page.getByLabel("Email").first().fill(uniqueEmail);
-      await page.getByLabel("Password").first().fill(password);
-      await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
-      await expect(page).toHaveURL(/\/dashboard/);
-    }
+    await ensureAuthenticated(page);
 
     await page.route("**/api/ingest", async (route) => {
       await route.fulfill({

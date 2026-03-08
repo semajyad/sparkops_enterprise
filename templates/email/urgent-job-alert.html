@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urgent Job Alert - SparkOps</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #f8fafc;
+        }
+        
+        /* Email container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23fff" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.1;
+        }
+        
+        .logo {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fbbf24;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tagline {
+            color: #fecaca;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Main content */
+        .content {
+            padding: 40px 30px;
+            background: white;
+        }
+        
+        .alert-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .alert-subtitle {
+            font-size: 18px;
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 32px;
+            line-height: 1.7;
+        }
+        
+        /* Urgency Badge */
+        .urgency-badge {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .urgency-icon {
+            font-size: 16px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Alert Details */
+        .alert-details {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid #dc2626;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .alert-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 16px;
+            color: #dc2626;
+        }
+        
+        .alert-message {
+            font-size: 16px;
+            color: #991b1b;
+            line-height: 1.6;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+        
+        .alert-transcript {
+            background: white;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            color: #7f1d1d;
+            margin-bottom: 16px;
+        }
+        
+        .client-info {
+            background: #fef2f2;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .client-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #991b1b;
+            margin-bottom: 4px;
+        }
+        
+        .client-phone {
+            font-size: 14px;
+            color: #dc2626;
+            font-weight: 500;
+        }
+        
+        .timestamp {
+            font-size: 12px;
+            color: #7f1d1d;
+            text-align: right;
+            font-style: italic;
+        }
+        
+        /* Action Buttons */
+        .action-section {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .primary-action {
+            display: inline-block;
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.3), 0 2px 4px -1px rgba(220, 38, 38, 0.2);
+            transition: all 0.3s ease;
+            margin-bottom: 12px;
+        }
+        
+        .primary-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(220, 38, 38, 0.3), 0 4px 6px -2px rgba(220, 38, 38, 0.2);
+        }
+        
+        .secondary-action {
+            display: inline-block;
+            background: white;
+            color: #dc2626;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+            border: 2px solid #dc2626;
+            transition: all 0.3s ease;
+            margin-left: 8px;
+        }
+        
+        .secondary-action:hover {
+            background: #dc2626;
+            color: white;
+        }
+        
+        /* Extracted Information */
+        .extracted-info {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .info-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-size: 16px;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        
+        .info-value.urgent {
+            color: #dc2626;
+        }
+        
+        /* Recommendations */
+        .recommendations {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .recommendations-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .recommendation-list {
+            list-style: none;
+        }
+        
+        .recommendation-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .recommendation-icon {
+            width: 24px;
+            height: 24px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .recommendation-text {
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.4;
+        }
+        
+        /* Help Section */
+        .help-section {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            color: white;
+        }
+        
+        .help-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #fbbf24;
+        }
+        
+        .help-text {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        
+        .help-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .help-link {
+            color: #fbbf24;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border: 1px solid #fbbf24;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .help-link:hover {
+            background: #fbbf24;
+            color: #0f172a;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8fafc;
+            padding: 24px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 12px;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-link:hover {
+            color: #dc2626;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .alert-title {
+                font-size: 24px;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-section {
+                text-align: center;
+            }
+            
+            .secondary-action {
+                display: block;
+                margin-left: 0;
+                margin-top: 8px;
+            }
+            
+            .help-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🔥 SparkOps</div>
+            <div class="tagline">Voice-to-Cash Platform for NZ Electricians</div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content">
+            <h1 class="alert-title">🚨 Urgent Job Alert</h1>
+            <p class="alert-subtitle">
+                A high-priority job has been detected and requires your immediate attention. Ladder Mode is active.
+            </p>
+            
+            <!-- Urgency Badge -->
+            <div style="text-align: center;">
+                <div class="urgency-badge">
+                    <span class="urgency-icon">🔥</span>
+                    HIGH URGENCY - IMMEDIATE ACTION REQUIRED
+                </div>
+            </div>
+            
+            <!-- Alert Details -->
+            <div class="alert-details">
+                <div class="alert-icon">📞</div>
+                <div class="alert-message">
+                    Urgent voicemail received with emergency electrical work request. AI analysis indicates immediate response needed.
+                </div>
+                
+                <div class="alert-transcript">
+                    "{{ voicemail_transcript || "Power outage at commercial property, sparks flying, need emergency service immediately" }}"
+                </div>
+                
+                <div class="client-info">
+                    <div class="client-name">{{ client_name || "Emergency Client" }}</div>
+                    <div class="client-phone">📱 {{ client_phone || "+64 21 123 4567" }}</div>
+                </div>
+                
+                <div class="timestamp">
+                    Received: {{ alert_time || "2 minutes ago" }}
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="action-section">
+                <a href="{{ dashboard_url || "https://app.sparkops.co.nz/dashboard" }}" class="primary-action">
+                    🚀 View in Dashboard
+                </a>
+                <a href="tel:{{ client_phone || "+64211234567" }}" class="secondary-action">
+                    📞 Call Client Now
+                </a>
+            </div>
+            
+            <!-- Extracted Information -->
+            <div class="extracted-info">
+                <h3 class="info-title">🔍 AI Analysis Results</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Urgency Level</div>
+                        <div class="info-value urgent">HIGH</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Job Type</div>
+                        <div class="info-value">{{ job_type || "Emergency Service" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Estimated Hours</div>
+                        <div class="info-value">{{ estimated_hours || "2-4 hours" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Priority Score</div>
+                        <div class="info-value urgent">{{ priority_score || "9.5/10" }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recommendations -->
+            <div class="recommendations">
+                <h3 class="recommendations-title">⚡ Recommended Actions</h3>
+                <ul class="recommendation-list">
+                    <li class="recommendation-item">
+                        <div class="recommendation-icon">1</div>
+                        <div class="recommendation-text">Call client immediately to assess safety situation</div>
+                    </li>
+                    <li class="recommendation-item">
+                        <div class="recommendation-icon">2</div>
+                        <div class="recommendation-text">Prepare emergency service kit and safety equipment</div>
+                    </li>
+                    <li class="recommendation-item">
+                        <div class="recommendation-icon">3</div>
+                        <div class="recommendation-text">Check availability for immediate dispatch</div>
+                    </li>
+                    <li class="recommendation-item">
+                        <div class="recommendation-icon">4</div>
+                        <div class="recommendation-text">Document safety assessment and work performed</div>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Help Section -->
+            <div class="help-section">
+                <h3 class="help-title">Ladder Mode Active</h3>
+                <p class="help-text">
+                    Ladder Mode is currently active, intercepting calls and prioritizing urgent requests. Other calls are being held in queue.
+                </p>
+                <div class="help-links">
+                    <a href="{{ ladder_url || "https://app.sparkops.co.nz/ladder" }}" class="help-link">
+                        🪜 Manage Ladder Mode
+                    </a>
+                    <a href="{{ tracking_url || "https://app.sparkops.co.nz/tracking" }}" class="help-link">
+                        📍 Set Up Tracking
+                    </a>
+                    <a href="{{ support_url || "mailto:support@sparkops.co.nz" }}" class="help-link">
+                        💬 Emergency Support
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                © 2024 SparkOps. Transforming voice into value for NZ electrical contractors.
+            </p>
+            <div class="footer-links">
+                <a href="{{ privacy_url || "https://sparkops.co.nz/privacy" }}" class="footer-link">
+                    Privacy Policy
+                </a>
+                <a href="{{ terms_url || "https://sparkops.co.nz/terms" }}" class="footer-link">
+                    Terms of Service
+                </a>
+                <a href="{{ unsubscribe_url || "#" }}" class="footer-link">
+                    Unsubscribe
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

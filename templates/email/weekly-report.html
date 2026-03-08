@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Business Report - SparkOps</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #f8fafc;
+        }
+        
+        /* Email container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23333" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.1;
+        }
+        
+        .logo {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fbbf24;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tagline {
+            color: #cbd5e1;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Main content */
+        .content {
+            padding: 40px 30px;
+            background: white;
+        }
+        
+        .report-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .report-subtitle {
+            font-size: 18px;
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 32px;
+            line-height: 1.7;
+        }
+        
+        .period-badge {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 24px;
+            display: inline-block;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .metric-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+        
+        .metric-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .metric-change {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+        
+        .metric-change.positive {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .metric-change.negative {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Performance Section */
+        .performance-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .performance-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .performance-bar:last-child {
+            margin-bottom: 0;
+        }
+        
+        .performance-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .performance-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        
+        .performance-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+        
+        .progress-bar {
+            background: #e2e8f0;
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        /* Top Jobs */
+        .jobs-section {
+            margin-bottom: 32px;
+        }
+        
+        .job-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .job-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .job-info {
+            flex: 1;
+        }
+        
+        .job-client {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+        
+        .job-details {
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .job-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: #10b981;
+            white-space: nowrap;
+        }
+        
+        /* Insights Section */
+        .insights-section {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .insights-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #92400e;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .insight-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+        }
+        
+        .insight-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .insight-icon {
+            width: 24px;
+            height: 24px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .insight-text {
+            font-size: 14px;
+            color: #78350f;
+            line-height: 1.4;
+        }
+        
+        /* Action Section */
+        .action-section {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .action-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8fafc;
+            padding: 24px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 12px;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-link:hover {
+            color: #3b82f6;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .report-title {
+                font-size: 24px;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .job-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .job-amount {
+                margin-top: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🔥 SparkOps</div>
+            <div class="tagline">Voice-to-Cash Platform for NZ Electrical Contractors</div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content">
+            <h1 class="report-title">Weekly Business Report</h1>
+            <p class="report-subtitle">
+                Here's your business performance summary for the week. Track your progress and identify opportunities for growth.
+            </p>
+            
+            <div style="text-align: center;">
+                <div class="period-badge">
+                    📅 {{ report_period || "Week of March 1-7, 2024" }}
+                </div>
+            </div>
+            
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon">📋</div>
+                    <div class="metric-value">{{ total_jobs || "12" }}</div>
+                    <div class="metric-label">Jobs Completed</div>
+                    <div class="metric-change positive">+{{ jobs_change || "20%" }} vs last week</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-icon">💰</div>
+                    <div class="metric-value">${{ total_revenue || "8,450" }}</div>
+                    <div class="metric-label">Total Revenue</div>
+                    <div class="metric-change positive">+{{ revenue_change || "15%" }} vs last week</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-icon">⏱️</div>
+                    <div class="metric-value">{{ total_hours || "68" }}</div>
+                    <div class="metric-label">Billable Hours</div>
+                    <div class="metric-change positive">+{{ hours_change || "8%" }} vs last week</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-icon">📦</div>
+                    <div class="metric-value">${{ material_spend || "2,340" }}</div>
+                    <div class="metric-label">Material Spend</div>
+                    <div class="metric-change negative">+{{ materials_change || "5%" }} vs last week</div>
+                </div>
+            </div>
+            
+            <!-- Performance Section -->
+            <div class="performance-section">
+                <h3 class="section-title">📊 Performance Metrics</h3>
+                
+                <div class="performance-bar">
+                    <div class="performance-label">
+                        <span class="performance-name">Job Completion Rate</span>
+                        <span class="performance-value">{{ completion_rate || "92%" }}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ completion_percentage || 92 }}%;"></div>
+                    </div>
+                </div>
+                
+                <div class="performance-bar">
+                    <div class="performance-label">
+                        <span class="performance-name">Average Job Value</span>
+                        <span class="performance-value">${{ avg_job_value || "704" }}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ avg_value_percentage || 75 }}%;"></div>
+                    </div>
+                </div>
+                
+                <div class="performance-bar">
+                    <div class="performance-label">
+                        <span class="performance-name">Voice Processing Success</span>
+                        <span class="performance-value">{{ voice_success || "96%" }}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ voice_percentage || 96 }}%;"></div>
+                    </div>
+                </div>
+                
+                <div class="performance-bar">
+                    <div class="performance-label">
+                        <span class="performance-name">Client Satisfaction</span>
+                        <span class="performance-value">{{ satisfaction_rate || "4.8/5" }}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ satisfaction_percentage || 96 }}%;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top Jobs Section -->
+            <div class="jobs-section">
+                <h3 class="section-title">🏆 Top Performing Jobs</h3>
+                
+                {% for job in top_jobs %}
+                <div class="job-item">
+                    <div class="job-info">
+                        <div class="job-client">{{ job.client || "Client Name" }}</div>
+                        <div class="job-details">{{ job.details || "Complete electrical installation" }} • {{ job.date || "Mar 5" }}</div>
+                    </div>
+                    <div class="job-amount">${{ job.amount || "1,250" }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Insights Section -->
+            <div class="insights-section">
+                <h3 class="insights-title">💡 Business Insights</h3>
+                
+                <div class="insight-item">
+                    <div class="insight-icon">📈</div>
+                    <div class="insight-text">
+                        {{ insight_1 || "Revenue increased by 15% this week, driven by higher-value commercial jobs" }}
+                    </div>
+                </div>
+                
+                <div class="insight-item">
+                    <div class="insight-icon">🎯</div>
+                    <div class="insight-text">
+                        {{ insight_2 || "Voice-to-job processing accuracy improved to 96%, reducing manual entry time" }}
+                    </div>
+                </div>
+                
+                <div class="insight-item">
+                    <div class="insight-icon">⚡</div>
+                    <div class="insight-text">
+                        {{ insight_3 || "Emergency jobs generated 30% higher revenue per hour than routine work" }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Section -->
+            <div class="action-section">
+                <a href="{{ dashboard_url || "https://app.sparkops.co.nz/dashboard" }}" class="action-button">
+                    📊 View Full Dashboard
+                </a>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                © 2024 SparkOps. Transforming voice into value for NZ electrical contractors.
+            </p>
+            <div class="footer-links">
+                <a href="{{ privacy_url || "https://sparkops.co.nz/privacy" }}" class="footer-link">
+                    Privacy Policy
+                </a>
+                <a href="{{ terms_url || "https://sparkops.co.nz/terms" }}" class="footer-link">
+                    Terms of Service
+                </a>
+                <a href="{{ unsubscribe_url || "#" }}" class="footer-link">
+                    Unsubscribe
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

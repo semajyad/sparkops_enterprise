@@ -55,7 +55,7 @@ Sprint 1 delivers the SparkOps **Data Factory** pipeline for NZ electricians:
 ### Request
 ```json
 {
-  "voice_notes": "Hori in the cupboard",
+  "voice_notes": "Hot water cylinder in cupboard",
   "audio_base64": null,
   "receipt_image_base64": "..."
 }
@@ -64,7 +64,7 @@ Sprint 1 delivers the SparkOps **Data Factory** pipeline for NZ electricians:
 ### Response
 ```json
 {
-  "transcript": "Hori in the cupboard",
+  "transcript": "Hot water cylinder in cupboard",
   "supplier": "J.A. Russell",
   "receipt_date": "2026-03-07",
   "invoice_lines": [
@@ -115,7 +115,7 @@ sh backend/scripts/run_security_sast.sh
 - Financial calculations are strictly local using `Decimal`.
 - No AI tool use for arithmetic.
 - Translator includes deterministic Kiwi slang mapping for:
-  - "Chucked a Hori in the cupboard"
-  - "Hori in the cupboard"
+  - "Installed hot water cylinder in cupboard"
+  - "Hot water cylinder in cupboard"
   - "Ran some 2.5 twin and earth"
   - "Stuck a jbox in the roof"

@@ -57,7 +57,7 @@ def test_ingest_endpoint_returns_verified_invoice(monkeypatch) -> None:
     response = client.post(
         "/api/ingest",
         json={
-            "voice_notes": "Hori in the cupboard",
+            "voice_notes": "Hot water cylinder in cupboard",
             "receipt_image_base64": "ZmFrZS1pbWFnZQ==",
         },
     )
@@ -66,5 +66,5 @@ def test_ingest_endpoint_returns_verified_invoice(monkeypatch) -> None:
     payload = response.json()
     assert payload["id"]
     assert payload["status"] == "DRAFT"
-    assert payload["raw_transcript"] == "Hori in the cupboard"
+    assert payload["raw_transcript"] == "Hot water cylinder in cupboard"
     assert payload["extracted_data"]["client"] == "Smith Residence"

@@ -4,12 +4,12 @@ import { getDraftCounts, getPendingDrafts, saveJobDraft, updateDraft } from "@/l
 
 describe("IndexedDB JobDraft storage", () => {
   it("saves a draft as pending and returns it via pending query", async () => {
-    await saveJobDraft({ voice_text: "Hori in the cupboard" });
+    await saveJobDraft({ voice_text: "Hot water cylinder in cupboard" });
 
     const pending = await getPendingDrafts();
 
     expect(pending.length).toBeGreaterThan(0);
-    expect(pending.some((row) => row.voice_text === "Hori in the cupboard")).toBe(true);
+    expect(pending.some((row) => row.voice_text === "Hot water cylinder in cupboard")).toBe(true);
   });
 
   it("updates existing draft and allows status transition", async () => {

@@ -99,7 +99,7 @@ Content-Type: application/json
 ```json
 {
   "audio_base64": "base64_encoded_webm_audio_data",
-  "transcript": "chucked a hori in the cupboard",
+  "transcript": "installed hot water cylinder in cupboard",
   "type": "voice"
 }
 ```
