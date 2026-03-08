@@ -507,6 +507,9 @@ class ManualJobCreateRequest(BaseModel):
     client_name: str = Field(min_length=1, max_length=255)
     title: str = Field(min_length=1, max_length=500)
     location: str = Field(min_length=1, max_length=500)
+    address: str | None = Field(default=None, max_length=500)
+    latitude: float | None = None
+    longitude: float | None = None
     scheduled_date: str | None = Field(default=None, max_length=64)
     client_email: str | None = Field(default=None, max_length=255)
 
@@ -1423,13 +1426,18 @@ def create_job_draft(
     client_name = payload.client_name.strip()
     title = payload.title.strip()
     location = payload.location.strip()
+    address = payload.address.strip() if isinstance(payload.address, str) and payload.address.strip() else location
+    latitude = float(payload.latitude) if isinstance(payload.latitude, (int, float)) else None
+    longitude = float(payload.longitude) if isinstance(payload.longitude, (int, float)) else None
     scheduled_date = payload.scheduled_date.strip() if isinstance(payload.scheduled_date, str) else ""
 
     extracted_data: dict[str, Any] = {
         "client": client_name,
         "job_title": title,
-        "location": location,
-        "address": location,
+        "location": address,
+        "address": address,
+        "latitude": latitude,
+        "longitude": longitude,
         "scheduled_date": scheduled_date or None,
         "line_items": [],
         "safety_tests": [],

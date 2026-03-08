@@ -42,6 +42,18 @@ export async function getProfileCache(): Promise<CachedProfileState | undefined>
   return db.profile_state.get("profile");
 }
 
+export async function setTeamCache(payload: Omit<CachedTeamState, "key" | "updated_at">): Promise<void> {
+  await db.team_state.put({
+    key: "team",
+    ...payload,
+    updated_at: now(),
+  });
+}
+
+export async function getTeamCache(): Promise<CachedTeamState | undefined> {
+  return db.team_state.get("team");
+}
+
 export interface CachedJob {
   id: string;
   status: string;
@@ -88,6 +100,74 @@ export interface CachedProfileState {
   updated_at: number;
 }
 
+export interface CachedJobDetail {
+  id: string;
+  raw_transcript: string;
+  client_email?: string | null;
+  compliance_status?: string | null;
+  certificate_pdf_url?: string | null;
+  extracted_data: {
+    client?: string;
+    address?: string;
+    scope?: string;
+    line_items?: Array<{
+      qty?: string | number;
+      description?: string;
+      type?: string;
+      unit_price?: string | number;
+      line_total?: string | number;
+    }>;
+    safety_tests?: Array<{
+      type?: string;
+      value?: string | null;
+      unit?: string | null;
+      result?: string | null;
+      gps_lat?: number | null;
+      gps_lng?: number | null;
+    }>;
+    latitude?: number | string;
+    longitude?: number | string;
+    location?: string;
+    scheduled_date?: string | null;
+    job_title?: string;
+  };
+  status: string;
+  created_at: string;
+  invoice_summary?: {
+    subtotal?: string;
+    markup_amount?: string;
+    gst?: string;
+    total?: string;
+    material_cost_base?: string;
+    material_cost_with_markup?: string;
+    labor_total?: string;
+  };
+  compliance_summary?: {
+    status?: string;
+    notes?: string;
+    missing_items?: string[];
+    checks?: Array<{ key?: string; label?: string; present?: boolean }>;
+  };
+  updated_at: number;
+}
+
+export type CachedTeamMember = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "OWNER" | "EMPLOYEE";
+  status: "ACTIVE" | "PENDING";
+  invited_at: string | null;
+  last_sign_in_at: string | null;
+};
+
+export interface CachedTeamState {
+  key: "team";
+  activeUsers: CachedTeamMember[];
+  pendingInvites: CachedTeamMember[];
+  updated_at: number;
+}
+
 export type SyncQueueEntity = "job" | "safety_test";
 export type SyncQueueAction = "create" | "update";
 
@@ -110,10 +190,12 @@ const LAST_JOB_SYNC_KEY = "sparkops:last-job-sync";
 class SparkOpsDexie extends Dexie {
   jobDrafts!: Table<JobDraft, number>;
   jobs!: Table<CachedJob, string>;
+  job_details!: Table<CachedJobDetail, string>;
   clients!: Table<CachedClient, string>;
   products!: Table<CachedProduct, string>;
   map_state!: Table<CachedMapState, "tracking">;
   profile_state!: Table<CachedProfileState, "profile">;
+  team_state!: Table<CachedTeamState, "team">;
   sync_queue!: Table<SyncQueueItem, number>;
 
   constructor() {
@@ -135,6 +217,17 @@ class SparkOpsDexie extends Dexie {
       products: "id,name,updated_at",
       map_state: "key,updated_at",
       profile_state: "key,updated_at",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+    this.version(4).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at",
+      job_details: "id,updated_at,status",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      map_state: "key,updated_at",
+      profile_state: "key,updated_at",
+      team_state: "key,updated_at",
       sync_queue: "++id,status,entity_type,created_at,retry_count",
     });
   }
@@ -216,6 +309,17 @@ export async function getJobFromCache(id: string): Promise<CachedJob | undefined
 
 export async function putJobInCache(job: CachedJob): Promise<void> {
   await db.jobs.put(job);
+}
+
+export async function upsertJobDetail(detail: Omit<CachedJobDetail, "updated_at">): Promise<void> {
+  await db.job_details.put({
+    ...detail,
+    updated_at: now(),
+  });
+}
+
+export async function getJobDetailFromCache(id: string): Promise<CachedJobDetail | undefined> {
+  return db.job_details.get(id);
 }
 
 export async function deleteJobFromCache(id: string): Promise<void> {

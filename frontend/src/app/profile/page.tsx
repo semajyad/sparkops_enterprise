@@ -8,7 +8,7 @@ import { inviteUser, listTeamMembers, updateProfile } from "@/app/profile/action
 import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { getProfileCache, setProfileCache } from "@/lib/db";
+import { getProfileCache, getTeamCache, setProfileCache, setTeamCache } from "@/lib/db";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -172,6 +172,8 @@ export default function ProfilePage(): React.JSX.Element {
   }, [details?.email, details?.full_name, details?.role, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
 
   async function onLadderChange(next: boolean): Promise<void> {
+    const previous = ladderEnabled;
+    setLadderEnabled(next);
     setIsSavingLadder(true);
     setMessage("Updating Ladder Mode...");
     try {
@@ -189,6 +191,7 @@ export default function ProfilePage(): React.JSX.Element {
       setLadderEnabled(Boolean(payload.enabled));
       setMessage(next ? "Ladder Mode activated." : "Ladder Mode disabled.");
     } catch (error) {
+      setLadderEnabled(previous);
       setMessage(error instanceof Error ? error.message : "Unable to update Ladder Mode.");
     } finally {
       setIsSavingLadder(false);
@@ -239,8 +242,36 @@ export default function ProfilePage(): React.JSX.Element {
       setTeamMessage(null);
       setActiveUsers(result.activeUsers);
       setPendingInvites(result.pendingInvites);
+      await setTeamCache({
+        activeUsers: result.activeUsers,
+        pendingInvites: result.pendingInvites,
+      });
     }
     setIsTeamLoading(false);
+  }, [details?.role]);
+
+  useEffect(() => {
+    if (String(details?.role ?? "").toUpperCase() !== "OWNER") {
+      return;
+    }
+
+    let cancelled = false;
+    void getTeamCache()
+      .then((cached) => {
+        if (!cached || cancelled) {
+          return;
+        }
+        setActiveUsers(cached.activeUsers);
+        setPendingInvites(cached.pendingInvites);
+        setIsTeamLoading(false);
+      })
+      .catch(() => {
+        // cache hydration is best-effort
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [details?.role]);
 
   useEffect(() => {

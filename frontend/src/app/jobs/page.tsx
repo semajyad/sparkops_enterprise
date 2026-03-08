@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Map, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, putJobInCache } from "@/lib/db";
@@ -23,6 +24,8 @@ export default function JobsPage(): React.JSX.Element {
   const [clientName, setClientName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [location, setLocation] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [scheduledDate, setScheduledDate] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -96,6 +99,9 @@ export default function JobsPage(): React.JSX.Element {
         client_name: clientName.trim(),
         title: jobTitle.trim(),
         location: location.trim(),
+        address: location.trim(),
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
         scheduled_date: scheduledDate || null,
       };
 
@@ -110,6 +116,9 @@ export default function JobsPage(): React.JSX.Element {
             client: payload.client_name,
             job_title: payload.title,
             location: payload.location,
+            address: payload.address,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
             scheduled_date: payload.scheduled_date,
           },
           sync_status: "pending",
@@ -121,6 +130,8 @@ export default function JobsPage(): React.JSX.Element {
       setClientName("");
       setJobTitle("");
       setLocation("");
+      setLatitude(null);
+      setLongitude(null);
       setScheduledDate("");
       setIsCreateOpen(false);
     } catch (createError) {
@@ -193,9 +204,9 @@ export default function JobsPage(): React.JSX.Element {
       </button>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-          <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl shadow-black/70">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <section className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70">
+            <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
               <h2 className="text-xl font-semibold text-slate-100">New Job</h2>
               <button
                 type="button"
@@ -207,60 +218,94 @@ export default function JobsPage(): React.JSX.Element {
               </button>
             </div>
 
-            <form className="mt-4 grid gap-3" onSubmit={onCreateManualJob}>
-              <label className="text-sm text-slate-200">
-                Client Name
-                <input
-                  type="text"
-                  required
-                  value={clientName}
-                  onChange={(event) => setClientName(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  placeholder="ACME Properties"
-                />
-              </label>
+            <form className="flex h-full flex-col" onSubmit={onCreateManualJob}>
+              <div className="grid gap-3 overflow-y-auto px-5 py-4">
+                <label className="text-sm text-slate-200">
+                  Client Name
+                  <input
+                    type="text"
+                    required
+                    value={clientName}
+                    onChange={(event) => setClientName(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    placeholder="ACME Properties"
+                  />
+                </label>
 
-              <label className="text-sm text-slate-200">
-                Job Title / Description
-                <input
-                  type="text"
-                  required
-                  value={jobTitle}
-                  onChange={(event) => setJobTitle(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  placeholder="Switchboard inspection and repairs"
-                />
-              </label>
+                <label className="text-sm text-slate-200">
+                  Job Title / Description
+                  <input
+                    type="text"
+                    required
+                    value={jobTitle}
+                    onChange={(event) => setJobTitle(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    placeholder="Switchboard inspection and repairs"
+                  />
+                </label>
 
-              <label className="text-sm text-slate-200">
-                Location / Address
-                <input
-                  type="text"
-                  required
-                  value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  placeholder="123 Queen Street, Auckland"
-                />
-              </label>
+                <label className="text-sm text-slate-200">
+                  Address
+                  <AddressAutocomplete
+                    id="job-address"
+                    value={location}
+                    onChange={(next) => {
+                      setLocation(next);
+                      setLatitude(null);
+                      setLongitude(null);
+                    }}
+                    onSelect={(selection) => {
+                      setLocation(selection.label);
+                      setLatitude(selection.latitude);
+                      setLongitude(selection.longitude);
+                    }}
+                    placeholder="Start typing an address"
+                  />
+                </label>
 
-              <label className="text-sm text-slate-200">
-                Scheduled Date
-                <input
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(event) => setScheduledDate(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
-                />
-              </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-slate-200">
+                    Latitude
+                    <input
+                      type="text"
+                      readOnly
+                      value={latitude !== null ? latitude.toFixed(6) : ""}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-slate-200"
+                      placeholder="Auto"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-200">
+                    Longitude
+                    <input
+                      type="text"
+                      readOnly
+                      value={longitude !== null ? longitude.toFixed(6) : ""}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-slate-200"
+                      placeholder="Auto"
+                    />
+                  </label>
+                </div>
 
-              <button
-                type="submit"
-                disabled={isCreating}
-                className="mt-2 min-h-11 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
-              >
-                {isCreating ? "Creating Draft..." : "Create Draft Job"}
-              </button>
+                <label className="text-sm text-slate-200">
+                  Scheduled Date
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(event) => setScheduledDate(event.target.value)}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="sticky bottom-0 border-t border-slate-700 bg-slate-900/95 px-5 py-3">
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="min-h-11 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {isCreating ? "Creating Draft..." : "Create Draft Job"}
+                </button>
+              </div>
             </form>
           </section>
         </div>

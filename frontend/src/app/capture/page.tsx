@@ -2,7 +2,7 @@
 
 
 
-import { Camera, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
+import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Timer, Upload } from "lucide-react";
 import Image from "next/image";
 
 import { motion, useReducedMotion } from "framer-motion";
@@ -95,11 +95,15 @@ export default function CapturePage() {
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const recordingStreamRef = useRef<MediaStream | null>(null);
 
   const reduceMotion = useReducedMotion();
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
 
 
 
@@ -349,7 +353,7 @@ export default function CapturePage() {
 
 
 
-  async function handleReceiptFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+  async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "file"): Promise<void> {
 
     const file = event.target.files?.[0];
 
@@ -365,10 +369,25 @@ export default function CapturePage() {
 
     setReceiptBase64(base64);
 
-    setReceiptPreview(`data:${file.type || "image/jpeg"};base64,${base64}`);
+    if (kind === "photo") {
+      setReceiptPreview(`data:${file.type || "image/jpeg"};base64,${base64}`);
+      setStatusMessage("Photo attached and preview ready.");
+    } else {
+      setReceiptPreview("");
+      setStatusMessage(`File attached: ${file.name}`);
+    }
 
-    setStatusMessage("Receipt image captured and preview ready.");
+  }
 
+  function toggleTimer(): void {
+    if (isTimerRunning) {
+      setIsTimerRunning(false);
+      setStatusMessage(`Timer stopped at ${Math.floor(timerSeconds / 60)}m ${timerSeconds % 60}s.`);
+      return;
+    }
+    setTimerStartedAt(Date.now() - timerSeconds * 1000);
+    setIsTimerRunning(true);
+    setStatusMessage("Timer started.");
   }
 
 
@@ -515,6 +534,18 @@ export default function CapturePage() {
 
   }, []);
 
+  useEffect(() => {
+    if (!isTimerRunning || timerStartedAt === null) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setTimerSeconds(Math.max(0, Math.floor((Date.now() - timerStartedAt) / 1000)));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isTimerRunning, timerStartedAt]);
+
 
 
 
@@ -608,9 +639,127 @@ export default function CapturePage() {
 
 
 
+        <section className="rounded-2xl border border-slate-700 bg-slate-950/50 p-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">Voice First</p>
+          <p className="mt-2 text-sm text-slate-300">Tap the mic and speak your job notes naturally.</p>
+
+          <div className="mt-5 flex justify-center">
+            {!isRecording ? (
+              <motion.button
+                type="button"
+                onClick={() => void startRecording()}
+                className="inline-flex h-36 w-36 items-center justify-center rounded-full border border-amber-400/80 bg-amber-500/20 text-amber-100 shadow-2xl shadow-amber-500/25"
+                animate={reduceMotion ? undefined : { scale: [1, 1.08, 1] }}
+                transition={reduceMotion ? undefined : { duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+              >
+                <span className="sr-only">Start recording</span>
+                <Mic className="h-14 w-14" />
+              </motion.button>
+            ) : (
+              <motion.button
+                type="button"
+                onClick={stopRecording}
+                className="inline-flex h-36 w-36 items-center justify-center rounded-full border border-rose-500/80 bg-rose-500/20 text-rose-100 shadow-2xl shadow-rose-500/25"
+                animate={reduceMotion ? undefined : { scale: [1, 0.93, 1] }}
+                transition={reduceMotion ? undefined : { duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
+                whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+              >
+                <span className="sr-only">Stop recording</span>
+                <Square className="h-14 w-14" />
+              </motion.button>
+            )}
+          </div>
+
+          <p className="mt-3 text-sm text-slate-300">{isRecording ? "Recording... tap to stop" : "Ready. Tap to start"}</p>
+
+          {audioPreviewUrl ? (
+            <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/70 p-3 text-left">
+              <p className="mb-2 text-xs text-slate-300">Playback Preview</p>
+              <audio controls src={audioPreviewUrl} className="w-full" />
+              <p className="mt-2 text-xs text-slate-400">Captured chunks: {audioChunks.length}</p>
+            </div>
+          ) : null}
+
+          {safetyChips.length > 0 ? (
+            <section className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-left">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Safety Chips</h2>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {safetyChips.map((chip, index) => (
+                  <span key={`${chip.type}-${index}`} className="inline-flex min-h-11 items-center rounded-full border border-emerald-400/50 bg-slate-950/70 px-3 py-1.5 text-xs text-emerald-100">
+                    {chip.type}: {chip.result || chip.value || "Recorded"}
+                    {chip.value && chip.unit ? ` ${chip.unit}` : ""}
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </section>
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4">
+          <p className="text-sm font-semibold text-slate-200">Quick Attach</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm font-semibold transition hover:border-amber-500/60 hover:text-amber-200"
+            >
+              <Camera className="h-4 w-4" />
+              Photo
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/70 px-3 py-2 text-sm font-semibold transition hover:border-amber-500/60 hover:text-amber-200"
+            >
+              <FileUp className="h-4 w-4" />
+              File
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTimer}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                isTimerRunning
+                  ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
+                  : "border-slate-600 bg-slate-800/70 text-slate-200 hover:border-amber-500/60 hover:text-amber-200"
+              }`}
+            >
+              <Timer className="h-4 w-4" />
+              {isTimerRunning ? "Stop" : "Time"}
+            </button>
+          </div>
+
+          <input
+            ref={photoInputRef}
+            className="hidden"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(event) => void handleAttachmentFile(event, "photo")}
+          />
+
+          <input
+            ref={fileInputRef}
+            className="hidden"
+            type="file"
+            accept=".pdf,.doc,.docx,image/*"
+            onChange={(event) => void handleAttachmentFile(event, "file")}
+          />
+
+          {receiptPreview ? (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-700">
+              <Image src={receiptPreview} alt="Attachment preview" width={640} height={288} className="h-36 w-full object-cover" />
+            </div>
+          ) : null}
+
+          <p className="mt-3 text-xs text-slate-400">Timer: {Math.floor(timerSeconds / 60)}m {timerSeconds % 60}s</p>
+        </section>
+
         <label className="text-sm font-semibold text-slate-200" htmlFor="voiceText">
 
-          Voice Notes (text)
+          Voice Notes (Text)
 
         </label>
 
@@ -622,167 +771,11 @@ export default function CapturePage() {
 
           onChange={(event) => void handleVoiceChange(event)}
 
-          placeholder="e.g. Installed hot water cylinder in cupboard, swapped breaker, tested circuits"
+          placeholder="Optional: add extra notes after voice capture"
 
-          className="min-h-32 rounded-xl border border-slate-700 bg-slate-900/50 p-4 text-base text-white placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
+          className="min-h-28 rounded-xl border border-slate-700 bg-slate-900/50 p-4 text-base text-white placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
 
         />
-
-
-
-        <div className="grid gap-4 md:grid-cols-2">
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4 backdrop-blur">
-
-            <p className="text-sm font-semibold text-slate-200">Voice Recording</p>
-
-
-
-            {isRecording ? (
-
-              <div className="mt-3 flex items-center gap-3 rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-
-                <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-rose-500" />
-
-                Recording...
-
-              </div>
-
-            ) : null}
-
-
-
-            <div className="mt-4 flex justify-center">
-
-              {!isRecording ? (
-
-                <motion.button
-
-                  type="button"
-
-                  onClick={() => void startRecording()}
-
-                  className="inline-flex min-h-16 min-w-16 items-center justify-center rounded-full border border-amber-500/70 bg-amber-500/20 px-6 py-4 text-amber-100 shadow-lg shadow-amber-500/20"
-
-                  animate={reduceMotion ? undefined : { scale: [1, 1.06, 1] }}
-
-                  transition={reduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-
-                  whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-
-                >
-
-                  <span className="sr-only">Start recording</span>
-
-                  <Mic className="h-7 w-7" />
-
-                </motion.button>
-
-              ) : (
-
-                <motion.button
-
-                  type="button"
-
-                  onClick={stopRecording}
-
-                  className="inline-flex min-h-16 min-w-16 items-center justify-center rounded-full border border-rose-500/70 bg-rose-500/20 px-6 py-4 text-rose-100 shadow-lg shadow-rose-500/20"
-
-                  animate={reduceMotion ? undefined : { scale: [1, 0.94, 1] }}
-
-                  transition={reduceMotion ? undefined : { duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-
-                  whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-
-                >
-
-                  <span className="sr-only">Stop recording</span>
-
-                  <Square className="h-7 w-7" />
-
-                </motion.button>
-
-              )}
-
-            </div>
-
-
-
-            <p className="mt-3 text-center text-xs text-slate-400">{isRecording ? "Tap to stop" : "Tap to start recording"}</p>
-
-
-
-            {audioPreviewUrl ? (
-
-              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-
-                <p className="mb-2 text-xs text-slate-300">Playback Preview</p>
-
-                <audio controls src={audioPreviewUrl} className="w-full" />
-
-                <p className="mt-2 text-xs text-slate-400">Captured chunks: {audioChunks.length}</p>
-
-              </div>
-
-            ) : null}
-
-          </div>
-
-
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4 backdrop-blur">
-
-            <p className="text-sm font-semibold text-slate-200">Receipt Capture</p>
-
-
-
-            {receiptPreview ? (
-
-              <div className="mt-3 overflow-hidden rounded-xl border border-slate-700">
-
-                <Image src={receiptPreview} alt="Receipt preview" width={640} height={288} className="h-36 w-full object-cover" />
-
-              </div>
-
-            ) : null}
-
-
-
-            <button
-
-              type="button"
-
-              onClick={() => imageInputRef.current?.click()}
-
-              className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/70 px-4 py-3 text-sm font-semibold transition hover:border-amber-500/60 hover:text-amber-200 active:opacity-80 disabled:opacity-50"
-
-            >
-
-              {receiptPreview ? <Upload className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-
-              {receiptPreview ? "Replace Receipt" : "Scan Receipt"}
-
-            </button>
-
-            <input
-
-              ref={imageInputRef}
-
-              className="hidden"
-
-              type="file"
-
-              accept="image/*"
-
-              capture="environment"
-
-              onChange={(event) => void handleReceiptFile(event)}
-
-            />
-
-          </div>
-
-        </div>
 
 
 
@@ -827,32 +820,6 @@ export default function CapturePage() {
 
 
         <p className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-slate-200">{statusMessage}</p>
-
-        {safetyChips.length > 0 ? (
-
-          <section className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Safety Chips</h2>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-
-              {safetyChips.map((chip, index) => (
-
-                <span key={`${chip.type}-${index}`} className="inline-flex min-h-11 items-center rounded-full border border-emerald-400/50 bg-slate-950/70 px-3 py-1.5 text-xs text-emerald-100">
-
-                  {chip.type}: {chip.result || chip.value || "Recorded"}
-
-                  {chip.value && chip.unit ? ` ${chip.unit}` : ""}
-
-                </span>
-
-              ))}
-
-            </div>
-
-          </section>
-
-        ) : null}
 
       </section>
 
