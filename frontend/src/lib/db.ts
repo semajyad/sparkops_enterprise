@@ -17,6 +17,31 @@ export interface JobDraft {
   sync_status: SyncStatus;
 }
 
+export async function setTrackingMapCache(payload: Omit<CachedMapState, "key" | "updated_at">): Promise<void> {
+  await db.map_state.put({
+    key: "tracking",
+    current: payload.current,
+    jobs: payload.jobs,
+    updated_at: now(),
+  });
+}
+
+export async function getTrackingMapCache(): Promise<CachedMapState | undefined> {
+  return db.map_state.get("tracking");
+}
+
+export async function setProfileCache(payload: Omit<CachedProfileState, "key" | "updated_at">): Promise<void> {
+  await db.profile_state.put({
+    key: "profile",
+    ...payload,
+    updated_at: now(),
+  });
+}
+
+export async function getProfileCache(): Promise<CachedProfileState | undefined> {
+  return db.profile_state.get("profile");
+}
+
 export interface CachedJob {
   id: string;
   status: string;
@@ -39,6 +64,28 @@ export interface CachedProduct {
   id: string;
   name: string;
   updated_at: string;
+}
+
+export interface CachedMapState {
+  key: "tracking";
+  current: { lat: number; lng: number };
+  jobs: Array<{
+    id: string;
+    clientName: string;
+    timeLabel: string;
+    coordinate: { lat: number; lng: number };
+    navigateUrl: string;
+  }>;
+  updated_at: number;
+}
+
+export interface CachedProfileState {
+  key: "profile";
+  full_name: string | null;
+  email: string | null;
+  organization: string | null;
+  role: string | null;
+  updated_at: number;
 }
 
 export type SyncQueueEntity = "job" | "safety_test";
@@ -65,6 +112,8 @@ class SparkOpsDexie extends Dexie {
   jobs!: Table<CachedJob, string>;
   clients!: Table<CachedClient, string>;
   products!: Table<CachedProduct, string>;
+  map_state!: Table<CachedMapState, "tracking">;
+  profile_state!: Table<CachedProfileState, "profile">;
   sync_queue!: Table<SyncQueueItem, number>;
 
   constructor() {
@@ -79,6 +128,19 @@ class SparkOpsDexie extends Dexie {
       products: "id,name,updated_at",
       sync_queue: "++id,status,entity_type,created_at,retry_count",
     });
+    this.version(3).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      map_state: "key,updated_at",
+      profile_state: "key,updated_at",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+  }
+
+  get drafts(): Table<CachedJob, string> {
+    return this.jobs;
   }
 }
 
@@ -154,6 +216,10 @@ export async function getJobFromCache(id: string): Promise<CachedJob | undefined
 
 export async function putJobInCache(job: CachedJob): Promise<void> {
   await db.jobs.put(job);
+}
+
+export async function deleteJobFromCache(id: string): Promise<void> {
+  await db.jobs.delete(id);
 }
 
 export async function upsertClients(rows: CachedClient[]): Promise<void> {

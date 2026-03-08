@@ -25,3 +25,17 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+.tracking-map-shell {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.tracking-map-shell .leaflet-container,
+.tracking-map-shell .leaflet-pane,
+.tracking-map-shell .leaflet-control,
+.tracking-map-shell .leaflet-top,
+.tracking-map-shell .leaflet-bottom {
+  z-index: 0;
+}

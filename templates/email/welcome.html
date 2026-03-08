@@ -457,13 +457,13 @@
                 © 2024 SparkOps. Transforming voice into value for NZ electrical contractors.
             </p>
             <div class="footer-links">
-                <a href="{{ .SiteURL }}/privacy" class="footer-link">
+                <a href="{{ privacy_url || "https://sparkops.co.nz/privacy" }}" class="footer-link">
                     Privacy Policy
                 </a>
-                <a href="{{ .SiteURL }}/terms" class="footer-link">
+                <a href="{{ terms_url || "https://sparkops.co.nz/terms" }}" class="footer-link">
                     Terms of Service
                 </a>
-                <a href="#" class="footer-link">
+                <a href="{{ unsubscribe_url || "#" }}" class="footer-link">
                     Unsubscribe
                 </a>
             </div>

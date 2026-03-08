@@ -33,6 +33,25 @@ export type PulseMetrics = {
   materialSpend: number;
 };
 
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isMissingJobId(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return true;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length === 0 || normalized === "undefined" || normalized === "null";
+}
+
+export function isValidJobUuid(value: unknown): value is string {
+  if (isMissingJobId(value)) {
+    return false;
+  }
+
+  return UUID_V4_PATTERN.test(String(value).trim());
+}
+
 export function parseNumeric(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;

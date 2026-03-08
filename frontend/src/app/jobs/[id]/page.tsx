@@ -1,56 +1,13 @@
 "use client";
 
 import { Download, Loader2, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
-import { formatJobDate, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
-
-type JobDraftResponse = {
-  id: string;
-  raw_transcript: string;
-  client_email?: string | null;
-  compliance_status?: string | null;
-  certificate_pdf_url?: string | null;
-  extracted_data: {
-    client?: string;
-    address?: string;
-    scope?: string;
-    line_items?: Array<{
-      qty?: string | number;
-      description?: string;
-      type?: string;
-      unit_price?: string | number;
-      line_total?: string | number;
-    }>;
-    safety_tests?: Array<{
-      type?: string;
-      value?: string | null;
-      unit?: string | null;
-      result?: string | null;
-      gps_lat?: number | null;
-      gps_lng?: number | null;
-    }>;
-  };
-  status: string;
-  created_at: string;
-  invoice_summary?: {
-    subtotal?: string;
-    markup_amount?: string;
-    gst?: string;
-    total?: string;
-    material_cost_base?: string;
-    material_cost_with_markup?: string;
-    labor_total?: string;
-  };
-  compliance_summary?: {
-    status?: string;
-    notes?: string;
-    missing_items?: string[];
-    checks?: Array<{ key?: string; label?: string; present?: boolean }>;
-  };
-};
+import { db } from "@/lib/db";
+import { useJob } from "@/hooks/useJob";
+import { formatJobDate, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -66,14 +23,16 @@ function statusBadgeClass(status: string): string {
   return "border-slate-600 bg-slate-700/50 text-slate-200";
 }
 
-export default function JobReviewPage({ params }: { params: { id: string } }) {
+export default function JobReviewPage(): React.JSX.Element {
+  const params = useParams<{ id?: string | string[] }>();
+  const routeId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const normalizedRouteId = typeof routeId === "string" ? routeId.trim() : "";
   const router = useRouter();
-  const [job, setJob] = useState<JobDraftResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { job, isLoading, errorMessage, refresh } = useJob(normalizedRouteId);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [localError, setLocalError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
@@ -84,33 +43,8 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
         ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
         : "border-amber-500/40 bg-amber-500/10 text-amber-200";
 
-  useEffect(() => {
-    async function loadJob(): Promise<void> {
-      setIsLoading(true);
-      setErrorMessage("");
-      try {
-        const response = await apiFetch(`${API_BASE_URL}/api/jobs/${params.id}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(body || `Failed to load job (${response.status})`);
-        }
-
-        const payload = await parseApiJson<JobDraftResponse>(response);
-        setJob(payload);
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load job review.");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    void loadJob();
-  }, [params.id]);
-
   async function downloadPdf(): Promise<void> {
-    if (!job) {
+    if (!job || !isValidJobUuid(job.id)) {
       return;
     }
 
@@ -132,7 +66,7 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to download invoice PDF.");
+      setLocalError(error instanceof Error ? error.message : "Failed to download invoice PDF.");
     } finally {
       setIsDownloading(false);
     }
@@ -149,9 +83,14 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     }
 
     setIsDeleting(true);
-    setErrorMessage("");
+    setLocalError("");
 
     try {
+      if (!isValidJobUuid(job.id)) {
+        throw new Error("Invalid job id.");
+      }
+
+      await db.drafts.delete(job.id);
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, {
         method: "DELETE",
       });
@@ -162,9 +101,10 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
 
       await parseApiJson<{ status: string; id: string }>(response);
 
-      router.push("/jobs");
+      setToast("Draft Deleted");
+      router.push("/jobs?deleted=1");
     } catch (deleteError) {
-      setErrorMessage(deleteError instanceof Error ? deleteError.message : "Failed to delete this job draft.");
+      setLocalError(deleteError instanceof Error ? deleteError.message : "Failed to delete this job draft.");
     } finally {
       setIsDeleting(false);
     }
@@ -179,12 +119,12 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     const promptedEmail = existingEmail || window.prompt("Client email is required to send certificate:", "") || "";
     const clientEmail = promptedEmail.trim().toLowerCase();
     if (!clientEmail) {
-      setErrorMessage("Client email is required before completing this job.");
+      setLocalError("Client email is required before completing this job.");
       return;
     }
 
     setIsCompleting(true);
-    setErrorMessage("");
+    setLocalError("");
 
     try {
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/complete`, {
@@ -198,13 +138,9 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
 
       setToast("✅ Certificate Sent to Client!");
 
-      const refreshed = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, { cache: "no-store" });
-      if (refreshed.ok) {
-        const payload = await parseApiJson<JobDraftResponse>(refreshed);
-        setJob(payload);
-      }
+      await refresh();
     } catch (completeError) {
-      setErrorMessage(completeError instanceof Error ? completeError.message : "Unable to complete this job.");
+      setLocalError(completeError instanceof Error ? completeError.message : "Unable to complete this job.");
     } finally {
       setIsCompleting(false);
     }
@@ -352,8 +288,8 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
           <p className="rounded-xl border border-rose-500/60 bg-rose-500/10 p-4 text-sm text-rose-100">Job draft not found.</p>
         )}
 
-        {errorMessage ? (
-          <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{errorMessage}</p>
+        {errorMessage || localError ? (
+          <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{localError || errorMessage}</p>
         ) : null}
       </section>
     </main>

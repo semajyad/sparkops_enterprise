@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
 type UpdateProfileResult = {
   success: boolean;
   message: string;
@@ -20,6 +22,15 @@ type TeamMember = {
   status: "ACTIVE" | "PENDING";
   invited_at: string | null;
   last_sign_in_at: string | null;
+};
+
+type InviteApiRow = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  status: string;
+  created_at: string;
 };
 
 type TeamMembersResult = {
@@ -41,7 +52,9 @@ type ProfileRow = {
   full_name?: string | null;
 };
 
-async function getOwnerProfileContext(): Promise<{ success: false; message: string } | { success: true; userId: string; organizationId: string }> {
+async function getOwnerProfileContext(): Promise<
+  { success: false; message: string } | { success: true; userId: string; organizationId: string; accessToken: string | null }
+> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -66,11 +79,47 @@ async function getOwnerProfileContext(): Promise<{ success: false; message: stri
     return { success: false, message: "Owner role is required to manage team members." };
   }
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   return {
     success: true,
     userId: user.id,
     organizationId: profile.organization_id,
+    accessToken: session?.access_token ?? null,
   };
+}
+
+async function fetchPendingInvites(accessToken: string | null): Promise<TeamMember[]> {
+  if (!accessToken) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/invites`, {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to load pending invites (${response.status}).`);
+  }
+
+  const payload = (await response.json()) as InviteApiRow[];
+  const rows = Array.isArray(payload) ? payload : [];
+  return rows.map((invite) => ({
+    id: invite.id,
+    email: invite.email,
+    full_name: invite.full_name,
+    role: String(invite.role).toUpperCase() === "OWNER" ? "OWNER" : "EMPLOYEE",
+    status: "PENDING",
+    invited_at: invite.created_at,
+    last_sign_in_at: null,
+  }));
 }
 
 export async function listTeamMembers(): Promise<TeamMembersResult> {
@@ -80,12 +129,13 @@ export async function listTeamMembers(): Promise<TeamMembersResult> {
   }
 
   const supabaseAdmin = getSupabaseAdmin();
-  const [{ data: usersData, error: usersError }, { data: profiles, error: profilesError }] = await Promise.all([
+  const [{ data: usersData, error: usersError }, { data: profiles, error: profilesError }, pendingInvites] = await Promise.all([
     supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 500 }),
     supabaseAdmin
       .from("profiles")
       .select("id, role, organization_id, full_name")
       .eq("organization_id", context.organizationId),
+    fetchPendingInvites(context.accessToken),
   ]);
 
   if (usersError) {
@@ -127,12 +177,13 @@ export async function listTeamMembers(): Promise<TeamMembersResult> {
     });
   }
 
-  const sorted = teamMembers.sort((a, b) => a.email.localeCompare(b.email));
+  const activeOnly = teamMembers.filter((member) => member.status === "ACTIVE").sort((a, b) => a.email.localeCompare(b.email));
+  const sortedInvites = pendingInvites.sort((a, b) => (a.invited_at ?? "").localeCompare(b.invited_at ?? "")).reverse();
   return {
     success: true,
     message: "Team loaded.",
-    activeUsers: sorted.filter((member) => member.status === "ACTIVE"),
-    pendingInvites: sorted.filter((member) => member.status === "PENDING"),
+    activeUsers: activeOnly,
+    pendingInvites: sortedInvites,
   };
 }
 
@@ -185,6 +236,29 @@ export async function inviteUser(formData: FormData): Promise<InviteUserResult> 
 
   if (profileUpsertError) {
     return { success: false, message: profileUpsertError.message || "Invite sent, but profile sync failed." };
+  }
+
+  if (!context.accessToken) {
+    return { success: false, message: "Invite sent, but unable to sync pending invite list (missing auth token)." };
+  }
+
+  const inviteResponse = await fetch(`${API_BASE_URL}/api/invites`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${context.accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      full_name: fullName,
+      role: normalizedRole === "OWNER" ? "OWNER" : "TRADESMAN",
+    }),
+  });
+
+  if (!inviteResponse.ok) {
+    const body = await inviteResponse.text();
+    return { success: false, message: body || `Invite sent, but pending invite record failed (${inviteResponse.status}).` };
   }
 
   revalidatePath("/profile", "page");

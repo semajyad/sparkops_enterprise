@@ -70,7 +70,7 @@ from database import engine as database_engine
 
 from dependencies import AuthenticatedUser, get_current_user, require_owner
 
-from models.database import JobDraft, Material, SafetyTest, create_db_and_tables
+from models.database import Invite, JobDraft, Material, SafetyTest, create_db_and_tables
 
 
 
@@ -526,7 +526,26 @@ class JobCompleteResponse(BaseModel):
     message: str
 
 
+class InviteCreateRequest(BaseModel):
+    """Payload for creating a pending user invite record."""
 
+    email: str = Field(min_length=3, max_length=320)
+    full_name: str = Field(min_length=1, max_length=255)
+    role: str = Field(default="TRADESMAN", max_length=32)
+
+
+class InviteResponse(BaseModel):
+    """Organization-scoped invite response model."""
+
+    id: UUID
+    organization_id: UUID
+    email: str
+    full_name: str
+    role: str
+    status: str
+    invited_by_user_id: UUID
+    created_at: datetime
+    accepted_at: datetime | None = None
 
 
 def get_openai_client() -> OpenAI:
@@ -562,9 +581,6 @@ def get_openai_client() -> OpenAI:
         raise RuntimeError("OPENAI_API_KEY is required.")
 
     return OpenAI(api_key=api_key)
-
-
-
 
 
 def transcribe_audio(audio_base64: str) -> str:
@@ -1324,13 +1340,85 @@ def auth_handshake_v1(current_user: AuthenticatedUser = Depends(get_current_user
     return _build_auth_me_response(current_user)
 
 
+def _to_invite_response(record: Invite) -> InviteResponse:
+    return InviteResponse(
+        id=record.id,
+        organization_id=record.organization_id,
+        email=record.email,
+        full_name=record.full_name,
+        role=record.role,
+        status=record.status,
+        invited_by_user_id=record.invited_by_user_id,
+        created_at=record.created_at,
+        accepted_at=record.accepted_at,
+    )
+
+
+@app.get("/api/v1/invites", response_model=list[InviteResponse])
+@app.get("/api/invites", response_model=list[InviteResponse])
+def list_pending_invites(current_user: AuthenticatedUser = Depends(require_owner)) -> list[InviteResponse]:
+    """List pending invites for the authenticated owner's organization."""
+
+    with Session(ENGINE) as session:
+        invites = session.exec(
+            select(Invite)
+            .where(Invite.organization_id == current_user.organization_id)
+            .where(Invite.status == "PENDING")
+            .order_by(Invite.created_at.desc())
+        ).all()
+        return [_to_invite_response(invite) for invite in invites]
+
+
+@app.post("/api/v1/invites", response_model=InviteResponse)
+@app.post("/api/invites", response_model=InviteResponse)
+def create_invite(
+    payload: InviteCreateRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> InviteResponse:
+    """Create (or update) a pending invite record in the invites table."""
+
+    email = payload.email.strip().lower()
+    full_name = payload.full_name.strip()
+    normalized_role = "OWNER" if payload.role.strip().upper() == "OWNER" else "TRADESMAN"
+
+    with Session(ENGINE) as session:
+        existing = session.exec(
+            select(Invite)
+            .where(Invite.organization_id == current_user.organization_id)
+            .where(Invite.email == email)
+            .where(Invite.status == "PENDING")
+            .limit(1)
+        ).first()
+
+        if existing:
+            existing.full_name = full_name
+            existing.role = normalized_role
+            existing.invited_by_user_id = current_user.id
+            session.add(existing)
+            session.commit()
+            session.refresh(existing)
+            return _to_invite_response(existing)
+
+        invite = Invite(
+            organization_id=current_user.organization_id,
+            invited_by_user_id=current_user.id,
+            email=email,
+            full_name=full_name,
+            role=normalized_role,
+            status="PENDING",
+        )
+        session.add(invite)
+        session.commit()
+        session.refresh(invite)
+        return _to_invite_response(invite)
+
+
 @app.post("/api/v1/jobs", response_model=JobDraftResponse)
 @app.post("/api/jobs", response_model=JobDraftResponse)
-def create_manual_job_draft(
+def create_job_draft(
     payload: ManualJobCreateRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> JobDraftResponse:
-    """Create a manual draft job for dispatcher-entered work."""
 
     client_name = payload.client_name.strip()
     title = payload.title.strip()

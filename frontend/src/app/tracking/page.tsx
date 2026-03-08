@@ -5,6 +5,7 @@ import { Loader2, Navigation } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
+import { getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
 import { formatJobDate, JobListItem } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -68,6 +69,21 @@ export default function TrackingIndexPage(): React.JSX.Element {
   useEffect(() => {
     let watchId: number | null = null;
 
+    async function bootstrapFromCache(): Promise<void> {
+      try {
+        const cached = await getTrackingMapCache();
+        if (!cached) {
+          return;
+        }
+        setCurrent(cached.current);
+        setJobs(cached.jobs);
+        setStatusMessage("Showing cached dispatch map while refreshing live data...");
+        setIsReady(true);
+      } catch {
+        // best-effort cache hydration
+      }
+    }
+
     async function loadMapJobs(): Promise<void> {
       try {
         const response = await apiFetch(`${API_BASE_URL}/api/jobs`, { cache: "no-store" });
@@ -113,6 +129,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
       }
     }
 
+    void bootstrapFromCache();
     void loadMapJobs();
 
     if (!navigator.geolocation) {
@@ -121,7 +138,8 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
     watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setCurrent({ lat: position.coords.latitude, lng: position.coords.longitude });
+        const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setCurrent(nextCurrent);
         setAccuracy(position.coords.accuracy);
         setStatusMessage(
           position.coords.accuracy <= 5
@@ -148,6 +166,10 @@ export default function TrackingIndexPage(): React.JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    void setTrackingMapCache({ current, jobs });
+  }, [current, jobs]);
+
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
@@ -161,7 +183,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
           {accuracy !== null ? <span className="ml-auto text-xs text-slate-400">±{accuracy.toFixed(1)}m</span> : null}
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60">
+        <div className="relative z-0 mt-4 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60">
           {isReady ? (
             <TrackingMap current={current} jobs={jobs} />
           ) : (

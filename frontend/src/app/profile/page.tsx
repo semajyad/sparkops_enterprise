@@ -8,6 +8,7 @@ import { inviteUser, listTeamMembers, updateProfile } from "@/app/profile/action
 import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, AuthSessionExpiredError, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { getProfileCache, setProfileCache } from "@/lib/db";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -51,6 +52,40 @@ export default function ProfilePage(): React.JSX.Element {
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [isTeamLoading, setIsTeamLoading] = useState(false);
   const [isInviting, startInviteTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    void getProfileCache()
+      .then((cached) => {
+        if (!cached || cancelled) {
+          return;
+        }
+
+        setSessionIdentity({
+          full_name: cached.full_name,
+          email: cached.email,
+          organization: cached.organization,
+        });
+        setDetails((prev) =>
+          prev
+            ? {
+                ...prev,
+                role: cached.role ?? prev.role,
+                email: cached.email ?? prev.email,
+                full_name: cached.full_name ?? prev.full_name,
+              }
+            : prev,
+        );
+        setLoading(false);
+      })
+      .catch(() => {
+        // cache hydration is best-effort
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (authLoading) {
@@ -117,6 +152,24 @@ export default function ProfilePage(): React.JSX.Element {
 
     void loadProfile();
   }, [authLoading, session?.access_token]);
+
+  useEffect(() => {
+    const cachedPayload = {
+      full_name: details?.full_name || sessionIdentity?.full_name || user?.user_metadata?.full_name || null,
+      email: details?.email || sessionIdentity?.email || user?.email || null,
+      organization:
+        sessionIdentity?.organization ||
+        (typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "") ||
+        null,
+      role: details?.role ?? null,
+    };
+
+    if (!cachedPayload.full_name && !cachedPayload.email && !cachedPayload.organization && !cachedPayload.role) {
+      return;
+    }
+
+    void setProfileCache(cachedPayload);
+  }, [details?.email, details?.full_name, details?.role, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
 
   async function onLadderChange(next: boolean): Promise<void> {
     setIsSavingLadder(true);
@@ -341,7 +394,7 @@ export default function ProfilePage(): React.JSX.Element {
         {String(details?.role ?? "").toUpperCase() === "OWNER" ? (
           <section className="mt-6 border-t border-slate-800 pt-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Team Management</h2>
-            <p className="mt-2 text-sm text-slate-400">Invite Apprentices/Journeymen and monitor who has accepted.</p>
+            <p className="mt-2 text-sm text-slate-400">Invite Apprentices/Sparkies and monitor who has accepted.</p>
 
             <form className="mt-4 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 sm:grid-cols-2" onSubmit={onSubmitInvite}>
               <label className="text-sm text-slate-200 sm:col-span-2">

@@ -131,6 +131,22 @@ class SafetyTest(SQLModel, table=True):
     captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+class Invite(SQLModel, table=True):
+    """Pending/accepted organization invite records for team management."""
+
+    __tablename__ = "invites"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    organization_id: UUID = Field(index=True, nullable=False)
+    invited_by_user_id: UUID = Field(index=True, nullable=False)
+    email: str = Field(index=True, max_length=320)
+    full_name: str = Field(max_length=255)
+    role: str = Field(default="TRADESMAN", max_length=32)
+    status: str = Field(default="PENDING", max_length=32)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    accepted_at: datetime | None = Field(default=None, nullable=True)
+
+
 class UserSettings(SQLModel, table=True):
     """Global user-configurable defaults used during invoice pricing."""
 

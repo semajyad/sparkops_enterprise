@@ -39,42 +39,44 @@ export function TrackingMap({ current, jobs }: TrackingMapProps): React.JSX.Elem
   const center: [number, number] = [current.lat, current.lng];
 
   return (
-    <MapContainer center={center} zoom={14} className="h-[380px] w-full rounded-2xl" scrollWheelZoom>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
-        url="https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png"
-      />
-      <FollowCurrentLocation current={current} />
+    <div className="tracking-map-shell relative z-0 h-[380px] w-full overflow-hidden rounded-2xl">
+      <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
+          url="https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png"
+        />
+        <FollowCurrentLocation current={current} />
 
-      <CircleMarker center={center} radius={8} pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.9 }}>
-        <Tooltip direction="top" offset={[0, -8]} permanent>
-          Your Van
-        </Tooltip>
-      </CircleMarker>
-
-      {jobs.map((job) => (
-        <CircleMarker
-          key={job.id}
-          center={[job.coordinate.lat, job.coordinate.lng]}
-          radius={8}
-          pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.85 }}
-        >
-          <Popup>
-            <article className="min-w-[180px] text-slate-900">
-              <p className="text-sm font-semibold">{job.clientName}</p>
-              <p className="mt-1 text-xs text-slate-600">{job.timeLabel}</p>
-              <a
-                href={job.navigateUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950"
-              >
-                Navigate
-              </a>
-            </article>
-          </Popup>
+        <CircleMarker center={center} radius={8} pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.9 }}>
+          <Tooltip direction="top" offset={[0, -8]} permanent>
+            Your Van
+          </Tooltip>
         </CircleMarker>
-      ))}
-    </MapContainer>
+
+        {jobs.map((job) => (
+          <CircleMarker
+            key={job.id}
+            center={[job.coordinate.lat, job.coordinate.lng]}
+            radius={8}
+            pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.85 }}
+          >
+            <Popup>
+              <article className="min-w-[180px] text-slate-900">
+                <p className="text-sm font-semibold">{job.clientName}</p>
+                <p className="mt-1 text-xs text-slate-600">{job.timeLabel}</p>
+                <a
+                  href={job.navigateUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950"
+                >
+                  Navigate
+                </a>
+              </article>
+            </Popup>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+    </div>
   );
 }
