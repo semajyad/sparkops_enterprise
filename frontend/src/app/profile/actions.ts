@@ -50,23 +50,16 @@ export async function updateProfile(formData: FormData): Promise<UpdateProfileRe
     return { success: false, message: authError.message || "Unable to update auth profile." };
   }
 
-  const upsertPayload: Record<string, unknown> = {
-    id: user.id,
-    full_name: fullName,
-  };
-
-  const { error: profileError } = await supabase.from("profiles").upsert(upsertPayload);
-  if (profileError) {
-    return { success: false, message: profileError.message || "Unable to update profile table." };
-  }
-
   // Mirror identity fields into public users table when available.
   // Some environments only expose `profiles`, so this remains best-effort.
-  await supabase.from("users").upsert({
+  const { error: usersError } = await supabase.from("users").upsert({
     id: user.id,
     full_name: fullName,
     email,
   });
+  if (usersError) {
+    console.warn("Profile update: users table mirror failed", usersError.message);
+  }
 
   revalidatePath("/profile", "page");
   revalidatePath("/dashboard", "page");

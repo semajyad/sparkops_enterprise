@@ -201,7 +201,7 @@ export default function ProfilePage(): React.JSX.Element {
           <p><span className="font-semibold text-slate-100">Email:</span> {displayEmail}</p>
           <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
           <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
-          <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization:</span> {details?.organization_id ?? "Unknown"}</p>
+          <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization ID:</span> {details?.organization_id ?? "Unknown"}</p>
         </div>
 
         <div className="mt-4">

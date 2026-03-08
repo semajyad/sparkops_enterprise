@@ -75,6 +75,15 @@ def _get_jwks_client(jwks_url: str) -> jwt.PyJWKClient:
 
 
 def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
+    token_alg = "unknown"
+    token_kid = "unknown"
+    try:
+        header = jwt.get_unverified_header(token)
+        token_alg = str(header.get("alg") or "unknown")
+        token_kid = str(header.get("kid") or "unknown")
+    except Exception:
+        logger.warning("Unable to parse JWT header for auth token")
+
     secret = os.getenv("SUPABASE_JWT_SECRET")
     if secret:
         try:
@@ -84,9 +93,9 @@ def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
             logger.warning("Supabase bearer token expired")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
         except jwt.InvalidAlgorithmError:
-            logger.info("Supabase token is not HS256; attempting JWKS verification")
+            logger.info("Supabase token alg=%s kid=%s is not HS256; attempting JWKS verification", token_alg, token_kid)
         except jwt.PyJWTError:
-            logger.info("Supabase HS256 verification failed; attempting JWKS verification")
+            logger.info("Supabase HS256 verification failed for alg=%s kid=%s; attempting JWKS verification", token_alg, token_kid)
 
     supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
     if not supabase_url:
@@ -110,7 +119,7 @@ def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
         logger.warning("Supabase bearer token expired")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.") from exc
     except jwt.PyJWTError as exc:
-        logger.exception("Supabase bearer token decode failed")
+        logger.exception("Supabase bearer token decode failed for alg=%s kid=%s", token_alg, token_kid)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired bearer token.") from exc
 
 

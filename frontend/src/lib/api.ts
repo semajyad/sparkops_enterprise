@@ -19,8 +19,16 @@ export class AuthSessionExpiredError extends Error {
   }
 }
 
-async function getLatestAccessToken(): Promise<string | null> {
+async function getLatestAccessToken(forceRefresh = false): Promise<string | null> {
   const supabase = createClient();
+  if (forceRefresh) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session?.access_token) {
+      return null;
+    }
+    return data.session.access_token;
+  }
+
   const {
     data: { session: currentSession },
   } = await supabase.auth.getSession();
@@ -76,9 +84,26 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
     headers.set("Content-Type", "application/json");
   }
 
-  return fetch(input, {
+  const response = await fetch(input, {
     ...init,
     headers,
+  });
+
+  if (response.status !== 401) {
+    return response;
+  }
+
+  const refreshedToken = await getLatestAccessToken(true);
+  if (!refreshedToken) {
+    return response;
+  }
+
+  const retryHeaders = new Headers(headers);
+  retryHeaders.set("Authorization", `Bearer ${refreshedToken}`);
+
+  return fetch(input, {
+    ...init,
+    headers: retryHeaders,
   });
 }
 
