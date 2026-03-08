@@ -1,8 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
-
 type CookieToSet = {
   name: string
   value: string
@@ -11,29 +9,37 @@ type CookieToSet = {
 
 export async function createClient() {
   const cookieStore = await cookies()
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+  const cookieNames = cookieStore.getAll().map((cookie) => cookie.name)
+  const hasSupabaseCookie = cookieNames.some((name) => name.startsWith('sb-'))
+  const hasAuthTokenChunk = cookieNames.some((name) => name.includes('-auth-token'))
+  console.log(
+    `[AUTH-TRACE] ServerClient: Cookie ${hasSupabaseCookie ? 'found' : 'missing'} auth-token=${hasAuthTokenChunk ? 'found' : 'missing'}`
+  )
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseKey,
     {
       cookies: {
         getAll() {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet: CookieToSet[]) {
+          console.log(`[AUTH-TRACE] ServerClient: setAll called count=${cookiesToSet.length}`)
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, { ...options, maxAge: SESSION_MAX_AGE_SECONDS })
+              cookieStore.set(name, value, options)
             )
           } catch {
+            console.log('[AUTH-TRACE] ServerClient: setAll failed in this execution context')
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
             // user sessions.
           }
         },
-      },
-      cookieOptions: {
-        maxAge: SESSION_MAX_AGE_SECONDS,
       },
     }
   )

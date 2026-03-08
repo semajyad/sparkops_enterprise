@@ -16,11 +16,25 @@ export async function login(formData: FormData) {
 
     console.log("Server action: Attempting login with email:", data.email);
 
-  const { error } = await supabase.auth.signInWithPassword(data);
+  const { data: signInData, error } = await supabase.auth.signInWithPassword(data);
 
   if (error) {
     console.error("Server action: Login failed:", error.message);
     redirect("/login?error=Invalid credentials");
+  }
+
+  if (!signInData.session?.access_token || !signInData.session?.refresh_token) {
+    console.error("Server action: Login failed to establish session token pair");
+    redirect("/login?error=Session%20establishment%20failed");
+  }
+
+  const { error: setSessionError } = await supabase.auth.setSession({
+    access_token: signInData.session.access_token,
+    refresh_token: signInData.session.refresh_token,
+  });
+  if (setSessionError) {
+    console.error("Server action: setSession failed:", setSessionError.message);
+    redirect("/login?error=Session%20persistence%20failed");
   }
 
   const {

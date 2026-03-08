@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -21,10 +22,15 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function JobsPage(): React.JSX.Element {
+  const { user } = useAuth();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
+  }, [user]);
 
   useEffect(() => {
     async function loadJobs(): Promise<void> {

@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "SparkOps secure audio lock" [ref=e6]:
+        - img [ref=e7]
+      - img [ref=e9]
+      - heading "SPARKOPS SECURE ACCESS" [level=1] [ref=e12]
+      - paragraph [ref=e13]: Welcome
+      - paragraph [ref=e14]: Sign in or create your SparkOps account.
+    - generic [ref=e15]:
+      - button "Login" [ref=e16]
+      - button "Sign Up" [ref=e17]
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Email
+        - textbox "Email" [ref=e21]:
+          - /placeholder: you@example.com
+      - generic [ref=e22]:
+        - generic [ref=e23]: Password
+        - textbox "Password" [ref=e24]:
+          - /placeholder: ••••••••
+      - button "Sign In to SparkOps" [ref=e25]
+    - generic [ref=e26]:
+      - paragraph [ref=e27]: "Status: Connected"
+      - generic [ref=e28]:
+        - link "Back to home" [ref=e29] [cursor=pointer]:
+          - /url: /
+        - text: •
+        - link "Create account" [ref=e30] [cursor=pointer]:
+          - /url: /signup
+  - navigation [ref=e31]:
+    - link "Home" [ref=e32] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e33]
+      - text: Home
+    - link "Jobs" [ref=e36] [cursor=pointer]:
+      - /url: /jobs
+      - img [ref=e37]
+      - text: Jobs
+    - link "Capture" [ref=e41] [cursor=pointer]:
+      - /url: /capture
+      - img [ref=e42]
+      - text: Capture
+    - link "Map" [ref=e45] [cursor=pointer]:
+      - /url: /tracking
+      - img [ref=e46]
+      - text: Map
+    - link "Profile" [ref=e50] [cursor=pointer]:
+      - /url: /profile
+      - img [ref=e51]
+      - text: Profile
+  - alert [ref=e54]
+```
