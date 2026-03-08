@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -174,4 +175,85 @@ def generate_invoice_pdf(job_data: Any, engine: Engine) -> bytes:
     pdf.showPage()
     pdf.save()
 
+    return buffer.getvalue()
+
+
+def generate_certificate_pdf(job_data: Any, safety_tests: list[dict[str, Any]]) -> bytes:
+    """Generate an Electrical Safety Certificate PDF for a completed compliant job."""
+
+    extracted = job_data.extracted_data if isinstance(job_data.extracted_data, dict) else {}
+    client_name = str(extracted.get("client", "Client")).strip() or "Client"
+    address = str(extracted.get("address") or extracted.get("location") or "Address not provided").strip()
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 24 * mm
+
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.rect(0, height - 34 * mm, width, 34 * mm, fill=1, stroke=0)
+    pdf.setFillColor(colors.white)
+    pdf.setFont("Helvetica-Bold", 17)
+    pdf.drawString(16 * mm, height - 20 * mm, "Electrical Safety Certificate")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(16 * mm, height - 26 * mm, "AS/NZS 3000:2018 Compliance Evidence")
+
+    y -= 22 * mm
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(16 * mm, y, "Client")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(16 * mm, y, client_name)
+    y -= 5 * mm
+    pdf.drawString(16 * mm, y, address)
+    y -= 8 * mm
+    pdf.drawString(16 * mm, y, f"Issued: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    y -= 10 * mm
+
+    pdf.setFillColor(colors.HexColor("#e2e8f0"))
+    pdf.rect(14 * mm, y - 6 * mm, width - 28 * mm, 8 * mm, fill=1, stroke=0)
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(16 * mm, y - 3 * mm, "Safety Test")
+    pdf.drawString(78 * mm, y - 3 * mm, "Result")
+    pdf.drawString(112 * mm, y - 3 * mm, "Value")
+    pdf.drawString(148 * mm, y - 3 * mm, "Unit")
+    pdf.drawString(170 * mm, y - 3 * mm, "GPS")
+
+    y -= 11 * mm
+    pdf.setFont("Helvetica", 10)
+
+    if not safety_tests:
+        pdf.drawString(16 * mm, y, "No safety tests recorded.")
+        y -= 6 * mm
+    else:
+        for test in safety_tests:
+            if y < 40 * mm:
+                pdf.showPage()
+                y = height - 24 * mm
+            test_type = str(test.get("test_type") or test.get("type") or "-")
+            result = str(test.get("result") or "-")
+            value = str(test.get("value_text") or test.get("value") or "-")
+            unit = str(test.get("unit") or "-")
+            gps_lat = test.get("gps_lat")
+            gps_lng = test.get("gps_lng")
+            gps = "-"
+            if gps_lat is not None and gps_lng is not None:
+                gps = f"{gps_lat},{gps_lng}"
+
+            pdf.drawString(16 * mm, y, test_type[:28])
+            pdf.drawString(78 * mm, y, result[:14])
+            pdf.drawString(112 * mm, y, value[:18])
+            pdf.drawString(148 * mm, y, unit[:10])
+            pdf.drawString(170 * mm, y, gps[:26])
+            y -= 6 * mm
+
+    y -= 8 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.setFillColor(colors.HexColor("#065f46"))
+    pdf.drawString(16 * mm, y, "Compliance Status: GREEN SHIELD")
+
+    pdf.showPage()
+    pdf.save()
     return buffer.getvalue()

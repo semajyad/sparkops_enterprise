@@ -106,7 +106,29 @@ class JobDraft(SQLModel, table=True):
     raw_transcript: str = Field(sa_column=Column(Text, nullable=False))
     extracted_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="DRAFT", max_length=32)
+    client_email: str | None = Field(default=None, max_length=255)
+    compliance_status: str = Field(default="UNKNOWN", max_length=32)
+    certificate_pdf_url: str | None = Field(default=None, max_length=1000)
+    completed_at: datetime | None = Field(default=None, nullable=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class SafetyTest(SQLModel, table=True):
+    """Persisted safety test evidence linked to a job draft."""
+
+    __tablename__ = "safety_tests"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    job_id: UUID = Field(foreign_key="job_drafts.id", index=True, nullable=False)
+    organization_id: UUID = Field(index=True, nullable=False)
+    user_id: UUID = Field(index=True, nullable=False)
+    test_type: str = Field(max_length=64)
+    value_text: str | None = Field(default=None, max_length=64)
+    unit: str | None = Field(default=None, max_length=32)
+    result: str | None = Field(default=None, max_length=16)
+    gps_lat: Decimal | None = Field(default=None, sa_column=Column(Numeric(9, 6), nullable=True))
+    gps_lng: Decimal | None = Field(default=None, sa_column=Column(Numeric(9, 6), nullable=True))
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class UserSettings(SQLModel, table=True):
@@ -224,7 +246,11 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     """
                     ALTER TABLE IF EXISTS public.job_drafts
                     ADD COLUMN IF NOT EXISTS user_id UUID,
-                    ADD COLUMN IF NOT EXISTS organization_id UUID
+                    ADD COLUMN IF NOT EXISTS organization_id UUID,
+                    ADD COLUMN IF NOT EXISTS client_email VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS compliance_status VARCHAR(32),
+                    ADD COLUMN IF NOT EXISTS certificate_pdf_url VARCHAR(1000),
+                    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ
                     """
                 )
             )

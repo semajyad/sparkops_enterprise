@@ -13,7 +13,7 @@ from sqlmodel import Session, create_engine
 
 import main
 from dependencies import AuthenticatedUser
-from models.database import JobDraft, create_db_and_tables
+from models.database import JobDraft, SafetyTest, create_db_and_tables
 
 
 @pytest.fixture(autouse=True)
@@ -225,3 +225,138 @@ def test_create_manual_job_draft(sqlite_engine) -> None:
     jobs = list_response.json()
     assert len(jobs) == 1
     assert jobs[0]["client_name"] == "Harbor Electrical Ltd"
+
+
+def test_complete_job_auto_sends_certificate_and_persists_url(sqlite_engine, monkeypatch: pytest.MonkeyPatch) -> None:
+    owner_id = uuid4()
+    organization_id = uuid4()
+    owner_user = AuthenticatedUser(
+        id=owner_id,
+        organization_id=organization_id,
+        role="OWNER",
+        full_name="Owner User",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: owner_user
+
+    draft_id = uuid4()
+    with Session(sqlite_engine) as session:
+        session.add(
+            JobDraft(
+                id=draft_id,
+                user_id=uuid4(),
+                organization_id=organization_id,
+                raw_transcript="Replace socket and light fittings.",
+                extracted_data={
+                    "client": "Jane Client",
+                    "address": "22 Marine Parade, Auckland",
+                    "line_items": [],
+                },
+                status="DRAFT",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=owner_id,
+                test_type="Earth Loop",
+                value_text="0.45",
+                unit="Ohms",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=owner_id,
+                test_type="Polarity",
+                result="PASS",
+            )
+        )
+        session.commit()
+
+    fake_pdf_module = types.ModuleType("services.pdf")
+    fake_pdf_module.generate_invoice_pdf = lambda _job, _engine: b"%PDF-1.4\nINVOICE\n%%EOF"
+    fake_pdf_module.generate_certificate_pdf = lambda _job, _tests: b"%PDF-1.4\nCERT\n%%EOF"
+    monkeypatch.setitem(sys.modules, "services.pdf", fake_pdf_module)
+
+    sent_payload: dict[str, object] = {}
+
+    def _fake_send_certificate_email(**kwargs):
+        sent_payload.update(kwargs)
+        return "resend-msg-123"
+
+    monkeypatch.setattr(main, "send_certificate_email", _fake_send_certificate_email)
+
+    client = TestClient(main.app)
+    response = client.post(
+        f"/api/jobs/{draft_id}/complete",
+        json={"client_email": "client@example.com"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "DONE"
+    assert payload["compliance_status"] == "GREEN_SHIELD"
+    assert payload["certificate_pdf_url"] == f"/api/jobs/{draft_id}/certificate.pdf"
+
+    assert sent_payload["to_email"] == "client@example.com"
+    assert sent_payload["client_name"] == "Jane Client"
+
+    details = client.get(f"/api/jobs/{draft_id}")
+    assert details.status_code == 200
+    details_payload = details.json()
+    assert details_payload["status"] == "DONE"
+    assert details_payload["certificate_pdf_url"] == f"/api/jobs/{draft_id}/certificate.pdf"
+
+
+def test_complete_job_prompts_for_email_when_missing(sqlite_engine) -> None:
+    employee_id = uuid4()
+    organization_id = uuid4()
+    employee_user = AuthenticatedUser(
+        id=employee_id,
+        organization_id=organization_id,
+        role="EMPLOYEE",
+        full_name="Field Sparky",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: employee_user
+
+    draft_id = uuid4()
+    with Session(sqlite_engine) as session:
+        session.add(
+            JobDraft(
+                id=draft_id,
+                user_id=employee_id,
+                organization_id=organization_id,
+                raw_transcript="Replace socket and light fittings.",
+                extracted_data={"client": "No Email Client", "address": "10 Queen St"},
+                status="DRAFT",
+                client_email=None,
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=employee_id,
+                test_type="Earth Loop",
+                value_text="0.31",
+                unit="Ohms",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=employee_id,
+                test_type="Polarity",
+                result="PASS",
+            )
+        )
+        session.commit()
+
+    client = TestClient(main.app)
+    response = client.post(f"/api/jobs/{draft_id}/complete", json={})
+
+    assert response.status_code == 422
+    assert "Client email is required" in response.json()["error"]

@@ -201,6 +201,77 @@ def test_ingest_rejects_payload_without_voice_or_audio() -> None:
     assert "Provide voice_notes or audio_base64" in response.json()["error"]
 
 
+def test_ingest_persists_safety_tests_with_gps_and_green_shield(monkeypatch: pytest.MonkeyPatch) -> None:
+
+    test_user = AuthenticatedUser(
+
+        id=uuid4(),
+
+        organization_id=uuid4(),
+
+        role="EMPLOYEE",
+
+        full_name="Safety Tester",
+
+    )
+
+    main.app.dependency_overrides[main.get_current_user] = lambda: test_user
+
+    monkeypatch.setattr(
+
+        main.triage_service,
+
+        "analyze_transcript",
+
+        lambda _text: {
+
+            "client": "Smith Residence",
+
+            "address": "45 Queen St",
+
+            "scope": "Socket and light replacement",
+
+            "line_items": [],
+
+            "safety_tests": [
+
+                {"type": "Earth Loop", "value": "0.45", "unit": "Ohms", "result": None},
+
+                {"type": "Polarity", "result": "PASS"},
+
+                {"type": "RCD", "result": "PASS"},
+
+            ],
+
+        },
+
+    )
+
+    client = TestClient(main.app)
+    response = client.post(
+        "/api/ingest",
+        json={
+            "voice_notes": "Installed socket and light circuits, Earth loop zero point four five, polarity pass",
+            "gps_lat": "-36.848500",
+            "gps_lng": "174.763300",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["compliance_status"] == "GREEN_SHIELD"
+    assert payload["extracted_data"]["compliance_summary"]["status"] == "GREEN_SHIELD"
+
+    job_id = payload["id"]
+    details = client.get(f"/api/jobs/{job_id}")
+    assert details.status_code == 200
+    details_payload = details.json()
+    tests = details_payload["extracted_data"]["safety_tests"]
+    assert len(tests) == 3
+    assert any(test["type"] == "Earth Loop" and test["gps_lat"] == -36.8485 and test["gps_lng"] == 174.7633 for test in tests)
+    assert any(test["type"] == "Polarity" and test["result"] == "PASS" for test in tests)
+
+
 
 
 

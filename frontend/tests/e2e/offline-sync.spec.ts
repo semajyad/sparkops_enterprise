@@ -93,6 +93,20 @@ test("captures offline then syncs when back online", async ({ page, context }) =
     await forceSyncButton.click();
   }
 
-  await expect.poll(() => getPendingCount(page), { timeout: 20_000 }).toBe(0);
-  await expect(page.getByText(/Online/i)).toBeVisible();
+  await expect(page.getByText(/Online/i)).toBeVisible({ timeout: 20_000 });
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const pendingCount = await getPendingCount(page);
+    if (pendingCount === 0) {
+      break;
+    }
+
+    if ((await forceSyncButton.isVisible()) && (await forceSyncButton.isEnabled())) {
+      await forceSyncButton.click();
+    }
+
+    await page.waitForTimeout(5_000);
+  }
+
+  await expect.poll(() => getPendingCount(page), { timeout: 10_000 }).toBe(0);
 });

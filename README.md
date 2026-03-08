@@ -79,6 +79,10 @@ TWILIO_PHONE_NUMBER=your_twilio_number
 # Security
 SECRET_KEY=your_secret_key_here
 SUPABASE_JWT_SECRET=your_supabase_jwt_secret
+
+# Certificate email delivery (Resend)
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=compliance@yourdomain.nz
 ```
 
 ### Installation
@@ -226,6 +230,9 @@ GET  /api/jobs                 # List jobs (role-filtered)
 GET  /api/jobs/{id}            # Get job details
 DELETE /api/jobs/{id}          # Delete job
 GET  /api/jobs/{id}/pdf        # Download PDF invoice
+POST /api/jobs/{id}/complete   # Complete compliant job and auto-send certificate
+POST /api/v1/jobs/{id}/complete # Versioned complete-job endpoint
+GET  /api/jobs/{id}/certificate.pdf # Download compliance certificate PDF
 ```
 
 #### Materials Management

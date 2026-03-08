@@ -39,10 +39,18 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    pool_size=20,
-    max_overflow=0,
-    pool_pre_ping=True,
-)
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        echo=True,
+        pool_size=20,
+        max_overflow=0,
+        pool_pre_ping=True,
+    )
+except ImportError as exc:
+    print(f"WARNING: Falling back to SQLite because PostgreSQL driver is unavailable: {exc}")
+    engine = create_engine(
+        "sqlite:///./sparkops_local.db",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )

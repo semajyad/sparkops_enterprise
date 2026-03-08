@@ -267,11 +267,50 @@ class TriageService:
                 }
             )
 
+        safety_tests = payload.get("safety_tests", [])
+        if not isinstance(safety_tests, list):
+            safety_tests = []
+
+        canonical_types = {
+            "earth loop": "Earth Loop",
+            "earth_loop": "Earth Loop",
+            "polarity": "Polarity",
+            "rcd": "RCD",
+            "insulation resistance": "Insulation Resistance",
+            "insulation_resistance": "Insulation Resistance",
+        }
+
+        normalized_tests: list[dict[str, Any]] = []
+        for test in safety_tests:
+            if not isinstance(test, dict):
+                continue
+
+            raw_type = str(test.get("type", "")).strip().lower()
+            if not raw_type:
+                continue
+
+            test_type = canonical_types.get(raw_type, raw_type.title())
+            value = test.get("value")
+            value_text = str(value).strip() if value is not None else ""
+            result = str(test.get("result", "")).strip().upper()
+            if result not in {"PASS", "FAIL"}:
+                result = ""
+
+            normalized_tests.append(
+                {
+                    "type": test_type,
+                    "value": value_text or None,
+                    "unit": str(test.get("unit", "")).strip() or None,
+                    "result": result or None,
+                }
+            )
+
         return {
             "client": str(payload.get("client", "")).strip(),
             "address": str(payload.get("address", "")).strip(),
             "scope": str(payload.get("scope", "")).strip(),
             "line_items": normalized_items,
+            "safety_tests": normalized_tests,
         }
 
     def analyze_transcript(self, text: str) -> dict[str, Any]:
@@ -291,9 +330,11 @@ class TriageService:
                         {
                             "type": "input_text",
                             "text": (
-                                "You are a Quantity Surveyor. Extract 'client', 'address', 'scope', and a list of "
-                                "'line_items' (qty, description, type=MATERIAL/LABOR) from this text. Return only "
-                                "valid JSON with keys: client, address, scope, line_items."
+                                "You are a NZ electrical compliance extractor. Extract JSON with keys: client, "
+                                "address, scope, line_items, safety_tests. line_items entries must include qty, "
+                                "description, type=MATERIAL/LABOR. safety_tests entries must include type (Earth Loop, "
+                                "Polarity, RCD, Insulation Resistance), and either numeric value + unit (e.g. Ohms/ms) "
+                                "or pass/fail result. Return valid JSON only."
                             ),
                         }
                     ],

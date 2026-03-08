@@ -11,8 +11,10 @@ export type JobLineItem = {
 export type JobListItem = {
   id: string;
   status: JobStatus;
+  compliance_status?: string | null;
   created_at: string;
   client_name: string;
+  client_email?: string | null;
   extracted_data?: {
     client?: string;
     job_title?: string;

@@ -67,7 +67,7 @@ export default function CapturePage() {
 
   const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
 
-  const { session } = useAuth();
+  const { session, role, mode, setMode } = useAuth();
 
 
 
@@ -90,6 +90,8 @@ export default function CapturePage() {
   const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState("Ready for offline capture.");
+  const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
+  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
@@ -133,6 +135,10 @@ export default function CapturePage() {
 
         audio_base64: audioBase64,
 
+        gps_lat: gps?.lat,
+
+        gps_lng: gps?.lng,
+
       }),
 
     });
@@ -146,6 +152,30 @@ export default function CapturePage() {
       throw new Error(body || `Ingest failed with status ${response.status}`);
 
     }
+
+    const payload = (await response.json()) as {
+
+      extracted_data?: { safety_tests?: Array<{ type?: string; value?: string; unit?: string; result?: string }> };
+
+    };
+
+    const tests = Array.isArray(payload.extracted_data?.safety_tests) ? payload.extracted_data?.safety_tests : [];
+
+    setSafetyChips(
+
+      tests.map((row) => ({
+
+        type: String(row.type ?? "Safety Test"),
+
+        value: row.value ?? null,
+
+        unit: row.unit ?? null,
+
+        result: row.result ?? null,
+
+      }))
+
+    );
 
   }
 
@@ -381,8 +411,6 @@ export default function CapturePage() {
 
       });
 
-
-
       setVoiceText("");
 
       setAudioBlob("");
@@ -457,6 +485,39 @@ export default function CapturePage() {
 
 
 
+  useEffect(() => {
+
+    if (!navigator.geolocation) {
+
+      return;
+
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+
+      (position) => {
+
+        setGps({ lat: position.coords.latitude, lng: position.coords.longitude });
+
+      },
+
+      () => {
+
+        setGps(null);
+
+      },
+
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+
+  }, []);
+
+
+
+
   return (
 
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
@@ -471,6 +532,12 @@ export default function CapturePage() {
 
             <h1 className="text-3xl font-bold tracking-tight text-white">Field Capture</h1>
 
+            {role === "OWNER" ? (
+
+              <p className="mt-1 text-xs text-slate-300">Field Focus active. Business metrics stay in Admin Mode so this screen stays job-first.</p>
+
+            ) : null}
+
           </div>
 
           <div className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
@@ -480,6 +547,64 @@ export default function CapturePage() {
           </div>
 
         </header>
+
+        {role === "OWNER" ? (
+
+          <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Mode</p>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+
+              <button
+
+                type="button"
+
+                onClick={() => setMode("ADMIN")}
+
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+
+                  mode === "ADMIN"
+
+                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
+
+                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
+
+                }`}
+
+              >
+
+                Admin Mode
+
+              </button>
+
+              <button
+
+                type="button"
+
+                onClick={() => setMode("FIELD")}
+
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+
+                  mode === "FIELD"
+
+                    ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
+
+                    : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
+
+                }`}
+
+              >
+
+                Field Mode
+
+              </button>
+
+            </div>
+
+          </section>
+
+        ) : null}
 
 
 
@@ -702,6 +827,32 @@ export default function CapturePage() {
 
 
         <p className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-slate-200">{statusMessage}</p>
+
+        {safetyChips.length > 0 ? (
+
+          <section className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+
+            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Safety Chips</h2>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+
+              {safetyChips.map((chip, index) => (
+
+                <span key={`${chip.type}-${index}`} className="inline-flex min-h-11 items-center rounded-full border border-emerald-400/50 bg-slate-950/70 px-3 py-1.5 text-xs text-emerald-100">
+
+                  {chip.type}: {chip.result || chip.value || "Recorded"}
+
+                  {chip.value && chip.unit ? ` ${chip.unit}` : ""}
+
+                </span>
+
+              ))}
+
+            </div>
+
+          </section>
+
+        ) : null}
 
       </section>
 

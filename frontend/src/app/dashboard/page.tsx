@@ -24,7 +24,7 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function DashboardPage(): React.JSX.Element {
-  const { user, session } = useAuth();
+  const { user, session, role, mode } = useAuth();
   const router = useRouter();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +37,7 @@ export default function DashboardPage(): React.JSX.Element {
   const displayName = metadataName || profileName;
   const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
   const recentActivity = jobs.slice(0, 5);
+  const ownerFieldFocus = role === "OWNER" && mode === "FIELD";
 
   useEffect(() => {
     async function loadJobs(): Promise<void> {
@@ -136,6 +137,12 @@ export default function DashboardPage(): React.JSX.Element {
         </h1>
         <p className="mt-2 text-sm text-slate-300">Your business pulse right now.</p>
 
+        {ownerFieldFocus ? (
+          <p className="mt-3 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            Field Mode active. High-level business metrics are hidden while you are on the tools.
+          </p>
+        ) : null}
+
         {!displayName ? (
           <p className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
             Your profile name is missing. <Link href="/profile" className="font-semibold text-amber-300 underline">Update Profile</Link> to personalize your dashboard.
@@ -179,31 +186,33 @@ export default function DashboardPage(): React.JSX.Element {
 
         {jobs.length > 0 ? (
           <>
-            <section className="mt-6 grid gap-4 sm:grid-cols-3">
-              <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Clock3 className="h-4 w-4 text-amber-400" />
-                  <p className="text-xs uppercase tracking-[0.18em]">Pending Jobs</p>
-                </div>
-                <p className="mt-3 text-3xl font-bold text-amber-300">{pulse.pendingJobs}</p>
-              </article>
+            {!ownerFieldFocus ? (
+              <section className="mt-6 grid gap-4 sm:grid-cols-3">
+                <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Clock3 className="h-4 w-4 text-amber-400" />
+                    <p className="text-xs uppercase tracking-[0.18em]">Pending Jobs</p>
+                  </div>
+                  <p className="mt-3 text-3xl font-bold text-amber-300">{pulse.pendingJobs}</p>
+                </article>
 
-              <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Hammer className="h-4 w-4 text-amber-400" />
-                  <p className="text-xs uppercase tracking-[0.18em]">Billable Hours</p>
-                </div>
-                <p className="mt-3 text-3xl font-bold text-amber-300">{pulse.totalBillableHours.toFixed(1)}</p>
-              </article>
+                <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Hammer className="h-4 w-4 text-amber-400" />
+                    <p className="text-xs uppercase tracking-[0.18em]">Billable Hours</p>
+                  </div>
+                  <p className="mt-3 text-3xl font-bold text-amber-300">{pulse.totalBillableHours.toFixed(1)}</p>
+                </article>
 
-              <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <ReceiptText className="h-4 w-4 text-amber-400" />
-                  <p className="text-xs uppercase tracking-[0.18em]">Material Spend</p>
-                </div>
-                <p className="mt-3 text-3xl font-bold text-amber-300">${pulse.materialSpend.toFixed(2)}</p>
-              </article>
-            </section>
+                <article className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <ReceiptText className="h-4 w-4 text-amber-400" />
+                    <p className="text-xs uppercase tracking-[0.18em]">Material Spend</p>
+                  </div>
+                  <p className="mt-3 text-3xl font-bold text-amber-300">${pulse.materialSpend.toFixed(2)}</p>
+                </article>
+              </section>
+            ) : null}
 
             <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/50 p-4">
               <div className="flex items-center gap-2 text-slate-200">

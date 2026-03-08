@@ -10,6 +10,9 @@ import { formatJobDate, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 type JobDraftResponse = {
   id: string;
   raw_transcript: string;
+  client_email?: string | null;
+  compliance_status?: string | null;
+  certificate_pdf_url?: string | null;
   extracted_data: {
     client?: string;
     address?: string;
@@ -20,6 +23,14 @@ type JobDraftResponse = {
       type?: string;
       unit_price?: string | number;
       line_total?: string | number;
+    }>;
+    safety_tests?: Array<{
+      type?: string;
+      value?: string | null;
+      unit?: string | null;
+      result?: string | null;
+      gps_lat?: number | null;
+      gps_lng?: number | null;
     }>;
   };
   status: string;
@@ -48,6 +59,7 @@ function statusBadgeClass(status: string): string {
   if (normalized === "DONE") {
     return "border-emerald-500/50 bg-emerald-500/20 text-emerald-200";
   }
+
   if (normalized === "SYNCING") {
     return "border-amber-500/50 bg-amber-500/20 text-amber-200";
   }
@@ -60,7 +72,17 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+
+  const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
+  const guardrailClass =
+    guardrail === "GREEN_SHIELD"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+      : guardrail === "RED_SHIELD"
+        ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+        : "border-amber-500/40 bg-amber-500/10 text-amber-200";
 
   useEffect(() => {
     async function loadJob(): Promise<void> {
@@ -148,6 +170,46 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function completeJob(): Promise<void> {
+    if (!job || isCompleting) {
+      return;
+    }
+
+    const existingEmail = (job.client_email ?? "").trim();
+    const promptedEmail = existingEmail || window.prompt("Client email is required to send certificate:", "") || "";
+    const clientEmail = promptedEmail.trim().toLowerCase();
+    if (!clientEmail) {
+      setErrorMessage("Client email is required before completing this job.");
+      return;
+    }
+
+    setIsCompleting(true);
+    setErrorMessage("");
+
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/complete`, {
+        method: "POST",
+        body: JSON.stringify({ client_email: clientEmail }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Complete failed (${response.status})`);
+      }
+
+      setToast("✅ Certificate Sent to Client!");
+
+      const refreshed = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, { cache: "no-store" });
+      if (refreshed.ok) {
+        const payload = await parseApiJson<JobDraftResponse>(refreshed);
+        setJob(payload);
+      }
+    } catch (completeError) {
+      setErrorMessage(completeError instanceof Error ? completeError.message : "Unable to complete this job.");
+    } finally {
+      setIsCompleting(false);
+    }
+  }
+
   const lineItems = job?.extracted_data?.line_items ?? [];
   const invoiceSummary = job?.invoice_summary;
   const complianceSummary = job?.compliance_summary;
@@ -206,6 +268,9 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
             {complianceSummary ? (
               <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Compliance Summary</h2>
+                <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${guardrailClass}`}>
+                  {guardrail.replaceAll("_", " ")}
+                </p>
                 <p className="mt-2 text-sm text-slate-300">{complianceSummary.notes || "No compliance summary available."}</p>
                 {Array.isArray(complianceSummary.missing_items) && complianceSummary.missing_items.length > 0 ? (
                   <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">
@@ -264,6 +329,24 @@ export default function JobReviewPage({ params }: { params: { id: string } }) {
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download Invoice PDF
             </button>
+
+            <button
+              type="button"
+              onClick={() => void completeJob()}
+              disabled={isCompleting || !job}
+              className={`mt-3 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:opacity-50 ${
+                guardrail === "GREEN_SHIELD"
+                  ? "bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                  : guardrail === "RED_SHIELD"
+                    ? "bg-rose-500/85 text-rose-950 hover:bg-rose-400"
+                    : "bg-amber-500 text-amber-950 hover:bg-amber-400"
+              }`}
+            >
+              {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Complete Job
+            </button>
+
+            {toast ? <p className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{toast}</p> : null}
           </>
         ) : (
           <p className="rounded-xl border border-rose-500/60 bg-rose-500/10 p-4 text-sm text-rose-100">Job draft not found.</p>

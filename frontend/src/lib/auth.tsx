@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -8,11 +8,16 @@ import { apiFetch, parseApiJson } from "@/lib/api";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type AppRole = "OWNER" | "EMPLOYEE" | null;
+type AppMode = "ADMIN" | "FIELD";
+
+const MODE_STORAGE_KEY = "sparkops_owner_mode";
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   role: AppRole;
+  mode: AppMode;
+  setMode: (next: AppMode) => void;
   loading: boolean;
 };
 
@@ -20,6 +25,8 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
   role: null,
+  mode: "ADMIN",
+  setMode: () => undefined,
   loading: true,
 });
 
@@ -34,7 +41,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole>(null);
+  const [mode, setModeState] = useState<AppMode>("ADMIN");
   const [loading, setLoading] = useState(true);
+
+  const setMode = useCallback(
+    (next: AppMode): void => {
+      if (role !== "OWNER") {
+        setModeState("ADMIN");
+        return;
+      }
+      setModeState(next);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(MODE_STORAGE_KEY, next);
+      }
+    },
+    [role],
+  );
 
   useEffect(() => {
     if (!supabase) return;
@@ -126,12 +148,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void loadRole();
   }, [session]);
 
+  useEffect(() => {
+    if (role !== "OWNER") {
+      setModeState("ADMIN");
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+    const storedMode = window.localStorage.getItem(MODE_STORAGE_KEY);
+    if (storedMode === "FIELD" || storedMode === "ADMIN") {
+      setModeState(storedMode);
+    }
+  }, [role]);
+
   return (
     <AuthContext.Provider
       value={{
         session,
         user,
         role,
+        mode,
+        setMode,
         loading,
       }}
     >

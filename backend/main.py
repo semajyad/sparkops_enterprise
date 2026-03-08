@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import csv
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import logging
 
@@ -70,7 +70,7 @@ from database import engine as database_engine
 
 from dependencies import AuthenticatedUser, get_current_user, require_owner
 
-from models.database import JobDraft, Material, create_db_and_tables
+from models.database import JobDraft, Material, SafetyTest, create_db_and_tables
 
 
 
@@ -90,9 +90,11 @@ from services.math_utils import (
 
 from services.invoice import calculate_invoice, get_default_markup
 
-from services.triage import triage_service
+from services.mailer import MailDeliveryError, send_certificate_email
 
 from services.translator import KiwiTranslator
+
+from services.triage import triage_service
 
 from services.vision import ReceiptExtraction, ReceiptVisionEngine
 
@@ -242,6 +244,10 @@ class IngestRequest(BaseModel):
 
         receipt_image_base64: Optional base64 receipt image.
 
+        gps_lat: Optional GPS latitude.
+
+        gps_lng: Optional GPS longitude.
+
     """
 
 
@@ -251,6 +257,10 @@ class IngestRequest(BaseModel):
     audio_base64: str | None = None
 
     receipt_image_base64: str | None = None
+
+    gps_lat: Decimal | None = None
+
+    gps_lng: Decimal | None = None
 
 
 
@@ -386,6 +396,12 @@ class JobDraftResponse(BaseModel):
 
     status: str
 
+    client_email: str | None = None
+
+    compliance_status: str | None = None
+
+    certificate_pdf_url: str | None = None
+
     created_at: datetime
 
 
@@ -401,6 +417,8 @@ class JobDraftListItemResponse(BaseModel):
     id: UUID
 
     status: str
+
+    compliance_status: str | None = None
 
     created_at: datetime
 
@@ -490,6 +508,22 @@ class ManualJobCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     location: str = Field(min_length=1, max_length=500)
     scheduled_date: str | None = Field(default=None, max_length=64)
+    client_email: str | None = Field(default=None, max_length=255)
+
+
+class JobCompleteRequest(BaseModel):
+    """Complete-job payload requiring client email when missing in draft."""
+
+    client_email: str | None = Field(default=None, max_length=255)
+
+
+class JobCompleteResponse(BaseModel):
+    """Response payload after successful compliance completion and send."""
+
+    status: str
+    compliance_status: str
+    certificate_pdf_url: str
+    message: str
 
 
 
@@ -820,9 +854,6 @@ def embed_text(text: str) -> list[float]:
 def embed_text_batch(texts: list[str]) -> list[list[float]]:
 
     """Generate embeddings for a batch of texts in a single API call."""
-
-
-
     if not texts:
 
         return []
@@ -831,884 +862,163 @@ def embed_text_batch(texts: list[str]) -> list[list[float]]:
 
     response = client.embeddings.create(model="text-embedding-3-large", input=texts)
 
-    ordered = sorted(response.data, key=lambda row: row.index)
-
-    return [row.embedding for row in ordered]
+    return [item.embedding for item in response.data]
 
 
+def _normalize_safety_tests(extracted_data: dict[str, Any], gps_lat: Decimal | None, gps_lng: Decimal | None) -> list[dict[str, Any]]:
+    tests_raw = extracted_data.get("safety_tests", []) if isinstance(extracted_data, dict) else []
+    if not isinstance(tests_raw, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for row in tests_raw:
+        if not isinstance(row, dict):
+            continue
+        test_type = str(row.get("type", "")).strip()
+        if not test_type:
+            continue
+        normalized.append(
+            {
+                "test_type": test_type,
+                "value_text": str(row.get("value") or "").strip() or None,
+                "unit": str(row.get("unit") or "").strip() or None,
+                "result": str(row.get("result") or "").strip().upper() or None,
+                "gps_lat": gps_lat,
+                "gps_lng": gps_lng,
+            }
+        )
+    return normalized
 
 
+def _compute_guardrail_status(raw_transcript: str, tests: list[dict[str, Any]]) -> tuple[str, list[str], str]:
+    text = (raw_transcript or "").lower()
+    mentions_keyword = ("socket" in text) or ("light" in text)
 
-def _parse_materials_csv(csv_bytes: bytes) -> list[tuple[str, str, Decimal]]:
+    has_earth_loop = any(str(test.get("test_type", "")).lower() == "earth loop" for test in tests)
+    has_polarity = any(str(test.get("test_type", "")).lower() == "polarity" for test in tests)
 
-    """Parse CSV upload into validated material rows."""
+    missing: list[str] = []
+    if mentions_keyword and not has_earth_loop:
+        missing.append("Earth Loop")
+    if mentions_keyword and not has_polarity:
+        missing.append("Polarity")
+
+    if not mentions_keyword:
+        return "NOT_REQUIRED", [], "Job scope does not require traffic-light guardrail checks."
+    if missing:
+        return "RED_SHIELD", missing, "Mandatory safety tests are missing for compliant closure."
+    return "GREEN_SHIELD", [], "Job is compliant to close with mandatory safety tests present."
 
 
+def _assert_job_write_access(draft: JobDraft, current_user: AuthenticatedUser) -> None:
+    if draft.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+    if current_user.role == "OWNER":
+        return
+    if draft.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
 
-    decoded = csv_bytes.decode("utf-8-sig")
+
+def _materials_supports_vector_column() -> bool:
+    """Return whether materials table supports vector_embedding writes."""
+
+    return hasattr(Material, "vector_embedding")
+
+
+def _upsert_materials_rows(
+    rows: list[dict[str, str]],
+    embeddings: list[list[float]] | None,
+    with_vector: bool,
+    organization_id: UUID,
+    user_id: UUID,
+) -> int:
+    """Upsert normalized material rows and return imported count."""
+
+    imported_count = 0
+    with Session(ENGINE) as session:
+        for index, row in enumerate(rows):
+            payload: dict[str, Any] = {
+                "sku": row["sku"],
+                "name": row["name"],
+                "trade_price": Decimal(row["price"]),
+                "organization_id": organization_id,
+                "user_id": user_id,
+            }
+            if with_vector and embeddings is not None and index < len(embeddings):
+                payload["vector_embedding"] = embeddings[index]
+
+            session.merge(Material(**payload))
+            imported_count += 1
+
+        session.commit()
+
+    return imported_count
+
+
+def _parse_materials_csv(contents: bytes) -> list[dict[str, str]]:
+    """Parse materials CSV and return valid rows. Raises on empty parse."""
+
+    try:
+        decoded = contents.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("CSV must be UTF-8 encoded.") from exc
 
     reader = csv.DictReader(io.StringIO(decoded))
-
     if not reader.fieldnames:
+        raise ValueError("CSV headers are required.")
 
-        raise ValueError("CSV must include headers: sku, description, price.")
-
-
-
-    normalized_headers = {header.strip().lower() for header in reader.fieldnames if header}
-
-    required_headers = {"sku", "description", "price"}
-
-    if not required_headers.issubset(normalized_headers):
-
-        raise ValueError("CSV headers must include sku, description, price.")
-
-
-
-    rows: list[tuple[str, str, Decimal]] = []
-
-    for line_number, row in enumerate(reader, start=2):
-
-        normalized_row = {
-
-            str(key).strip().lower(): value
-
-            for key, value in row.items()
-
-            if key is not None
-
-        }
-
-        sku = str(normalized_row.get("sku", "")).strip()
-
-        description = str(normalized_row.get("description", "")).strip()
-
-        raw_price = str(normalized_row.get("price", "")).strip()
-
-
-
-        if not sku and not description and not raw_price:
-
+    rows: list[dict[str, str]] = []
+    for item in reader:
+        sku = str(item.get("sku") or "").strip()
+        name = str(item.get("name") or "").strip()
+        price = str(item.get("price") or "").strip()
+        if not sku or not name or not price:
             continue
-
-        if not sku or not description or not raw_price:
-
-            raise ValueError(f"Invalid row {line_number}: sku, description, and price are required.")
-
-
-
-        try:
-
-            price = Decimal(raw_price)
-
-        except Exception as exc:
-
-            raise ValueError(f"Invalid price at row {line_number}: {raw_price}") from exc
-
-
-
-        rows.append((sku, description, price))
-
-
+        rows.append({"sku": sku, "name": name, "price": price})
 
     if not rows:
-
-        raise ValueError("CSV contains no material rows.")
+        raise ValueError("CSV did not contain valid materials rows.")
 
     return rows
 
 
+def import_materials(contents: bytes, filename: str, current_user: AuthenticatedUser) -> MaterialsImportResponse:
+    """Import materials CSV rows and return summary counts."""
 
-
-
-def _parse_materials_csv_tolerant(csv_bytes: bytes) -> tuple[list[tuple[str, str, Decimal]], int]:
-
-    """Parse CSV and skip malformed rows while counting failures."""
-
-
-
-    decoded = csv_bytes.decode("utf-8-sig")
-
+    decoded = contents.decode("utf-8")
     reader = csv.DictReader(io.StringIO(decoded))
-
-    if not reader.fieldnames:
-
-        raise ValueError("CSV must include headers: sku, name, price.")
-
-
-
-    normalized_headers = {header.strip().lower() for header in reader.fieldnames if header}
-
-    required_headers = {"sku", "name", "price"}
-
-    if not required_headers.issubset(normalized_headers):
-
-        raise ValueError("CSV headers must include sku, name, price.")
-
-
-
-    rows: list[tuple[str, str, Decimal]] = []
-
-    failed_rows = 0
-
-
-
-    for line_number, row in enumerate(reader, start=2):
-
-        normalized_row = {
-
-            str(key).strip().lower(): value
-
-            for key, value in row.items()
-
-            if key is not None
-
-        }
-
-        sku = str(normalized_row.get("sku", "")).strip()
-
-        name = str(normalized_row.get("name", "")).strip()
-
-        raw_price = str(normalized_row.get("price", "")).strip()
-
-
-
-        if not sku and not name and not raw_price:
-
+    parsed_rows: list[dict[str, str]] = []
+    total_rows = 0
+    for item in reader:
+        total_rows += 1
+        sku = str(item.get("sku") or "").strip()
+        name = str(item.get("name") or "").strip()
+        price = str(item.get("price") or "").strip()
+        if not sku or not name or not price:
             continue
-
-
-
-        if not sku or not name or not raw_price:
-
-            failed_rows += 1
-
-            logger.warning("Skipping malformed materials CSV row %s: missing required fields", line_number)
-
-            continue
-
-
-
-        try:
-
-            price = Decimal(raw_price)
-
-        except Exception:
-
-            failed_rows += 1
-
-            logger.warning("Skipping malformed materials CSV row %s: invalid price '%s'", line_number, raw_price)
-
-            continue
-
-
-
-        rows.append((sku, name, price))
-
-
-
-    return rows, failed_rows
-
-
-
-
-
-def _materials_supports_vector_column() -> bool:
-
-    """Return True when materials.vector_embedding exists in active DB schema."""
-
-
-
-    try:
-
-        with Session(ENGINE) as session:
-
-            exists = session.exec(
-
-                text(
-
-                    """
-
-                    SELECT EXISTS (
-
-                        SELECT 1
-
-                        FROM information_schema.columns
-
-                        WHERE table_schema = current_schema()
-
-                          AND table_name = 'materials'
-
-                          AND column_name = 'vector_embedding'
-
-                    )
-
-                    """
-
-                )
-
-            ).one()
-
-        return bool(exists)
-
-    except Exception as exc:
-
-        logger.warning("Unable to verify materials vector column: %s", exc)
-
-        return False
-
-
-
-
-
-def _upsert_materials_rows(
-
-    rows: list[tuple[str, str, Decimal]],
-
-    embeddings: list[list[float]],
-
-    *,
-
-    with_vector: bool,
-
-    organization_id: UUID,
-
-    user_id: UUID,
-
-) -> int:
-
-    """Upsert parsed material rows into the materials table."""
-
-
-
-    upserted = 0
-
-    with Session(ENGINE) as session:
-
-        if with_vector:
-
-            statement = text(
-
-                """
-
-                INSERT INTO materials (sku, organization_id, user_id, name, trade_price, vector_embedding)
-
-                VALUES (:sku, :organization_id, :user_id, :name, :trade_price, :vector_embedding)
-
-                ON CONFLICT (sku) DO UPDATE SET
-
-                    organization_id = EXCLUDED.organization_id,
-
-                    user_id = EXCLUDED.user_id,
-
-                    name = EXCLUDED.name,
-
-                    trade_price = EXCLUDED.trade_price,
-
-                    vector_embedding = EXCLUDED.vector_embedding
-
-                """
-
-            )
-
-
-
-            for (sku, description, price), embedding in zip(rows, embeddings, strict=False):
-
-                session.exec(
-
-                    statement,
-
-                    params={
-
-                        "sku": sku,
-
-                        "organization_id": str(organization_id),
-
-                        "user_id": str(user_id),
-
-                        "name": description,
-
-                        "trade_price": str(price),
-
-                        "vector_embedding": embedding,
-
-                    },
-
-                )
-
-
-
-                upserted += 1
-
-        else:
-
-            statement = text(
-
-                """
-
-                INSERT INTO materials (sku, organization_id, user_id, name, trade_price)
-
-                VALUES (:sku, :organization_id, :user_id, :name, :trade_price)
-
-                ON CONFLICT (sku) DO UPDATE SET
-
-                    organization_id = EXCLUDED.organization_id,
-
-                    user_id = EXCLUDED.user_id,
-
-                    name = EXCLUDED.name,
-
-                    trade_price = EXCLUDED.trade_price
-
-                """
-
-            )
-
-
-
-            for sku, description, price in rows:
-
-                session.exec(
-
-                    statement,
-
-                    params={
-
-                        "sku": sku,
-
-                        "organization_id": str(organization_id),
-
-                        "user_id": str(user_id),
-
-                        "name": description,
-
-                        "trade_price": str(price),
-
-                    },
-
-                )
-
-                upserted += 1
-
-
-
-        session.commit()
-
-    return upserted
-
-
-
-
-
-def process_materials_upload(csv_bytes: bytes, filename: str, organization_id: UUID, user_id: UUID) -> None:
-
-    """Background task: parse CSV, batch-embed descriptions, and upsert materials."""
-
-
-
-    try:
-
-        rows = _parse_materials_csv(csv_bytes)
-
-        logger.info("Materials upload started: filename=%s rows=%s", filename, len(rows))
-
-
-
-        with_vector = _materials_supports_vector_column()
-
-        batch_size = 20
-
-        total_upserted = 0
-
-
-
-        for offset in range(0, len(rows), batch_size):
-
-            batch_rows = rows[offset : offset + batch_size]
-
-            descriptions = [description for _, description, _ in batch_rows]
-
-            embeddings = embed_text_batch(descriptions) if with_vector else []
-
-            total_upserted += _upsert_materials_rows(
-
-                batch_rows,
-
-                embeddings,
-
-                with_vector=with_vector,
-
-                organization_id=organization_id,
-
-                user_id=user_id,
-
-            )
-
-
-
-        logger.info("Materials upload completed: filename=%s upserted=%s", filename, total_upserted)
-
-    except Exception:
-
-        logger.exception("Materials upload failed: filename=%s", filename)
-
-
-
-
-
-def import_materials(csv_bytes: bytes, filename: str, current_user: AuthenticatedUser) -> MaterialsImportResponse:
-
-    """Import materials synchronously and return import summary."""
-
-
-
-    rows, failed_rows = _parse_materials_csv_tolerant(csv_bytes)
-
-    imported_count = 0
-
-
-
-    if not rows and failed_rows == 0:
-
-        raise ValueError("CSV contains no material rows.")
-
-
+        parsed_rows.append({"sku": sku, "name": name, "price": price})
+
+    failed_count = max(total_rows - len(parsed_rows), 0)
+    if not parsed_rows:
+        raise ValueError("CSV did not contain valid materials rows.")
 
     with_vector = _materials_supports_vector_column()
-
-    batch_size = 50
-
-
-
-    for offset in range(0, len(rows), batch_size):
-
-        batch_rows = rows[offset : offset + batch_size]
-
-        descriptions = [name for _, name, _ in batch_rows]
-
-        try:
-
-            embeddings = embed_text_batch(descriptions) if with_vector else []
-
-            imported_count += _upsert_materials_rows(
-
-                batch_rows,
-
-                embeddings,
-
-                with_vector=with_vector,
-
-                organization_id=current_user.organization_id,
-
-                user_id=current_user.id,
-
-            )
-
-        except Exception as exc:
-
-            failed_rows += len(batch_rows)
-
-            logger.warning("Skipping materials batch %s-%s due to import error: %s", offset, offset + len(batch_rows), exc)
-
-
-
-    total_rows = imported_count + failed_rows
-
-    status = "completed" if imported_count > 0 else "completed_with_errors"
+    embeddings = embed_text_batch([f"{row['sku']} {row['name']}" for row in parsed_rows]) if with_vector else None
+    imported_count = _upsert_materials_rows(
+        parsed_rows,
+        embeddings,
+        with_vector,
+        current_user.organization_id,
+        current_user.id,
+    )
 
     return MaterialsImportResponse(
-
-        status=status,
-
+        status="ok",
         imported_count=imported_count,
-
-        failed_count=failed_rows,
-
+        failed_count=failed_count,
         total_rows=total_rows,
-
-        message=f"Imported {imported_count} items, {failed_rows} failed from {filename}.",
-
+        message=f"Imported {imported_count} materials from {filename}.",
     )
-
-
-
-
-
-def vector_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
-
-    """Find best material matches using vector similarity or fallback text matching.
-
-
-
-    Args:
-
-        descriptions: List of material descriptions to match.
-
-        limit: Maximum matches per description.
-
-
-
-    Returns:
-
-        list[MatchedMaterialOut]: Ranked material matches.
-
-    """
-
-
-
-    normalized_descriptions = [description.strip() for description in descriptions if description and description.strip()]
-
-    if not normalized_descriptions:
-
-        return []
-
-
-
-    if not descriptions:
-
-        return []
-
-
-
-    matches: list[MatchedMaterialOut] = []
-
-
-
-    if not _materials_table_exists():
-
-        logger.warning("Materials table is missing; skipping vector matching.")
-
-        return []
-
-    
-
-    # Check if vector functionality is available
-
-    try:
-
-        from models.database import is_vector_enabled
-
-        if not is_vector_enabled():
-
-            logger.warning("Vector matching not available, using text-based fallback")
-
-            return _text_match_materials(normalized_descriptions, limit)
-
-    except ImportError:
-
-        logger.warning("Could not check vector availability, using text-based fallback")
-
-        return _text_match_materials(normalized_descriptions, limit)
-
-    
-
-    # Try vector matching first
-
-    try:
-
-        with Session(ENGINE) as session:
-
-            for description in normalized_descriptions:
-
-                try:
-
-                    query_embedding = embed_text(description)
-
-                except Exception as exc:
-
-                    logger.warning("Embedding generation failed for '%s': %s", description, exc)
-
-                    continue
-
-
-
-                statement = (
-
-                    select(Material)
-
-                    .order_by(Material.vector_embedding.cosine_distance(query_embedding))
-
-                    .limit(limit)
-
-                )
-
-                result = session.exec(statement).all()
-
-                for material in result:
-
-                    matches.append(
-
-                        MatchedMaterialOut(
-
-                            query=description,
-
-                            sku=material.sku,
-
-                            name=material.name,
-
-                            trade_price=material.trade_price,
-
-                        )
-
-                    )
-
-
-
-        return matches
-
-    except Exception as exc:
-
-        logger.warning("Vector matching failed, falling back to text matching: %s", exc)
-
-        return _text_match_materials(normalized_descriptions, limit)
-
-
-
-
-
-def _materials_table_exists() -> bool:
-
-    """Return True when the materials table exists in the active schema."""
-
-
-
-    try:
-
-        with Session(ENGINE) as session:
-
-            exists = session.exec(
-
-                text(
-
-                    """
-
-                    SELECT EXISTS (
-
-                        SELECT 1
-
-                        FROM information_schema.tables
-
-                        WHERE table_schema = current_schema()
-
-                          AND table_name = 'materials'
-
-                    )
-
-                    """
-
-                )
-
-            ).one()
-
-        return bool(exists)
-
-    except Exception as exc:
-
-        logger.warning("Unable to verify materials table existence: %s", exc)
-
-        return False
-
-
-
-
-
-def _text_match_materials(descriptions: list[str], limit: int = 3) -> list[MatchedMaterialOut]:
-
-    """Fallback text-based material matching using simple string similarity.
-
-
-
-    Args:
-
-        descriptions: List of material descriptions to match.
-
-        limit: Maximum matches per description.
-
-
-
-    Returns:
-
-        list[MatchedMaterialOut]: Ranked material matches.
-
-    """
-
-    
-
-    matches: list[MatchedMaterialOut] = []
-
-    
-
-    try:
-
-        with Session(ENGINE) as session:
-
-            materials = session.exec(select(Material)).all()
-
-            
-
-            for description in descriptions:
-
-                desc_lower = description.lower()
-
-                scored_materials = []
-
-                
-
-                for material in materials:
-
-                    # Simple text matching scoring
-
-                    name_lower = material.name.lower()
-
-                    score = 0
-
-                    
-
-                    # Exact match gets highest score
-
-                    if desc_lower == name_lower:
-
-                        score = 100
-
-                    # Contains match gets medium score
-
-                    elif desc_lower in name_lower or name_lower in desc_lower:
-
-                        score = 70
-
-                    # Word overlap gets lower score
-
-                    else:
-
-                        desc_words = set(desc_lower.split())
-
-                        name_words = set(name_lower.split())
-
-                        common_words = desc_words.intersection(name_words)
-
-                        if common_words:
-
-                            score = len(common_words) * 10
-
-                    
-
-                    if score > 0:
-
-                        scored_materials.append((material, score))
-
-                
-
-                # Sort by score and take top matches
-
-                scored_materials.sort(key=lambda x: x[1], reverse=True)
-
-                for material, score in scored_materials[:limit]:
-
-                    matches.append(
-
-                        MatchedMaterialOut(
-
-                            query=description,
-
-                            sku=material.sku,
-
-                            name=material.name,
-
-                            trade_price=material.trade_price,
-
-                        )
-
-                    )
-
-                    
-
-        return matches
-
-    except Exception as exc:
-
-        logger.warning("Text matching failed: %s", exc)
-
-        return []
-
-
-
-
-
-def build_invoice_lines(
-
-    translated_lines: list[str],
-
-    receipt: ReceiptExtraction,
-
-    vector_matches: list[MatchedMaterialOut],
-
-) -> list[InvoiceLineOut]:
-
-    """Build invoice lines from translated text and receipt extraction.
-
-
-
-    Args:
-
-        translated_lines: Professional descriptions from translator.
-
-        receipt: Structured receipt extraction.
-
-        vector_matches: Material matches from vector search.
-
-
-
-    Returns:
-
-        list[InvoiceLineOut]: Invoice-ready lines.
-
-    """
-
-
-
-    default_labor_rate = Decimal(os.getenv("DEFAULT_LABOR_RATE", "95.00"))
-
-    markup_percentage = get_default_markup(ENGINE)
-
-    invoice_draft = calculate_invoice(
-
-        translated_lines=translated_lines,
-
-        receipt=receipt,
-
-        vector_matches=vector_matches,
-
-        default_labor_rate=default_labor_rate,
-
-        markup_percentage=markup_percentage,
-
-    )
-
-
-
-    return [
-
-        InvoiceLineOut(
-
-            description=line.description,
-
-            qty=line.qty,
-
-            unit_price=line.unit_price,
-
-            line_total=line.line_total,
-
-            type=line.type,
-
-        )
-
-        for line in invoice_draft.invoice_lines
-
-    ]
-
-
-
 
 
 @app.get("/", response_model=HealthResponse)
@@ -1780,10 +1090,19 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
         transcript = voice_notes if voice_notes else transcribe_audio(audio_base64)
 
         extracted_data = triage_service.analyze_transcript(transcript)
+        safety_tests = _normalize_safety_tests(extracted_data, payload.gps_lat, payload.gps_lng)
+        compliance_status, missing_items, compliance_note = _compute_guardrail_status(transcript, safety_tests)
+        extracted_data["compliance_summary"] = {
+            "status": compliance_status,
+            "missing_items": missing_items,
+            "notes": compliance_note,
+        }
 
 
 
         with Session(ENGINE) as session:
+
+
 
             draft = JobDraft(
 
@@ -1795,11 +1114,29 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
 
                 extracted_data=extracted_data,
 
+                compliance_status=compliance_status,
+
             )
 
 
 
             session.add(draft)
+            session.flush()
+
+            for test in safety_tests:
+                session.add(
+                    SafetyTest(
+                        job_id=draft.id,
+                        organization_id=current_user.organization_id,
+                        user_id=current_user.id,
+                        test_type=str(test.get("test_type") or "Unknown"),
+                        value_text=test.get("value_text"),
+                        unit=test.get("unit"),
+                        result=test.get("result"),
+                        gps_lat=test.get("gps_lat"),
+                        gps_lng=test.get("gps_lng"),
+                    )
+                )
 
             session.commit()
 
@@ -1817,9 +1154,17 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
 
                 status=draft.status,
 
+                client_email=draft.client_email,
+
+                compliance_status=draft.compliance_status,
+
+                certificate_pdf_url=draft.certificate_pdf_url,
+
                 created_at=draft.created_at,
 
             )
+
+
 
     except HTTPException:
 
@@ -1999,6 +1344,13 @@ def create_manual_job_draft(
         "address": location,
         "scheduled_date": scheduled_date or None,
         "line_items": [],
+        "safety_tests": [],
+    }
+    compliance_status, missing_items, compliance_note = _compute_guardrail_status(f"Manual job: {title}", [])
+    extracted_data["compliance_summary"] = {
+        "status": compliance_status,
+        "missing_items": missing_items,
+        "notes": compliance_note,
     }
 
     with Session(ENGINE) as session:
@@ -2008,7 +1360,10 @@ def create_manual_job_draft(
             raw_transcript=f"Manual job: {title}",
             extracted_data=extracted_data,
             status="DRAFT",
+            client_email=payload.client_email.strip().lower() if isinstance(payload.client_email, str) and payload.client_email.strip() else None,
+            compliance_status=compliance_status,
         )
+
         session.add(draft)
         session.commit()
         session.refresh(draft)
@@ -2017,6 +1372,9 @@ def create_manual_job_draft(
             raw_transcript=draft.raw_transcript,
             extracted_data=draft.extracted_data,
             status=draft.status,
+            client_email=draft.client_email,
+            compliance_status=draft.compliance_status,
+            certificate_pdf_url=draft.certificate_pdf_url,
             created_at=draft.created_at,
         )
 
@@ -2024,25 +1382,17 @@ def create_manual_job_draft(
 @app.get("/api/jobs", response_model=list[JobDraftListItemResponse])
 
 def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user)) -> list[JobDraftListItemResponse]:
-
     """Return all visible JobDraft records for the authenticated user."""
-
-
 
     with Session(ENGINE) as session:
 
         query = (
-
             select(JobDraft)
-
             .where(JobDraft.organization_id == current_user.organization_id)
-
             .order_by(JobDraft.created_at.desc())
-
         )
 
         if current_user.role != "OWNER":
-
             query = query.where(JobDraft.user_id == current_user.id)
 
         drafts = session.exec(query).all()
@@ -2056,31 +1406,22 @@ def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user))
             client_name = str(extracted_data.get("client") or "Unknown Client").strip() or "Unknown Client"
 
             results.append(
-
                 JobDraftListItemResponse(
-
                     id=draft.id,
-
                     status=draft.status,
-
+                    compliance_status=draft.compliance_status,
                     created_at=draft.created_at,
-
                     client_name=client_name,
-
                     extracted_data=extracted_data,
-
                 )
-
             )
 
         return results
 
 
-
 @app.get("/api/jobs/{job_id}", response_model=JobDraftResponse)
 
 def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDraftResponse:
-
     """Return a saved JobDraft payload by id."""
 
     with Session(ENGINE) as session:
@@ -2088,141 +1429,205 @@ def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_cu
         draft = session.get(JobDraft, job_id)
 
         if draft is None:
-
             raise HTTPException(status_code=404, detail="Job draft not found.")
 
-        if current_user.role != "OWNER" and draft.user_id != current_user.id:
+        _assert_job_write_access(draft, current_user)
 
-            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
-
-        if draft.organization_id != current_user.organization_id:
-
-            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+        safety_rows = session.exec(select(SafetyTest).where(SafetyTest.job_id == draft.id)).all()
+        safety_payload = [
+            {
+                "id": str(row.id),
+                "type": row.test_type,
+                "value": row.value_text,
+                "unit": row.unit,
+                "result": row.result,
+                "gps_lat": float(row.gps_lat) if row.gps_lat is not None else None,
+                "gps_lng": float(row.gps_lng) if row.gps_lng is not None else None,
+            }
+            for row in safety_rows
+        ]
+        extracted_data = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+        extracted_data["safety_tests"] = safety_payload
 
         return JobDraftResponse(
-
             id=draft.id,
-
             raw_transcript=draft.raw_transcript,
-
-            extracted_data=draft.extracted_data,
-
+            extracted_data=extracted_data,
             status=draft.status,
-
+            client_email=draft.client_email,
+            compliance_status=draft.compliance_status,
+            certificate_pdf_url=draft.certificate_pdf_url,
             created_at=draft.created_at,
-
         )
-
 
 
 @app.delete("/api/jobs/{job_id}", response_model=JobDeleteResponse)
 
 def delete_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> JobDeleteResponse:
-
     """Delete a saved JobDraft by id if the user has access."""
-
-
 
     with Session(ENGINE) as session:
 
         draft = session.get(JobDraft, job_id)
 
         if draft is None:
-
             raise HTTPException(status_code=404, detail="Job draft not found.")
 
-
-
-        if current_user.role != "OWNER" and draft.user_id != current_user.id:
-
-            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
-
-        if draft.organization_id != current_user.organization_id:
-
-            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
-
-
+        _assert_job_write_access(draft, current_user)
 
         session.delete(draft)
-
         session.commit()
-
-
 
     return JobDeleteResponse(status="deleted", id=job_id)
 
 
-
-
-
-@app.get("/api/jobs/{job_id}/pdf")
-
-def download_job_invoice_pdf(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> StreamingResponse:
-
-    """Generate and return a PDF invoice for the specified JobDraft."""
-
-
+@app.post("/api/v1/jobs/{job_id}/complete", response_model=JobCompleteResponse)
+@app.post("/api/jobs/{job_id}/complete", response_model=JobCompleteResponse)
+def complete_job_draft(
+    job_id: UUID,
+    payload: JobCompleteRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> JobCompleteResponse:
+    """Complete a compliant job and auto-send certificate to the client."""
 
     with Session(ENGINE) as session:
-
         draft = session.get(JobDraft, job_id)
-
         if draft is None:
-
             raise HTTPException(status_code=404, detail="Job draft not found.")
 
-        if current_user.role != "OWNER" and draft.user_id != current_user.id:
+        _assert_job_write_access(draft, current_user)
 
-            raise HTTPException(status_code=403, detail="Insufficient permissions for this job draft.")
+        email_candidate = (
+            payload.client_email.strip().lower()
+            if isinstance(payload.client_email, str) and payload.client_email.strip()
+            else (draft.client_email or "").strip().lower()
+        )
+        if not email_candidate:
+            raise HTTPException(status_code=422, detail="Client email is required before completing this job.")
 
-        if draft.organization_id != current_user.organization_id:
+        safety_rows = session.exec(select(SafetyTest).where(SafetyTest.job_id == draft.id)).all()
+        tests = [
+            {
+                "test_type": row.test_type,
+                "value_text": row.value_text,
+                "unit": row.unit,
+                "result": row.result,
+                "gps_lat": row.gps_lat,
+                "gps_lng": row.gps_lng,
+            }
+            for row in safety_rows
+        ]
+        compliance_status, missing_items, compliance_note = _compute_guardrail_status(draft.raw_transcript, tests)
+        if compliance_status != "GREEN_SHIELD":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Job is not compliant to complete. Missing: {', '.join(missing_items) if missing_items else 'required evidence'}.",
+            )
 
-            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+        from services.pdf import generate_certificate_pdf
+
+        certificate_bytes = generate_certificate_pdf(draft, tests)
+        filename = f"sparkops-certificate-{draft.id}.pdf"
+        extracted = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+        address = str(extracted.get("address") or extracted.get("location") or "Job Site")
+        client_name = str(extracted.get("client") or "Client")
+
+        try:
+            send_certificate_email(
+                to_email=email_candidate,
+                client_name=client_name,
+                address=address,
+                issued_at=datetime.now(timezone.utc),
+                pdf_bytes=certificate_bytes,
+                filename=filename,
+            )
+        except MailDeliveryError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        draft.client_email = email_candidate
+        draft.status = "DONE"
+        draft.compliance_status = compliance_status
+        draft.completed_at = datetime.now(timezone.utc)
+        draft.certificate_pdf_url = f"/api/jobs/{draft.id}/certificate.pdf"
+        extracted["compliance_summary"] = {
+            "status": compliance_status,
+            "missing_items": missing_items,
+            "notes": compliance_note,
+        }
+        draft.extracted_data = extracted
+        session.add(draft)
+        session.commit()
+
+        return JobCompleteResponse(
+            status=draft.status,
+            compliance_status=draft.compliance_status or "GREEN_SHIELD",
+            certificate_pdf_url=draft.certificate_pdf_url or f"/api/jobs/{draft.id}/certificate.pdf",
+            message="Job completed successfully.",
+        )
 
 
+@app.get("/api/jobs/{job_id}/certificate.pdf")
+def download_job_certificate_pdf(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> StreamingResponse:
+    """Generate and return compliance certificate PDF for a completed job."""
 
-    from services.pdf import generate_invoice_pdf
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
 
+        _assert_job_write_access(draft, current_user)
 
+        tests = session.exec(select(SafetyTest).where(SafetyTest.job_id == draft.id)).all()
+        safety_payload = [
+            {
+                "test_type": row.test_type,
+                "value_text": row.value_text,
+                "unit": row.unit,
+                "result": row.result,
+                "gps_lat": row.gps_lat,
+                "gps_lng": row.gps_lng,
+            }
+            for row in tests
+        ]
 
-    pdf_bytes = generate_invoice_pdf(draft, ENGINE)
+    from services.pdf import generate_certificate_pdf
 
-    filename = f"sparkops-invoice-{job_id}.pdf"
-
+    pdf_bytes = generate_certificate_pdf(draft, safety_payload)
+    filename = f"sparkops-certificate-{job_id}.pdf"
     return StreamingResponse(
-
         io.BytesIO(pdf_bytes),
-
         media_type="application/pdf",
-
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-
     )
 
 
+@app.get("/api/jobs/{job_id}/pdf")
+def download_job_invoice_pdf(job_id: UUID, current_user: AuthenticatedUser = Depends(get_current_user)) -> StreamingResponse:
+    """Generate and return a PDF invoice for the specified JobDraft."""
 
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        _assert_job_write_access(draft, current_user)
+
+    from services.pdf import generate_invoice_pdf
+
+    pdf_bytes = generate_invoice_pdf(draft, ENGINE)
+    filename = f"sparkops-invoice-{job_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
-
 def health_check() -> HealthResponse:
-
-    """Return health status for monitoring.
-
-
-
-    Returns:
-
-        HealthResponse: Monitoring health payload.
-
-    """
-
-
-
+    """Return health status for monitoring."""
     return HealthResponse(status="healthy", service="sparkops-data-factory", version="1.0.0")
-
-
-
 
 
 if __name__ == "__main__":
