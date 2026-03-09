@@ -20,7 +20,9 @@ type PhotonFeature = {
     osm_value?: string;
     street?: string;
     suburb?: string;
+    neighbourhood?: string;
     city_district?: string;
+    village?: string;
     district?: string;
     locality?: string;
     city?: string;
@@ -52,29 +54,47 @@ function pickFirstString(...values: Array<string | undefined>): string {
   return "";
 }
 
+function isBlockedComponent(value: string | undefined): boolean {
+  return typeof value === "string" && /(council|government)/i.test(value);
+}
+
+function sanitizeAddressComponent(value: string | undefined): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed || isBlockedComponent(trimmed)) {
+    return "";
+  }
+  return trimmed;
+}
+
 function buildLabel(properties: PhotonFeature["properties"] | undefined): string {
   if (!properties) {
     return "Unknown address";
   }
 
-  const houseNumber = pickFirstString(properties.house_number, properties.housenumber);
-  const street = pickFirstString(properties.street, properties.name);
-  const location = pickFirstString(properties.suburb, properties.city_district, properties.city, properties.locality, properties.district, properties.state);
-  const country = pickFirstString(properties.country);
+  const houseNumber = sanitizeAddressComponent(pickFirstString(properties.house_number, properties.housenumber));
+  const street = sanitizeAddressComponent(pickFirstString(properties.street, properties.name));
+  const location = pickFirstString(
+    sanitizeAddressComponent(properties.suburb),
+    sanitizeAddressComponent(properties.neighbourhood),
+    sanitizeAddressComponent(properties.city_district),
+    sanitizeAddressComponent(properties.village),
+  );
 
   if (houseNumber && street) {
-    const locationParts = [location, country].filter((part) => part.length > 0);
     const streetLine = `${houseNumber} ${street}`.trim();
-    return [streetLine, ...locationParts].join(", ");
+    return location ? `${streetLine}, ${location}` : streetLine;
   }
 
   const orderedParts = [
-    properties.name,
-    properties.street,
-    properties.city,
-    properties.state,
-    properties.postcode,
-    properties.country,
+    sanitizeAddressComponent(properties.name),
+    sanitizeAddressComponent(properties.street),
+    sanitizeAddressComponent(properties.suburb),
+    sanitizeAddressComponent(properties.neighbourhood),
+    sanitizeAddressComponent(properties.city_district),
+    sanitizeAddressComponent(properties.village),
   ];
 
   const parts = orderedParts
@@ -139,6 +159,23 @@ export function AddressAutocomplete({
               }
 
               const properties = feature.properties;
+              const hasBlockedComponent = [
+                properties?.name,
+                properties?.street,
+                properties?.suburb,
+                properties?.neighbourhood,
+                properties?.city_district,
+                properties?.village,
+                properties?.district,
+                properties?.locality,
+                properties?.city,
+                properties?.state,
+                properties?.country,
+              ].some((value) => isBlockedComponent(value));
+              if (hasBlockedComponent) {
+                return null;
+              }
+
               const isMunicipalityOnly = properties?.osm_key === "place" && properties?.osm_value === "municipality";
               if (isMunicipalityOnly) {
                 return null;
@@ -150,8 +187,7 @@ export function AddressAutocomplete({
               }
 
               const label = buildLabel(properties);
-              const isGenericCouncilLabel = /auckland council/i.test(label) && !/\d/.test(label);
-              if (isGenericCouncilLabel) {
+              if (!label || label === "Unknown address") {
                 return null;
               }
 

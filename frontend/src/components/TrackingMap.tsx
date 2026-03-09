@@ -80,7 +80,7 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
   );
 
   return (
-    <div className="tracking-map-shell relative z-0 h-full w-full overflow-hidden rounded-2xl">
+    <div className="tracking-map-shell absolute left-0 top-0 z-0 h-screen w-screen overflow-hidden">
       <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'

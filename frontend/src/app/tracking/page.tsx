@@ -14,7 +14,7 @@ import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const TrackingMap = dynamic(() => import("@/components/TrackingMap").then((m) => m.TrackingMap), {
   ssr: false,
-  loading: () => <div className="h-full min-h-[340px] animate-pulse rounded-2xl bg-slate-800/70" />,
+  loading: () => <div className="h-screen w-screen animate-pulse bg-slate-800/70" />,
 });
 
 type UserLocationRow = {
@@ -40,6 +40,24 @@ function parseCoordinate(value: unknown): number | null {
     }
   }
   return null;
+}
+
+function normalizeAddressLabel(raw: string): string {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .filter((part) => !/(council|government)/i.test(part));
+
+  if (parts.length === 0) {
+    return raw;
+  }
+
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  return `${parts[0]}, ${parts[1]}`;
 }
 
 function parseCoordsFromLocation(location: string | undefined): Coordinate | null {
@@ -257,14 +275,15 @@ export default function TrackingIndexPage(): React.JSX.Element {
               job.extracted_data?.address ||
               job.extracted_data?.location ||
               `${coordinate.lat},${coordinate.lng}`;
+            const formattedAddress = normalizeAddressLabel(addressOrLocation);
 
             return {
               id: job.id,
               clientName: job.client_name || "Unknown Client",
               timeLabel: `Scheduled ${formatJobDate(job.date_scheduled || job.created_at)}`,
-              addressLabel: addressOrLocation,
+              addressLabel: formattedAddress,
               coordinate,
-              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressOrLocation)}`,
+              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formattedAddress)}`,
             } satisfies MapJob;
           })
           .filter((job): job is MapJob => Boolean(job));
@@ -338,47 +357,46 @@ export default function TrackingIndexPage(): React.JSX.Element {
   }
 
   return (
-    <main className="h-[calc(100vh-5rem)] bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-8">
-      <section className="mx-auto flex h-full w-full max-w-6xl flex-col rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-2xl shadow-black/50 md:p-6">
-        <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Map Hub</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Live Dispatch View</h1>
-        <p className="mt-2 text-sm text-slate-300">Track your van and active jobs in real time for faster dispatch decisions.</p>
-
-        <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">
-          <Navigation className="h-4 w-4 text-amber-400" />
-          {statusMessage}
-          {accuracy !== null ? <span className="ml-auto text-xs text-slate-400">±{accuracy.toFixed(1)}m</span> : null}
+    <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+      {isReady ? (
+        <TrackingMap
+          current={current}
+          jobs={jobs}
+          staffLocations={visibleStaffLocations}
+          routeLines={routeLines}
+          selectedJobId={selectedJobId}
+          isDarkTheme={isDarkTheme}
+          onJobSelect={onJobSelect}
+        />
+      ) : (
+        <div className="flex h-screen w-screen items-center justify-center gap-2 text-sm text-slate-100">
+          <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+          Initializing map and GPS...
         </div>
+      )}
 
-        <div className="relative z-0 mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60">
-          {isReady ? (
-            <TrackingMap
-              current={current}
-              jobs={jobs}
-              staffLocations={visibleStaffLocations}
-              routeLines={routeLines}
-              selectedJobId={selectedJobId}
-              isDarkTheme={isDarkTheme}
-              onJobSelect={onJobSelect}
-            />
-          ) : (
-            <div className="flex h-full min-h-[340px] items-center justify-center gap-2 text-sm text-slate-300">
-              <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
-              Initializing map and GPS...
-            </div>
-          )}
+      <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
+        <div className="pointer-events-auto mx-auto max-w-4xl rounded-2xl border border-slate-600/70 bg-slate-900/55 p-4 shadow-xl shadow-black/40 backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs uppercase tracking-[0.26em] text-amber-300">Map Hub</p>
+            {accuracy !== null ? <span className="ml-auto text-xs text-slate-200">±{accuracy.toFixed(1)}m</span> : null}
+          </div>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">Live Dispatch View</h1>
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-500/70 bg-slate-950/55 p-3 text-sm text-slate-100">
+            <Navigation className="h-4 w-4 text-amber-300" />
+            {statusMessage}
+          </div>
+          {!isReady ? null : jobs.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-slate-500/70 bg-slate-950/55 p-3 text-sm text-slate-100">
+              No active jobs with coordinates yet. Create a job with a selected address and it will appear on the dispatch map.
+            </p>
+          ) : null}
         </div>
-
-        {!isReady ? null : jobs.length === 0 ? (
-          <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">
-            No active jobs with coordinates yet. Create a job with a selected address and it will appear on the dispatch map.
-          </p>
-        ) : null}
       </section>
 
       {selectedJob ? (
         <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">
-          <article className="rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl shadow-black/60 backdrop-blur">
+          <article className="rounded-2xl border border-slate-600/80 bg-slate-900/75 p-4 shadow-2xl shadow-black/60 backdrop-blur-md">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-white">{selectedJob.clientName}</p>
@@ -395,7 +413,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
             {isSheetExpanded ? (
               <div className="mt-3 space-y-3 text-sm text-slate-200">
-                <p className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">{selectedJob.addressLabel}</p>
+                <p className="rounded-xl border border-slate-500/70 bg-slate-950/65 p-3">{selectedJob.addressLabel}</p>
                 <a
                   href={selectedJob.navigateUrl}
                   target="_blank"

@@ -198,6 +198,7 @@ export default function ProfilePage(): React.JSX.Element {
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
   const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
+  const isAdminProfileMode = isOwner && mode === "ADMIN";
 
   useEffect(() => {
     setFullNameInput(displayName === "Sparky" ? "" : displayName);
@@ -249,44 +250,50 @@ export default function ProfilePage(): React.JSX.Element {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
-            <p className="text-sm text-slate-300">{displayEmail}</p>
-            {isOwner ? (
-              <div className="pt-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Mode</p>
-                <div className="mt-2 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
-                  <button
-                    type="button"
-                    onClick={() => setMode("FIELD")}
-                    className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      mode === "FIELD"
-                        ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                        : "text-slate-200 hover:text-white"
-                    }`}
-                  >
-                    Field
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("ADMIN")}
-                    className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      mode === "ADMIN"
-                        ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                        : "text-slate-200 hover:text-white"
-                    }`}
-                  >
-                    Admin
-                  </button>
-                </div>
+    <main className={`min-h-screen p-4 pb-24 text-slate-100 sm:p-6 md:p-10 ${isAdminProfileMode ? "bg-slate-900" : "bg-slate-950"}`}>
+      <section
+        className={`mx-auto w-full max-w-5xl rounded-3xl border p-6 shadow-2xl shadow-black/50 md:p-8 ${
+          isAdminProfileMode ? "border-slate-700 bg-slate-900/95" : "border-slate-800 bg-slate-900"
+        }`}
+      >
+        <header className="space-y-4 border-b border-slate-800 pb-5">
+          <p className="text-center text-xs uppercase tracking-[0.26em] text-amber-400">
+            {isAdminProfileMode ? "Admin Context" : "Field Context"}
+          </p>
+          <h1 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            {isAdminProfileMode ? "Admin Suite" : "My Profile"}
+          </h1>
+          <p className="text-center text-sm text-slate-300">{displayEmail}</p>
+
+          {isOwner ? (
+            <div className="flex justify-center">
+              <div className="inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+                <button
+                  type="button"
+                  onClick={() => setMode("FIELD")}
+                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    mode === "FIELD"
+                      ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                      : "text-slate-200 hover:text-white"
+                  }`}
+                >
+                  Field
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("ADMIN")}
+                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    mode === "ADMIN"
+                      ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                      : "text-slate-200 hover:text-white"
+                  }`}
+                >
+                  Admin
+                </button>
               </div>
-            ) : null}
-          </div>
-        </div>
+            </div>
+          ) : null}
+        </header>
 
         {loading ? (
           <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
@@ -295,13 +302,31 @@ export default function ProfilePage(): React.JSX.Element {
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300 sm:grid-cols-2">
-          <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
-          <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
-        </div>
-
-        {!isOwner || mode === "FIELD" ? (
+        {!isAdminProfileMode ? (
           <>
+            <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
+              <p className="text-lg font-semibold text-slate-100">{displayName}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
+                <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
+              </div>
+            </div>
+
+            <section className="mt-4 grid gap-3 sm:grid-cols-3">
+              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Mode</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">Field Operator</p>
+              </article>
+              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Ladder</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{ladderEnabled ? "Enabled" : "Disabled"}</p>
+              </article>
+              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Account</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">Ready</p>
+              </article>
+            </section>
+
             <div className="mt-4">
               <button
                 type="button"
@@ -331,14 +356,14 @@ export default function ProfilePage(): React.JSX.Element {
           </>
         ) : (
           <section className="mt-6 space-y-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Admin Dashboard</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Business Controls</h2>
             <div className="grid gap-3 md:grid-cols-3">
               {[
-                { title: "Company Details", href: "/admin", summary: "Branding, business identity, and billing details." },
-                { title: "Team List", href: "/admin", summary: "Active staff, pending invites, and role access." },
-                { title: "Fleet", href: "/admin", summary: "Vehicles, plates, and assignment readiness." },
+                { title: "Company Card", href: "/admin", summary: "Logo, GST, terms, and business identity settings." },
+                { title: "Team Card", href: "/admin", summary: "Staff roster, role access, and invite controls." },
+                { title: "Fleet Card", href: "/admin", summary: "Vehicle list, assignments, and fleet readiness." },
               ].map((item) => (
-                <article key={item.title} className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                <article key={item.title} className="rounded-xl border border-slate-700 bg-slate-950/80 p-4">
                   <h3 className="text-sm font-semibold text-slate-100">{item.title}</h3>
                   <p className="mt-2 text-xs text-slate-400">{item.summary}</p>
                   <Link
