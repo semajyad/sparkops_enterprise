@@ -4,6 +4,8 @@ builder = "nixpacks"
 # BACKEND SERVICE
 [service.sparkops_staging_backend]
 root = "backend"
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
 watchPatterns = ["backend/**"]
 
 # FRONTEND SERVICE
