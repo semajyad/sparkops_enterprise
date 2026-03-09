@@ -121,6 +121,7 @@ export default function JobReviewPage(): React.JSX.Element {
       if (!isValidJobUuid(jobId)) {
         throw new Error("Invalid job id.");
       }
+      const supabase = createClient();
 
       try {
         await db.drafts.delete(jobId);
@@ -136,18 +137,12 @@ export default function JobReviewPage(): React.JSX.Element {
       }
 
       try {
-        const supabase = createClient();
         await supabase.from("job_drafts").delete().eq("job_id", jobId);
       } catch {
         // Ignore missing draft rows or table mismatch; proceed with job delete.
       }
 
-      try {
-        const supabase = createClient();
-        await supabase.from("jobs").delete().eq("id", jobId);
-      } catch {
-        // Best effort: Supabase table delete should not block backend delete path.
-      }
+      await supabase.from("jobs").delete().eq("id", jobId);
 
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${jobId}`, {
         method: "DELETE",
@@ -393,9 +388,7 @@ export default function JobReviewPage(): React.JSX.Element {
 
             {toast ? <p className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{toast}</p> : null}
           </>
-        ) : (
-          <p className="rounded-xl border border-rose-500/60 bg-rose-500/10 p-4 text-sm text-rose-100">Job draft not found.</p>
-        )}
+        ) : null}
 
         {isComplianceModalOpen ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">

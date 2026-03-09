@@ -297,7 +297,7 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70">
+          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl shadow-black/70">
             <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
               <h2 className="text-xl font-semibold text-slate-100">New Job</h2>
               <button
@@ -310,8 +310,7 @@ export default function JobsPage(): React.JSX.Element {
               </button>
             </div>
 
-            <form className="flex h-full flex-col" onSubmit={onCreateManualJob}>
-              <div className="grid gap-5 overflow-y-auto px-5 py-4 pb-24">
+            <form className="grid gap-5 px-5 py-4" onSubmit={onCreateManualJob}>
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
@@ -388,17 +387,13 @@ export default function JobsPage(): React.JSX.Element {
                     className={MODAL_INPUT_CLASS}
                   />
                 </label>
-              </div>
-
-              <div className="sticky bottom-0 border-t border-slate-700 bg-slate-900/95 px-5 py-3">
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="min-h-11 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+                  className="mb-[20px] min-h-11 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
                 >
-                  {isCreating ? "Creating Draft..." : "Create Draft Job"}
+                  {isCreating ? "Creating Draft..." : "Create Draft"}
                 </button>
-              </div>
             </form>
           </section>
         </div>

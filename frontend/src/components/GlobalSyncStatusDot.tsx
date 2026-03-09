@@ -54,7 +54,7 @@ export function GlobalSyncStatusDot(): React.JSX.Element {
   }
 
   return (
-    <div className="fixed right-4 top-[max(env(safe-area-inset-top),12px)] z-[10000] flex items-center gap-2 pointer-events-auto">
+    <div className="pointer-events-auto fixed right-4 top-4 z-[10000] flex items-center gap-2">
       <button
         type="button"
         onClick={() => setHint(syncIndicator.hint)}

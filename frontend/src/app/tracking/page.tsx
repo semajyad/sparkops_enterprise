@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useSync } from "@/components/SyncProvider";
 import { getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
 import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
@@ -151,20 +150,16 @@ function formatTimePill(isoDate: string): string {
 
 export default function TrackingIndexPage(): React.JSX.Element {
   const { mode, role, user } = useAuth();
-  const { isOnline, pendingCount } = useSync();
   const isAdminMode = role === "OWNER" && mode === "ADMIN";
   const geolocationUnavailable = typeof window !== "undefined" && !navigator.geolocation;
   const [current, setCurrent] = useState<Coordinate>(DEFAULT_CURRENT);
   const [jobs, setJobs] = useState<MapJob[]>([]);
   const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
-
-  const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedJobId) ?? null, [jobs, selectedJobId]);
 
   const visibleStaffLocations = useMemo(() => {
     if (isAdminMode) {
@@ -439,7 +434,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
   function onJobSelect(jobId: string): void {
     setSelectedJobId(jobId);
-    setIsSheetExpanded(false);
   }
 
   function onLocateMe(): void {
@@ -486,16 +480,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
       </section>
 
       <section className="pointer-events-none absolute right-4 top-4 z-[110] flex items-center gap-2">
-        <span
-          className={`pointer-events-auto fixed right-[12px] top-[12px] z-[9999] inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
-            !isOnline ? "border-rose-500/80" : pendingCount > 0 ? "border-amber-400/80" : "border-emerald-400/80"
-          }`}
-          title={!isOnline ? "Offline" : pendingCount > 0 ? "Syncing pending changes" : "All changes synced"}
-        >
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${!isOnline ? "bg-rose-500" : pendingCount > 0 ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`}
-          />
-        </span>
         <button
           type="button"
           onClick={onLocateMe}
@@ -506,40 +490,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
           <Target className="h-4 w-4" />
         </button>
       </section>
-
-    {selectedJob ? (
-      <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">
-        <article className="rounded-2xl border border-slate-600/80 bg-slate-900/75 p-4 shadow-2xl shadow-black/60 backdrop-blur-md">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">{selectedJob.clientName}</p>
-              <p className="text-xs text-slate-300">{selectedJob.timeLabel}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSheetExpanded((prev) => !prev)}
-              className="min-h-11 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200"
-            >
-              {isSheetExpanded ? "Collapse" : "Expand"}
-            </button>
-          </div>
-
-          {isSheetExpanded ? (
-            <div className="mt-3 space-y-3 text-sm text-slate-200">
-              <p className="rounded-xl border border-slate-500/70 bg-slate-950/65 p-3">{selectedJob.addressLabel}</p>
-              <a
-                href={selectedJob.navigateUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-11 items-center rounded-xl bg-amber-500 px-4 py-2 font-semibold text-slate-950"
-              >
-                Navigate
-              </a>
-            </div>
-          ) : null}
-        </article>
-      </section>
-    ) : null}
   </main>
 );
 }
