@@ -36,7 +36,11 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
+  if (!token) {
+    throw new Error("NEXT_PUBLIC_MAPBOX_TOKEN environment variable is required");
+  }
+  return token;
 }
 
 type AddressAutocompleteProps = {
@@ -140,6 +144,10 @@ export function AddressAutocomplete({
     const fetchSuggestions = async (): Promise<void> => {
       setIsLoading(true);
       const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
+      console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
+        query,
+        url: mapboxUrl,
+      });
       const mapboxResponse = await fetch(mapboxUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -265,6 +273,11 @@ export function AddressAutocomplete({
                 type="button"
                 onClick={() => {
                   suppressFetchRef.current = true;
+                  console.log("[AddressAutocomplete] Selected suggestion", {
+                    place_name: suggestion.place_name,
+                    lat: suggestion.lat,
+                    lng: suggestion.lng,
+                  });
                   onChange(suggestion.place_name);
                   onSelect({
                     ...suggestion,

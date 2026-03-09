@@ -12,9 +12,9 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/TrackingMap";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const TrackingMap = dynamic(() => import("@/components/TrackingMap").then((m) => m.TrackingMap), {
+const MapComponent = dynamic(() => import("@/components/TrackingMap").then((m) => m.TrackingMap), {
   ssr: false,
-  loading: () => <div className="h-screen w-screen animate-pulse bg-gray-200" />,
+  loading: () => <div className="h-[calc(100vh-64px)] w-full animate-pulse bg-gray-200" />,
 });
 
 type UserLocationRow = {
@@ -453,19 +453,21 @@ export default function TrackingIndexPage(): React.JSX.Element {
   }
 
   return (
-    <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-gray-100 text-gray-900">
+    <main className="relative min-h-screen overflow-hidden bg-gray-100 text-gray-900">
       {isReady ? (
-        <TrackingMap
-          current={current}
-          jobs={jobs}
-          staffLocations={visibleStaffLocations}
-          routeLines={routeLines}
-          selectedJobId={selectedJobId}
-          recenterSignal={recenterSignal}
-          onJobSelect={onJobSelect}
-        />
+        <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
+          <MapComponent
+            current={current}
+            jobs={jobs}
+            staffLocations={visibleStaffLocations}
+            routeLines={routeLines}
+            selectedJobId={selectedJobId}
+            recenterSignal={recenterSignal}
+            onJobSelect={onJobSelect}
+          />
+        </div>
       ) : (
-        <div className="flex h-screen w-screen items-center justify-center gap-2 text-sm text-gray-700">
+        <div className="flex h-[calc(100vh-64px)] w-full items-center justify-center gap-2 text-sm text-gray-700">
           <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
           Initializing map and GPS...
         </div>

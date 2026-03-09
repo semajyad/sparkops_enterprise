@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - paragraph [ref=e7]: Capture Console
+          - heading "Field Capture" [level=1] [ref=e8]
+        - 'generic "Capture status: pending or offline" [ref=e9]'
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: Voice First
+        - paragraph [ref=e12]: Tap the mic and speak your job notes naturally.
+        - button "Start recording" [ref=e14]:
+          - generic [ref=e15]: Start recording
+          - img [ref=e17]
+        - paragraph [ref=e20]: Ready. Tap to start
+      - generic [ref=e21]:
+        - paragraph [ref=e22]: Quick Attach
+        - generic [ref=e23]:
+          - button "Photo" [ref=e24]:
+            - img [ref=e25]
+            - generic [ref=e28]: Photo
+          - button "Invoice" [ref=e29]:
+            - img [ref=e30]
+            - generic [ref=e34]: Invoice
+          - button "Timer" [ref=e35]:
+            - img [ref=e36]
+            - generic [ref=e39]: Timer
+        - paragraph [ref=e40]: "Timer: 0m 0s"
+      - generic [ref=e41]: Voice Notes (Text)
+      - textbox "Voice Notes (Text)" [ref=e42]:
+        - /placeholder: "Optional: add extra notes after voice capture"
+    - button "Save / Sync Now" [disabled] [ref=e45]:
+      - img [ref=e46]
+      - text: Save / Sync Now
+  - navigation [ref=e49]:
+    - link "Home" [ref=e50] [cursor=pointer]:
+      - /url: /home
+      - img [ref=e51]
+      - text: Home
+    - link "Jobs" [ref=e54] [cursor=pointer]:
+      - /url: /jobs
+      - img [ref=e55]
+      - text: Jobs
+    - link "Capture" [ref=e58] [cursor=pointer]:
+      - /url: /capture
+      - img [ref=e59]
+      - text: Capture
+    - link "Map" [ref=e62] [cursor=pointer]:
+      - /url: /map
+      - img [ref=e63]
+      - text: Map
+    - link "Profile" [ref=e66] [cursor=pointer]:
+      - /url: /profile
+      - img [ref=e67]
+      - text: Profile
+  - alert [ref=e70]
+```

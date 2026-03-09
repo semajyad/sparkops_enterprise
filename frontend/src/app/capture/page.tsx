@@ -526,8 +526,8 @@ export default function CapturePage() {
 
   return (
 
-    <main className="min-h-screen bg-gray-50 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
-      <div className="pb-20">
+    <main className="min-h-screen bg-gray-50 p-4 pb-32 text-gray-900 sm:p-6 md:p-10">
+      <div className="pb-32">
 
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
 
@@ -697,7 +697,7 @@ export default function CapturePage() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 w-full p-4 bg-white border-t border-gray-200 z-50">
+      <div className="fixed bottom-[env(safe-area-inset-bottom)] left-0 z-50 w-full border-t border-gray-200 bg-white p-4">
         <div className="mx-auto max-w-3xl">
           <button
             type="button"

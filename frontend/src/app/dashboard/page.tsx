@@ -139,12 +139,6 @@ export default function DashboardPage(): React.JSX.Element {
         </h1>
         <p className="mt-2 text-sm text-gray-500">Your business pulse right now.</p>
 
-        {ownerFieldFocus ? (
-          <p className="mt-3 rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700">
-            Field Mode active. High-level business metrics are hidden while you are on the tools.
-          </p>
-        ) : null}
-
         {!displayName ? (
           <p className="mt-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-700">
             Your profile name is missing. <Link href="/profile" className="font-semibold text-orange-700 underline">Update Profile</Link> to personalize your dashboard.

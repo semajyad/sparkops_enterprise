@@ -13,7 +13,6 @@ import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } 
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
-const STALE_CACHE_MS = 5 * 60 * 1000;
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
@@ -166,16 +165,6 @@ export default function JobsPage(): React.JSX.Element {
     [cachedJobs]
   );
 
-  const hasLocalData = jobs.length > 0;
-
-  const staleData = useMemo(() => {
-    if (jobs.length === 0 || !cachedJobs) {
-      return false;
-    }
-    const cutoff = Date.now() - STALE_CACHE_MS;
-    return cachedJobs.every((job) => (job.stale_at ?? 0) < cutoff);
-  }, [cachedJobs, jobs.length]);
-
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
@@ -294,9 +283,7 @@ export default function JobsPage(): React.JSX.Element {
           />
         </label>
 
-        {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-gray-500">Refreshing in background...</p> : null}
-        {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading local jobs...</p> : null}
-        {staleData ? <p className="mt-4 rounded-xl border border-orange-500/50 bg-orange-50 p-3 text-xs text-orange-700">Showing cached jobs while revalidating in background.</p> : null}
+        {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
         {toast ? <p className="mt-4 rounded-xl border border-green-500/50 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
 
