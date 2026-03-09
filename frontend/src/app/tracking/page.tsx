@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Loader2, Target } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -479,15 +479,15 @@ export default function TrackingIndexPage(): React.JSX.Element {
         </div>
       </section>
 
-      <section className="pointer-events-none absolute right-4 top-4 z-[110] flex items-center gap-2">
+      <section className="pointer-events-none absolute right-4 top-12 z-[110] flex items-center gap-2">
         <button
           type="button"
           onClick={onLocateMe}
-          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-500/70 bg-slate-900/80 text-slate-100 shadow-lg shadow-black/40 transition hover:border-amber-400"
+          className="pointer-events-auto inline-flex min-h-9 items-center justify-center rounded-full border border-slate-500/70 bg-slate-900/85 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-100 shadow-lg shadow-black/40 transition hover:border-amber-400"
           aria-label="Locate me"
           title="Locate me"
         >
-          <Target className="h-4 w-4" />
+          Locate Me
         </button>
       </section>
   </main>

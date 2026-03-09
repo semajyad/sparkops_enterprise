@@ -30,34 +30,6 @@ type MapboxResponse = {
   features?: MapboxFeature[];
 };
 
-type PhotonFeature = {
-  geometry?: { coordinates?: [number, number] };
-  properties?: {
-    type?: string;
-    name?: string;
-    house_number?: string;
-    housenumber?: string;
-    osm_key?: string;
-    osm_value?: string;
-    street?: string;
-    suburb?: string;
-    neighbourhood?: string;
-    hamlet?: string;
-    city_district?: string;
-    village?: string;
-    district?: string;
-    locality?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    postcode?: string;
-  };
-};
-
-type PhotonResponse = {
-  features?: PhotonFeature[];
-};
-
 const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN ??
   process.env.NEXT_PUBLIC_VITE_MAPBOX_TOKEN ??
@@ -97,45 +69,38 @@ function sanitizeAddressComponent(value: string | undefined): string {
   return trimmed;
 }
 
-function buildLabel(properties: PhotonFeature["properties"] | undefined): string {
-  if (!properties) {
-    return "Unknown address";
-  }
-
-  const houseNumber = sanitizeAddressComponent(pickFirstString(properties.house_number, properties.housenumber));
-  const street = sanitizeAddressComponent(pickFirstString(properties.street, properties.name));
-  const location = pickFirstString(
-    sanitizeAddressComponent(properties.suburb),
-    sanitizeAddressComponent(properties.neighbourhood),
-    sanitizeAddressComponent(properties.hamlet),
-  );
-
-  if (street) {
-    const streetLine = houseNumber ? `${houseNumber} ${street}`.trim() : street;
-    return location ? `${streetLine}, ${location}` : streetLine;
-  }
-
-  return "Unknown address";
-}
-
 function buildMapboxLabel(feature: MapboxFeature): string {
   const houseNumber = sanitizeAddressComponent(pickFirstString(feature.address, feature.properties?.address));
   const street = sanitizeAddressComponent(pickFirstString(feature.text));
-  const suburbFromContext = pickFirstString(
+  const locality = pickFirstString(
     ...(feature.context ?? [])
       .filter((entry) => {
         const id = String(entry.id ?? "").toLowerCase();
-        return id.startsWith("neighborhood") || id.startsWith("locality") || id.startsWith("place") || id.startsWith("district");
+        return id.startsWith("locality") || id.startsWith("neighborhood");
       })
       .map((entry) => sanitizeAddressComponent(entry.text))
   );
+  const placeFallback = pickFirstString(
+    ...(feature.context ?? [])
+      .filter((entry) => String(entry.id ?? "").toLowerCase().startsWith("place"))
+      .map((entry) => sanitizeAddressComponent(entry.text))
+  );
+  const location = locality || placeFallback;
 
-  if (!street || !suburbFromContext) {
-    return "Unknown address";
+  const streetLine = houseNumber ? `${houseNumber} ${street}`.trim() : street;
+  if (streetLine && location) {
+    return `${streetLine}, ${location}`;
   }
 
-  const line1 = houseNumber ? `${houseNumber} ${street}`.trim() : street;
-  return `${line1}, ${suburbFromContext}`;
+  if (streetLine) {
+    return streetLine;
+  }
+
+  if (location) {
+    return location;
+  }
+
+  return sanitizeAddressComponent(feature.place_name) || "Unknown address";
 }
 
 export function AddressAutocomplete({
@@ -163,140 +128,63 @@ export function AddressAutocomplete({
       return;
     }
 
+    if (!MAPBOX_TOKEN.trim()) {
+      return;
+    }
+
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
+    const fetchSuggestions = async (): Promise<void> => {
       setIsLoading(true);
-      void (async () => {
-        const hasMapbox = MAPBOX_TOKEN.trim().length > 0;
+      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?autocomplete=true&limit=5&country=nz&types=address,neighborhood,locality,place&access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
+      const mapboxResponse = await fetch(mapboxUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
 
-        if (hasMapbox) {
-          const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?autocomplete=true&limit=5&country=nz&types=address,neighborhood,locality,place&access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
-          const mapboxResponse = await fetch(mapboxUrl, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            signal: controller.signal,
-          });
+      if (!mapboxResponse.ok) {
+        throw new Error(`Address lookup failed (${mapboxResponse.status})`);
+      }
 
-          if (mapboxResponse.ok) {
-            const payload = (await mapboxResponse.json()) as MapboxResponse;
-            const rows = Array.isArray(payload.features) ? payload.features : [];
-            const mapped = rows
-              .map((feature) => {
-                const longitude = typeof feature.center?.[0] === "number" ? feature.center[0] : null;
-                const latitude = typeof feature.center?.[1] === "number" ? feature.center[1] : null;
-                if (latitude === null || longitude === null) {
-                  return null;
-                }
-
-                const label = buildMapboxLabel(feature);
-                if (!label || label === "Unknown address") {
-                  return null;
-                }
-
-                return {
-                  id: feature.id,
-                  label,
-                  latitude,
-                  longitude,
-                } satisfies AddressSuggestion;
-              })
-              .filter((row): row is AddressSuggestion => Boolean(row));
-
-            setSuggestions(mapped);
-            setOpen(mapped.length > 0);
-            return;
+      const payload = (await mapboxResponse.json()) as MapboxResponse;
+      const rows = Array.isArray(payload.features) ? payload.features : [];
+      const mapped = rows
+        .map((feature) => {
+          const longitude = typeof feature.center?.[0] === "number" ? feature.center[0] : null;
+          const latitude = typeof feature.center?.[1] === "number" ? feature.center[1] : null;
+          if (latitude === null || longitude === null) {
+            return null;
           }
-        }
 
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en&bbox=166.0,-47.5,179.0,-34.0`;
-        const photonResponse = await fetch(photonUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
+          const label = buildMapboxLabel(feature);
+          if (!label || label === "Unknown address") {
+            return null;
+          }
 
-        if (!photonResponse.ok) {
-          throw new Error(`Address lookup failed (${photonResponse.status})`);
-        }
-
-        const payload = (await photonResponse.json()) as PhotonResponse;
-        const rows = Array.isArray(payload.features) ? payload.features : [];
-        const mapped = rows
-          .map((feature, index) => {
-            const coords = feature.geometry?.coordinates;
-            const longitude = typeof coords?.[0] === "number" ? coords[0] : null;
-            const latitude = typeof coords?.[1] === "number" ? coords[1] : null;
-            if (latitude === null || longitude === null) {
-              return null;
-            }
-
-            const properties = feature.properties;
-            const hasBlockedComponent = [
-              properties?.name,
-              properties?.street,
-              properties?.suburb,
-              properties?.neighbourhood,
-              properties?.hamlet,
-              properties?.city_district,
-              properties?.village,
-              properties?.district,
-              properties?.locality,
-              properties?.city,
-              properties?.state,
-              properties?.country,
-            ].some((value) => isBlockedComponent(value));
-            if (hasBlockedComponent) {
-              return null;
-            }
-
-            const placeType = pickFirstString(properties?.type, properties?.osm_value).toLowerCase();
-            if (placeType === "administrative" || placeType === "municipality") {
-              return null;
-            }
-
-            const blockedOsmValue = pickFirstString(properties?.osm_value).toLowerCase();
-            if (blockedOsmValue === "state_district" || blockedOsmValue === "county" || blockedOsmValue === "municipality") {
-              return null;
-            }
-
-            const suburbOrNeighbourhood = pickFirstString(
-              sanitizeAddressComponent(properties?.suburb),
-              sanitizeAddressComponent(properties?.neighbourhood),
-              sanitizeAddressComponent(properties?.hamlet),
-            );
-            if (!suburbOrNeighbourhood) {
-              return null;
-            }
-
-            const label = buildLabel(properties);
-            if (!label || label === "Unknown address") {
-              return null;
-            }
-
-            return {
-              id: `${latitude}:${longitude}:${index}`,
-              label,
-              latitude,
-              longitude,
-            } satisfies AddressSuggestion;
-          })
-          .filter((row): row is AddressSuggestion => Boolean(row));
-
-        setSuggestions(mapped);
-        setOpen(mapped.length > 0);
-      })()
-        .catch(() => {
-          setSuggestions([]);
-          setOpen(false);
+          return {
+            id: feature.id,
+            label,
+            latitude,
+            longitude,
+          } satisfies AddressSuggestion;
         })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }, 220);
+        .filter((row): row is AddressSuggestion => Boolean(row));
+
+      setSuggestions(mapped);
+      setOpen(mapped.length > 0);
+    };
+
+    void fetchSuggestions()
+      .catch(() => {
+        setSuggestions([]);
+        setOpen(false);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
 
     return () => {
       controller.abort();
-      window.clearTimeout(timer);
     };
   }, [value]);
 

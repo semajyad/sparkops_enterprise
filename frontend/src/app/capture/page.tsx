@@ -20,7 +20,7 @@ import { apiFetch } from "@/lib/api";
 import { saveJobDraft } from "@/lib/db";
 
 import { syncPendingDrafts } from "@/lib/syncManager";
-import { getCaptureStatusState, getPrimaryActionState, hasMeaningfulCaptureContent } from "@/app/capture/captureLogic";
+import { getPrimaryActionState, hasMeaningfulCaptureContent } from "@/app/capture/captureLogic";
 
 
 
@@ -106,7 +106,6 @@ export default function CapturePage() {
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
-  const captureStatusState = getCaptureStatusState(isOnline, pendingCount);
   const primaryActionState = getPrimaryActionState({
     isOnline,
     pendingCount,
@@ -528,35 +527,6 @@ export default function CapturePage() {
   return (
 
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-
-      <section className="pointer-events-none fixed right-[12px] top-[12px] z-[9999]">
-        <span
-          className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
-            captureStatusState === "offline"
-              ? "border-rose-500/80"
-              : captureStatusState === "syncing"
-                ? "border-amber-400/80"
-                : "border-emerald-400/80"
-          }`}
-          title={
-            captureStatusState === "offline"
-              ? "Offline"
-              : captureStatusState === "syncing"
-                ? "Syncing pending changes"
-                : "All changes synced"
-          }
-        >
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              captureStatusState === "offline"
-                ? "bg-rose-500"
-                : captureStatusState === "syncing"
-                  ? "animate-pulse bg-amber-400"
-                  : "bg-emerald-400"
-            }`}
-          />
-        </span>
-      </section>
 
       <section className="mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-2xl shadow-black/40 backdrop-blur sm:p-6 md:p-8">
 

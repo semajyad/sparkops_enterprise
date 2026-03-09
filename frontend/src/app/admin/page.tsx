@@ -482,13 +482,6 @@ export default function AdminPage(): React.JSX.Element {
               <p className="text-xs uppercase tracking-[0.18em] text-amber-300">Admin Suite</p>
               {isSyncing ? <p className="mt-2 text-xs text-slate-400">Syncing latest org data...</p> : null}
             </div>
-            <button
-              type="button"
-              onClick={onExitToField}
-              className="inline-flex min-h-9 items-center rounded-lg border border-slate-500 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-amber-400 hover:text-amber-100"
-            >
-              Back to Profile
-            </button>
           </div>
 
           <nav className="sticky top-0 z-20 -mb-px mt-4 flex gap-5 overflow-x-auto border-b border-slate-700 bg-slate-900/95">
@@ -512,6 +505,22 @@ export default function AdminPage(): React.JSX.Element {
             ))}
           </nav>
         </header>
+
+        <section className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
+          <p className="text-lg font-semibold text-slate-100">Owner Workspace</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <p><span className="font-semibold text-slate-100">Role:</span> OWNER</p>
+            <p><span className="font-semibold text-slate-100">Context:</span> Office</p>
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={onExitToField}
+          className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-amber-500 bg-transparent px-4 py-3 text-base font-bold text-amber-300 transition hover:bg-amber-500/10 hover:text-amber-200"
+        >
+          Back to Profile
+        </button>
 
         <section className="mt-5">
           {activeSection === "team" ? (

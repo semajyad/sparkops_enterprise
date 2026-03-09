@@ -27,7 +27,9 @@ jest.mock("@/lib/syncManager", () => ({
 
 jest.mock("next/image", () => ({
   __esModule: true,
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} alt={props.alt ?? ""} />,
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <span data-next-image="mock" aria-label={props.alt ?? ""} />
+  ),
 }));
 
 jest.mock("framer-motion", () => ({
