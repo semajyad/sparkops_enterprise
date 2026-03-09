@@ -13,6 +13,8 @@ type AuthMode = "login" | "signup";
 function LoginPageContent(): React.JSX.Element {
   const searchParams = useSearchParams();
   const initialMode: AuthMode = searchParams.get("mode") === "signup" ? "signup" : "login";
+  const authMessage = searchParams.get("message");
+  const authError = searchParams.get("error");
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const reduceMotion = useReducedMotion();
 
@@ -62,6 +64,18 @@ function LoginPageContent(): React.JSX.Element {
               Sign Up
             </button>
           </div>
+
+          {authMessage ? (
+            <p className="mb-4 rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              {authMessage}
+            </p>
+          ) : null}
+
+          {authError ? (
+            <p className="mb-4 rounded-xl border border-rose-500/50 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {authError}
+            </p>
+          ) : null}
 
           {/* Login Form */}
           {mode === "login" ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import L, { DivIcon } from "leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
 export type Coordinate = {
@@ -40,18 +40,35 @@ type TrackingMapProps = {
   routeLines: RouteLine[];
   selectedJobId: string | null;
   isDarkTheme: boolean;
+  recenterSignal: number;
   onJobSelect: (jobId: string) => void;
 };
 
-function FollowCurrentLocation({ current }: { current: Coordinate }): null {
+function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinate; recenterSignal: number }): null {
   const map = useMap();
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
+    if (hasInitializedRef.current) {
+      return;
+    }
+    hasInitializedRef.current = true;
     map.flyTo([current.lat, current.lng], map.getZoom(), {
       animate: true,
       duration: 0.8,
     });
   }, [current.lat, current.lng, map]);
+
+  useEffect(() => {
+    if (recenterSignal <= 0) {
+      return;
+    }
+
+    map.flyTo([current.lat, current.lng], map.getZoom(), {
+      animate: true,
+      duration: 0.8,
+    });
+  }, [recenterSignal, current.lat, current.lng, map]);
 
   return null;
 }
@@ -78,7 +95,7 @@ function youIcon(): DivIcon {
   });
 }
 
-export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, isDarkTheme, onJobSelect }: TrackingMapProps): React.JSX.Element {
+export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, isDarkTheme, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
   const tileUrl = isDarkTheme
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -100,7 +117,7 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
           url={tileUrl}
         />
-        <FollowCurrentLocation current={current} />
+        <FollowCurrentLocation current={current} recenterSignal={recenterSignal} />
 
         {routeLines.map((line) => (
           <Polyline key={line.id} positions={line.points} pathOptions={{ color: line.color, weight: 4, opacity: 0.75 }} />

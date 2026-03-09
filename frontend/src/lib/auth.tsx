@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -31,6 +32,8 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const supabase = useMemo(() => {
     // Don't create Supabase client during build time
     if (typeof window === "undefined") {
@@ -94,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase!.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase!.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) {
         return;
       }
@@ -114,13 +117,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(refreshed);
         }
       });
+
+      if (event === "SIGNED_IN") {
+        const onAuthPage = pathname === "/login" || pathname === "/signup" || pathname.startsWith("/auth");
+        if (onAuthPage) {
+          router.replace("/jobs");
+        }
+      }
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, pathname, router]);
 
   useEffect(() => {
     async function loadRole(): Promise<void> {

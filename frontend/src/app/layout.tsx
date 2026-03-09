@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { GlobalSyncStatusDot } from "@/components/GlobalSyncStatusDot";
 import { Geist, Geist_Mono } from "next/font/google";
 import { MobileNav } from "@/components/MobileNav";
 import { SyncProvider } from "@/components/SyncProvider";
@@ -57,7 +56,6 @@ export default function RootLayout({
       >
         <AuthProvider>
           <SyncProvider>
-            <GlobalSyncStatusDot />
             {children}
           </SyncProvider>
         </AuthProvider>

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Loader2, Navigation } from "lucide-react";
+import { Loader2, Target } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -139,6 +139,9 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [recenterSignal, setRecenterSignal] = useState(0);
+  const [isOnline, setIsOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [hasGpsSignal, setHasGpsSignal] = useState(false);
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
 
@@ -185,6 +188,23 @@ export default function TrackingIndexPage(): React.JSX.Element {
     updateTheme();
     media.addEventListener("change", updateTheme);
     return () => media.removeEventListener("change", updateTheme);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -352,10 +372,12 @@ export default function TrackingIndexPage(): React.JSX.Element {
       (position) => {
         const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrent(nextCurrent);
+        setHasGpsSignal(true);
         setIsReady(true);
         void upsertBeacon(nextCurrent);
       },
       () => {
+        setHasGpsSignal(false);
         setIsReady(true);
       },
       {
@@ -382,6 +404,25 @@ export default function TrackingIndexPage(): React.JSX.Element {
     setIsSheetExpanded(false);
   }
 
+  function onLocateMe(): void {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCurrent({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setHasGpsSignal(true);
+        setRecenterSignal((value) => value + 1);
+      },
+      () => {
+        setHasGpsSignal(false);
+        setRecenterSignal((value) => value + 1);
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
+
   return (
     <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
       {isReady ? (
@@ -392,6 +433,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
           routeLines={routeLines}
           selectedJobId={selectedJobId}
           isDarkTheme={isDarkTheme}
+          recenterSignal={recenterSignal}
           onJobSelect={onJobSelect}
         />
       ) : (
@@ -401,12 +443,31 @@ export default function TrackingIndexPage(): React.JSX.Element {
         </div>
       )}
 
-    <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
-      <div className="pointer-events-auto mx-auto flex w-fit items-center gap-2 rounded-full border border-emerald-300/50 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200 shadow-lg shadow-black/45 backdrop-blur-md">
-        <Navigation className="h-3.5 w-3.5 text-emerald-300" />
-        <span>Live Tracking Active</span>
-      </div>
-    </section>
+      <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
+        <div className="pointer-events-auto mx-auto w-fit rounded-full border border-slate-500/60 bg-slate-900/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-slate-100 shadow-lg shadow-black/40 backdrop-blur-md">
+          Map Hub
+        </div>
+      </section>
+
+      <section className="pointer-events-none absolute right-4 top-4 z-[110] flex items-center gap-2">
+        <span
+          className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
+            isOnline && hasGpsSignal ? "border-emerald-400/80" : "border-amber-400/80"
+          }`}
+          title={isOnline && hasGpsSignal ? "GPS and network online" : "GPS or network unavailable"}
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${isOnline && hasGpsSignal ? "bg-emerald-400" : "bg-amber-400"}`} />
+        </span>
+        <button
+          type="button"
+          onClick={onLocateMe}
+          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-500/70 bg-slate-900/80 text-slate-100 shadow-lg shadow-black/40 transition hover:border-amber-400"
+          aria-label="Locate me"
+          title="Locate me"
+        >
+          <Target className="h-4 w-4" />
+        </button>
+      </section>
 
     {selectedJob ? (
       <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">

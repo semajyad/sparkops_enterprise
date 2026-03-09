@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -67,6 +68,8 @@ export async function signOut() {
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
+  const requestHeaders = await headers();
+  const origin = requestHeaders.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
     // type-casting here for convenience
     // in practice, you should validate your inputs
@@ -91,7 +94,7 @@ export async function signup(formData: FormData) {
         full_name: data.fullName,
         organization: data.organization,
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/dashboard`,
+      emailRedirectTo: origin,
     },
   });
 
@@ -100,20 +103,8 @@ export async function signup(formData: FormData) {
     redirect("/login?error=Signup failed&mode=signup");
   }
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) {
-    console.error("Server action: Signup user lookup failed:", userError.message);
-  }
-
-  if (!user) {
-    redirect("/login?message=Account created. Please sign in.&mode=login");
-  }
-
   console.log("Server action: Signup successful");
   revalidatePath("/", "layout");
   revalidatePath("/dashboard", "layout");
-  redirect("/dashboard");
+  redirect("/login?message=Check%20your%20email%20to%20confirm%20your%20account.&mode=login");
 }
