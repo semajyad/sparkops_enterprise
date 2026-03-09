@@ -14,7 +14,7 @@ import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const TrackingMap = dynamic(() => import("@/components/TrackingMap").then((m) => m.TrackingMap), {
   ssr: false,
-  loading: () => <div className="h-screen w-screen animate-pulse bg-slate-800/70" />,
+  loading: () => <div className="h-screen w-screen animate-pulse bg-gray-200" />,
 });
 
 type UserLocationRow = {
@@ -156,7 +156,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [jobs, setJobs] = useState<MapJob[]>([]);
   const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [isDarkTheme, setIsDarkTheme] = useState(false);
   const recenterSignal = 0;
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
@@ -191,18 +190,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
         ],
         color: colorFromSeed(staff.userId),
       }));
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateTheme = () => setIsDarkTheme(media.matches);
-    updateTheme();
-    media.addEventListener("change", updateTheme);
-    return () => media.removeEventListener("change", updateTheme);
-  }, []);
 
   useEffect(() => {
     let watchId: number | null = null;
@@ -437,7 +424,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
   }
 
   return (
-    <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+    <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-gray-100 text-gray-900">
       {isReady ? (
         <TrackingMap
           current={current}
@@ -445,19 +432,18 @@ export default function TrackingIndexPage(): React.JSX.Element {
           staffLocations={visibleStaffLocations}
           routeLines={routeLines}
           selectedJobId={selectedJobId}
-          isDarkTheme={isDarkTheme}
           recenterSignal={recenterSignal}
           onJobSelect={onJobSelect}
         />
       ) : (
-        <div className="flex h-screen w-screen items-center justify-center gap-2 text-sm text-slate-100">
-          <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+        <div className="flex h-screen w-screen items-center justify-center gap-2 text-sm text-gray-700">
+          <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
           Initializing map and GPS...
         </div>
       )}
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
-        <div className="pointer-events-auto mx-auto w-fit rounded-full border border-slate-500/60 bg-slate-900/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-slate-100 shadow-lg shadow-black/40 backdrop-blur-md">
+        <div className="pointer-events-auto mx-auto w-fit rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-gray-700 shadow-sm backdrop-blur-md">
           Map Hub
         </div>
       </section>

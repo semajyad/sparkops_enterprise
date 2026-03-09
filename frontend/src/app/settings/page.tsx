@@ -25,9 +25,9 @@ export default function SettingsPage() {
 
   const dropzoneClass = useMemo(() => {
     if (isDragging) {
-      return "border-emerald-400 bg-emerald-500/10";
+      return "border-orange-400 bg-orange-50";
     }
-    return "border-slate-600 bg-slate-800/70";
+    return "border-gray-300 bg-white";
   }, [isDragging]);
 
   async function uploadCsv(file: File): Promise<void> {
@@ -97,12 +97,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-800 p-6 shadow-2xl shadow-slate-950/50">
+    <main className="min-h-screen bg-gray-100 p-4 text-gray-900 sm:p-6 md:p-10">
+      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <header className="mb-6 space-y-2">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-300">Settings</p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Material Settings</h1>
-          <p className="text-sm text-slate-300">Bulk import wholesaler price lists with columns: sku, name, price.</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Settings</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Material Settings</h1>
+          <p className="text-sm text-gray-600">Bulk import wholesaler price lists with columns: sku, name, price.</p>
         </header>
 
         <label
@@ -114,21 +114,21 @@ export default function SettingsPage() {
           onDrop={onDrop}
           className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${dropzoneClass}`}
         >
-          {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-emerald-400" /> : <UploadCloud className="h-8 w-8 text-emerald-400" />}
+          {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-orange-600" /> : <UploadCloud className="h-8 w-8 text-orange-600" />}
           <div>
-            <p className="text-base font-semibold text-white">Drag & drop CSV here</p>
-            <p className="text-sm text-slate-300">or click to choose a file</p>
+            <p className="text-base font-semibold text-gray-900">Drag & drop CSV here</p>
+            <p className="text-sm text-gray-600">or click to choose a file</p>
           </div>
           <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFileChange} />
         </label>
 
         <div className="mt-6 space-y-2">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full rounded-full bg-orange-600 transition-all" style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-sm text-slate-200">{statusMessage}</p>
+          <p className="text-sm text-gray-700">{statusMessage}</p>
           {summary ? (
-            <p className="text-sm text-emerald-300">
+            <p className="text-sm text-green-700">
               Imported {summary.imported_count} / {summary.total_rows} items · Failed {summary.failed_count}
             </p>
           ) : null}

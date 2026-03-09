@@ -119,7 +119,7 @@ export default function CapturePage() {
 
 
 
-  async function uploadAudioToIngest(audioBase64: string): Promise<void> {
+  async function uploadAudioToSave(audioBase64: string): Promise<void> {
 
     if (!session?.access_token) {
 
@@ -151,7 +151,7 @@ export default function CapturePage() {
 
       const body = await response.text();
 
-      throw new Error(body || `Ingest failed with status ${response.status}`);
+      throw new Error(body || `Save failed with status ${response.status}`);
 
     }
 
@@ -281,13 +281,13 @@ export default function CapturePage() {
 
         try {
 
-          await uploadAudioToIngest(base64);
+          await uploadAudioToSave(base64);
 
-          setStatusMessage("Audio captured and sent to ingest successfully.");
+          setStatusMessage("Audio captured and saved successfully.");
 
         } catch {
 
-          setStatusMessage("Audio captured, but ingest upload failed.");
+          setStatusMessage("Audio captured, but save upload failed.");
 
         }
 
@@ -559,25 +559,30 @@ export default function CapturePage() {
               <motion.button
                 type="button"
                 onClick={() => void startRecording()}
-                className="inline-flex h-52 w-52 items-center justify-center rounded-full border border-orange-500/80 bg-orange-50 text-orange-600 shadow-lg"
+                className="relative inline-flex h-32 w-32 items-center justify-center rounded-full border border-orange-500/80 bg-orange-50 text-orange-600 shadow-lg"
                 animate={reduceMotion ? undefined : { scale: [1, 1.05, 1] }}
                 transition={reduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
                 <span className="sr-only">Start recording</span>
-                <Mic className="h-20 w-20" />
+                <motion.span
+                  className="absolute h-32 w-32 rounded-full"
+                  animate={reduceMotion ? undefined : { boxShadow: ["0 0 0 0 rgba(249,115,22,0.45)", "0 0 0 18px rgba(249,115,22,0)"] }}
+                  transition={reduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeOut" }}
+                />
+                <Mic className="h-14 w-14" />
               </motion.button>
             ) : (
               <motion.button
                 type="button"
                 onClick={stopRecording}
-                className="inline-flex h-52 w-52 items-center justify-center rounded-full border border-red-500/80 bg-red-50 text-red-600 shadow-lg"
+                className="relative inline-flex h-32 w-32 items-center justify-center rounded-full border border-red-500/80 bg-red-50 text-red-600 shadow-lg"
                 animate={reduceMotion ? undefined : { scale: [1, 0.93, 1] }}
                 transition={reduceMotion ? undefined : { duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
                 <span className="sr-only">Stop recording</span>
-                <Square className="h-20 w-20" />
+                <Square className="h-14 w-14" />
               </motion.button>
             )}
           </div>

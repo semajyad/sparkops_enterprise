@@ -16,13 +16,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
   if (normalized === "DONE") {
-    return "border-emerald-500/50 bg-emerald-500/20 text-emerald-200";
+    return "border-green-500/40 bg-green-50 text-green-700";
   }
 
   if (normalized === "SYNCING") {
-    return "border-amber-500/50 bg-amber-500/20 text-amber-200";
+    return "border-orange-500/40 bg-orange-50 text-orange-700";
   }
-  return "border-slate-600 bg-slate-700/50 text-slate-200";
+  return "border-gray-300 bg-gray-50 text-gray-600";
 }
 
 type ComplianceChecklistItem = {
@@ -243,13 +243,13 @@ export default function JobReviewPage(): React.JSX.Element {
   const complianceSummary = job?.compliance_summary;
 
   return (
-    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
+    <main className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Job Details</p>
-            <h1 className="text-3xl font-bold tracking-tight text-white">{job?.extracted_data?.client ?? "Unknown Client"}</h1>
-            {job ? <p className="mt-1 text-sm text-slate-400">{formatJobDate(job.created_at)}</p> : null}
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">{job?.extracted_data?.client ?? "Unknown Client"}</h1>
+            {job ? <p className="mt-1 text-sm text-gray-500">{formatJobDate(job.created_at)}</p> : null}
           </div>
           <div className="flex items-center gap-2">
             {job ? (
@@ -261,7 +261,7 @@ export default function JobReviewPage(): React.JSX.Element {
               type="button"
               onClick={() => void deleteJob()}
               disabled={isDeleting}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Delete
@@ -270,54 +270,54 @@ export default function JobReviewPage(): React.JSX.Element {
         </header>
 
         {isLoading ? (
-          <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-sm">
-            <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
             Loading job draft...
           </div>
         ) : job ? (
           <>
-            <details className="rounded-xl border border-slate-700 bg-slate-950/70 p-4" open>
-              <summary className="cursor-pointer text-sm font-semibold text-white">Voice Note</summary>
-              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{job.raw_transcript || "No transcript found."}</p>
+            <details className="rounded-xl border border-gray-200 bg-white p-4" open>
+              <summary className="cursor-pointer text-sm font-semibold text-gray-900">Voice Note</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm text-gray-600">{job.raw_transcript || "No transcript found."}</p>
             </details>
 
             {invoiceSummary ? (
-              <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Draft Invoice Total</h2>
-                <div className="mt-3 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
-                  <p>Subtotal: <span className="font-semibold text-white">${parseNumeric(invoiceSummary.subtotal).toFixed(2)}</span></p>
-                  <p>Markup: <span className="font-semibold text-amber-300">${parseNumeric(invoiceSummary.markup_amount).toFixed(2)}</span></p>
-                  <p>GST (15%): <span className="font-semibold text-white">${parseNumeric(invoiceSummary.gst).toFixed(2)}</span></p>
-                  <p>Total: <span className="font-semibold text-emerald-300">${parseNumeric(invoiceSummary.total).toFixed(2)}</span></p>
+              <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Draft Invoice Total</h2>
+                <div className="mt-3 grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                  <p>Subtotal: <span className="font-semibold text-gray-900">${parseNumeric(invoiceSummary.subtotal).toFixed(2)}</span></p>
+                  <p>Markup: <span className="font-semibold text-orange-700">${parseNumeric(invoiceSummary.markup_amount).toFixed(2)}</span></p>
+                  <p>GST (15%): <span className="font-semibold text-gray-900">${parseNumeric(invoiceSummary.gst).toFixed(2)}</span></p>
+                  <p>Total: <span className="font-semibold text-green-700">${parseNumeric(invoiceSummary.total).toFixed(2)}</span></p>
                 </div>
               </section>
             ) : null}
 
             {complianceSummary ? (
-              <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Compliance Summary</h2>
+              <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Compliance Summary</h2>
                 <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${guardrailClass}`}>
                   {guardrail.replaceAll("_", " ")}
                 </p>
-                <p className="mt-2 text-sm text-slate-300">{complianceSummary.notes || "No compliance summary available."}</p>
+                <p className="mt-2 text-sm text-gray-600">{complianceSummary.notes || "No compliance summary available."}</p>
                 {Array.isArray(complianceSummary.missing_items) && complianceSummary.missing_items.length > 0 ? (
-                  <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  <div className="mt-3 rounded-lg border border-orange-300 bg-orange-50 p-3 text-xs text-orange-700">
                     Missing safety evidence: {complianceSummary.missing_items.join(", ")}
                   </div>
                 ) : (
-                  <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                  <div className="mt-3 rounded-lg border border-green-300 bg-green-50 p-3 text-xs text-green-700">
                     Mandatory tests detected for RoI/CoC draft.
                   </div>
                 )}
               </section>
             ) : null}
 
-            <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Detected Items</h2>
+            <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Detected Items</h2>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700 text-left text-slate-400">
+                    <tr className="border-b border-gray-200 text-left text-gray-500">
                       <th className="px-2 py-2 font-medium">Type</th>
                       <th className="px-2 py-2 font-medium">Description</th>
                       <th className="px-2 py-2 font-medium">Qty / Hrs</th>
@@ -331,11 +331,11 @@ export default function JobReviewPage(): React.JSX.Element {
                       const unitPrice = parseNumeric(item.unit_price || 0);
                       const inferredValue = lineTotal > 0 ? lineTotal : qty * unitPrice;
                       return (
-                        <tr key={`${item.description ?? "item"}-${index}`} className="border-b border-slate-800 last:border-0">
-                          <td className="px-2 py-2 text-slate-200">{String(item.type ?? "LABOR").toUpperCase()}</td>
-                          <td className="px-2 py-2 text-slate-100">{item.description ?? "Unnamed"}</td>
-                          <td className="px-2 py-2 text-slate-300">{qty.toFixed(2)}</td>
-                          <td className="px-2 py-2 text-slate-300">{inferredValue > 0 ? `$${inferredValue.toFixed(2)}` : "-"}</td>
+                        <tr key={`${item.description ?? "item"}-${index}`} className="border-b border-gray-200 last:border-0">
+                          <td className="px-2 py-2 text-gray-700">{String(item.type ?? "LABOR").toUpperCase()}</td>
+                          <td className="px-2 py-2 text-gray-900">{item.description ?? "Unnamed"}</td>
+                          <td className="px-2 py-2 text-gray-600">{qty.toFixed(2)}</td>
+                          <td className="px-2 py-2 text-gray-600">{inferredValue > 0 ? `$${inferredValue.toFixed(2)}` : "-"}</td>
                         </tr>
                       );
                     })}
@@ -344,7 +344,7 @@ export default function JobReviewPage(): React.JSX.Element {
               </div>
 
               {lineItems.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-400">No line items were extracted for this job draft yet.</p>
+                <p className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-500">No line items were extracted for this job draft yet.</p>
               ) : null}
             </section>
 
@@ -352,7 +352,7 @@ export default function JobReviewPage(): React.JSX.Element {
               type="button"
               onClick={() => void downloadPdf()}
               disabled={isDownloading}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-50"
             >
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download Invoice PDF
@@ -364,10 +364,10 @@ export default function JobReviewPage(): React.JSX.Element {
               disabled={isCompleting || !job}
               className={`mt-3 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:opacity-50 ${
                 guardrail === "GREEN_SHIELD"
-                  ? "bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                  ? "bg-green-600 text-white hover:bg-green-700"
                   : guardrail === "RED_SHIELD"
-                    ? "bg-rose-500/85 text-rose-950 hover:bg-rose-400"
-                    : "bg-amber-500 text-amber-950 hover:bg-amber-400"
+                    ? "bg-red-500 text-white hover:bg-red-600"
+                    : "bg-orange-600 text-white hover:bg-orange-700"
               }`}
             >
               {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -379,23 +379,23 @@ export default function JobReviewPage(): React.JSX.Element {
                 type="button"
                 onClick={() => void pushToXero()}
                 disabled={isPushingToXero}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-cyan-500/60 bg-cyan-500/20 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-50"
               >
                 {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Push to Xero
               </button>
             ) : null}
 
-            {toast ? <p className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{toast}</p> : null}
+            {toast ? <p className="mt-3 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
           </>
         ) : null}
 
         {isComplianceModalOpen ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-            <section className="w-full max-w-md rounded-2xl border border-rose-500/50 bg-slate-900 p-5 shadow-2xl shadow-black/70">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-300">Job Completion Blocked</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Missing compliance evidence</h2>
-              <p className="mt-2 text-sm text-slate-300">Add the missing checklist items from Capture, then complete this job again.</p>
+            <section className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-5 shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">Job Completion Blocked</p>
+              <h2 className="mt-2 text-xl font-semibold text-gray-900">Missing compliance evidence</h2>
+              <p className="mt-2 text-sm text-gray-600">Add the missing checklist items from Capture, then complete this job again.</p>
 
               <ul className="mt-4 space-y-2">
                 {complianceChecklist.map((item) => (
@@ -406,7 +406,7 @@ export default function JobReviewPage(): React.JSX.Element {
                         setIsComplianceModalOpen(false);
                         router.push("/capture");
                       }}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-left text-sm font-semibold text-slate-100 transition hover:border-amber-500/60"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-left text-sm font-semibold text-gray-700 transition hover:border-orange-500/60"
                     >
                       {item.label}
                     </button>
@@ -418,7 +418,7 @@ export default function JobReviewPage(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => setIsComplianceModalOpen(false)}
-                  className="min-h-11 rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200"
+                  className="min-h-11 rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700"
                 >
                   Close
                 </button>
@@ -428,7 +428,7 @@ export default function JobReviewPage(): React.JSX.Element {
         ) : null}
 
         {errorMessage || localError ? (
-          <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{localError || errorMessage}</p>
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError || errorMessage}</p>
         ) : null}
       </section>
     </main>

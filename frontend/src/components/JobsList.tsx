@@ -26,15 +26,17 @@ export function JobsList({ jobs }: JobsListProps): React.JSX.Element {
     <ul className="mt-4 space-y-3">
       {visibleJobs.map((job) => (
         <li key={job.id}>
+          {(() => {
+            const normalized = normalizeJobStatus(job.status);
+            const stripClass = normalized === "DONE" || normalized === "SYNCING" ? "bg-green-500" : "bg-orange-500";
+
+            return (
           <Link
             href={`/jobs/${job.id}`}
-            className={`block rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-orange-500/60 hover:shadow-md relative overflow-hidden ${
-              normalizeJobStatus(job.status) === "DONE" ? "border-l-4 border-l-green-500" : 
-              normalizeJobStatus(job.status) === "SYNCING" ? "border-l-4 border-l-orange-500" : 
-              "border-l-4 border-l-orange-500"
-            }`}
+            className="relative block overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-orange-500/60 hover:shadow-md"
           >
-            <div className="flex items-center justify-between gap-3 pl-1">
+            <span className={`absolute inset-y-0 left-0 w-1 ${stripClass}`} aria-hidden="true" />
+            <div className="flex items-center justify-between gap-3 pl-2">
               <div>
                 <p className="text-sm text-gray-500">{formatJobDate(job.date_scheduled || job.created_at)}</p>
                 <p className="mt-1 text-lg font-semibold text-gray-900">{job.client_name || "Unknown Client"}</p>
@@ -44,6 +46,8 @@ export function JobsList({ jobs }: JobsListProps): React.JSX.Element {
               </span>
             </div>
           </Link>
+            );
+          })()}
         </li>
       ))}
     </ul>

@@ -43,7 +43,6 @@ type TrackingMapProps = {
   staffLocations: StaffLocation[];
   routeLines: RouteLine[];
   selectedJobId: string | null;
-  isDarkTheme: boolean;
   recenterSignal: number;
   onJobSelect: (jobId: string) => void;
 };
@@ -119,11 +118,16 @@ function youIcon(): DivIcon {
   });
 }
 
-export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, isDarkTheme, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
+export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
-  const tileUrl = isDarkTheme
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+  const hasMapboxToken = mapboxToken.trim().length > 0;
+  const tileUrl = hasMapboxToken
+    ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
+    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const tileAttribution = hasMapboxToken
+    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   const markers = useMemo(
     () =>
@@ -138,7 +142,7 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
     <div className="tracking-map-shell absolute left-0 top-0 z-0 h-screen w-screen overflow-hidden">
       <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+          attribution={tileAttribution}
           url={tileUrl}
         />
         <FollowCurrentLocation current={current} recenterSignal={recenterSignal} />

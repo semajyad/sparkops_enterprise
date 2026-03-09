@@ -17,8 +17,8 @@ export function LadderModeToggle({ enabled, disabled = false, onChange }: Ladder
       className={[
         "relative w-full rounded-2xl border px-6 py-5 text-left transition",
         enabled
-          ? "border-emerald-300 bg-emerald-500/20 text-emerald-50"
-          : "border-rose-300 bg-rose-500/15 text-rose-50",
+          ? "border-green-300 bg-green-50 text-green-900"
+          : "border-red-300 bg-red-50 text-red-900",
         disabled ? "cursor-not-allowed opacity-60" : "hover:scale-[1.01]",
       ].join(" ")}
     >

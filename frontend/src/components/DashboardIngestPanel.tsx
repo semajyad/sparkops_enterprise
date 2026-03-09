@@ -131,24 +131,24 @@ export function DashboardIngestPanel(): React.JSX.Element {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-700 bg-slate-900/60 p-5">
-      <h2 className="text-lg font-semibold text-white">Data Factory Save</h2>
-      <p className="mt-1 text-sm text-slate-300">Upload an audio file or record a job note and send it straight to /api/save.</p>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 className="text-lg font-semibold text-gray-900">Data Factory Save</h2>
+      <p className="mt-1 text-sm text-gray-600">Upload an audio file or record a job note and send it straight to Save.</p>
 
       <form className="mt-4 space-y-4" onSubmit={(event) => void onSubmit(event)}>
-        <label className="block text-sm text-slate-200" htmlFor="dashboard-voice-notes">
+        <label className="block text-sm text-gray-700" htmlFor="dashboard-voice-notes">
           Voice Notes
           <textarea
             id="dashboard-voice-notes"
             value={voiceNotes}
             onChange={(event) => setVoiceNotes(event.target.value)}
             placeholder="Installed new submain, verified insulation resistance, and labelled DB."
-            className="mt-2 min-h-24 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+            className="mt-2 min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
           />
         </label>
 
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200">
-          <Upload className="h-4 w-4 text-emerald-300" />
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+          <Upload className="h-4 w-4 text-orange-600" />
           Upload Audio File
           <input type="file" accept="audio/*" className="hidden" onChange={(event) => void handleAudioUpload(event)} />
         </label>
@@ -158,7 +158,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
             <button
               type="button"
               onClick={() => void startRecording()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-emerald-400"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600"
             >
               <Mic className="h-4 w-4" />
               Record Audio
@@ -167,7 +167,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
             <button
               type="button"
               onClick={stopRecording}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/70 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100"
+              className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700"
             >
               <Square className="h-4 w-4" />
               Stop Recording
@@ -178,14 +178,14 @@ export function DashboardIngestPanel(): React.JSX.Element {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-700 disabled:opacity-50"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Send to Save
         </button>
       </form>
 
-      {message ? <p className="mt-3 text-sm text-slate-300">{message}</p> : null}
+      {message ? <p className="mt-3 text-sm text-gray-600">{message}</p> : null}
     </section>
   );
 }

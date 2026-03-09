@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, ClipboardList, Home, MapPin, Mic, UserRound } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 function itemClass(isActive: boolean): string {
   return isActive ? "text-orange-600" : "text-gray-400";
@@ -29,7 +30,8 @@ const HIDDEN_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export function MobileNav(): React.JSX.Element {
   const pathname = usePathname();
-  const isAdminRoute = pathname.startsWith("/admin");
+  const { role } = useAuth();
+  const isOwner = role === "OWNER";
 
   if (pathname === "/" || HIDDEN_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return <></>;
@@ -61,10 +63,10 @@ export function MobileNav(): React.JSX.Element {
       Icon: MapPin,
       isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
     },
-    isAdminRoute
+    isOwner
       ? {
           href: "/admin",
-          label: "Admin",
+          label: "Profile",
           Icon: Building2,
           isActive: (path) => path.startsWith("/admin"),
         }

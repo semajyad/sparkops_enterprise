@@ -216,7 +216,7 @@ export function AddressAutocomplete({
   const inputClassName = useMemo(
     () =>
       className ??
-      "mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none",
+      "mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none",
     [className]
   );
 
@@ -252,7 +252,7 @@ export function AddressAutocomplete({
       ) : null}
 
       {showDropdown && value.trim().length >= 3 ? (
-        <ul className="absolute z-[9999] mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-1 shadow-2xl shadow-black/40">
+        <ul className="absolute z-[9999] mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
           {suggestions.map((suggestion) => (
             <li key={suggestion.id}>
               <button
@@ -269,9 +269,9 @@ export function AddressAutocomplete({
                   setSuggestions([]);
                   setOpen(false);
                 }}
-                className="flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-amber-500/15 hover:text-amber-100"
+                className="flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-orange-50 hover:text-orange-700"
               >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
                 <span>{suggestion.place_name}</span>
               </button>
             </li>
