@@ -1073,13 +1073,18 @@ def _compute_guardrail_status(
     required_tests = _required_tests_for_trade(normalized_trade)
     present = {str(test.get("test_type", "")).strip().lower() for test in tests if isinstance(test, dict)}
     missing = [label for label in required_tests if label.lower() not in present]
+    compliance_basis = (
+        "AS/NZS 3500 + G12/G13 plumbing compliance evidence"
+        if normalized_trade == "PLUMBING"
+        else "AS/NZS 3000 electrical compliance evidence"
+    )
 
     if not raw_transcript.strip() and not tests:
-        return "NOT_REQUIRED", [], "No transcript captured yet. Record required safety evidence before closure."
+        return "NOT_REQUIRED", [], f"No transcript captured yet. Record required safety evidence before closure ({compliance_basis})."
 
     if missing:
-        return "RED_SHIELD", missing, "Mandatory safety tests are missing for compliant closure."
-    return "GREEN_SHIELD", [], "Job is compliant to close with mandatory safety tests present."
+        return "RED_SHIELD", missing, f"Mandatory safety tests are missing for compliant closure ({compliance_basis})."
+    return "GREEN_SHIELD", [], f"Job is compliant to close with mandatory safety tests present ({compliance_basis})."
 
 
 def _assert_job_write_access(draft: JobDraft, current_user: AuthenticatedUser) -> None:

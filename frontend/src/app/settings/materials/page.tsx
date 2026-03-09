@@ -20,7 +20,7 @@ export default function MaterialsSettingsPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("Upload a JA Russell or Corys CSV to refresh your catalog.");
+  const [statusMessage, setStatusMessage] = useState("Upload an electrical or plumbing supplier CSV (JA Russell, Corys, Reece, Mico) to refresh your catalog.");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
 
   const dropzoneClass = useMemo(() => {
@@ -102,7 +102,7 @@ export default function MaterialsSettingsPage() {
         <header className="mb-6 space-y-2">
           <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Settings</p>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Materials Upload</h1>
-          <p className="text-sm text-gray-600">Upload wholesaler price lists with columns: sku, description, price.</p>
+          <p className="text-sm text-gray-600">Upload electrical/plumbing wholesaler price lists with columns: sku, description, price.</p>
         </header>
 
         <label

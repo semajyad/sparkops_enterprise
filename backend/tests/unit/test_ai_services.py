@@ -113,7 +113,7 @@ def test_triage_normalize_extraction_coerces_item_and_test_shapes() -> None:
     assert normalized["line_items"][0]["type"] == "MATERIAL"
     assert normalized["line_items"][1]["type"] == "LABOR"
     assert normalized["safety_tests"][0]["type"] == "Earth Loop"
-    assert normalized["safety_tests"][1]["type"] == "RCD"
+    assert normalized["safety_tests"][1]["type"] == "RCD Test"
 
 
 def test_triage_analyze_transcript_uses_mocked_openai_client() -> None:
@@ -271,7 +271,7 @@ def test_compliance_agent_summarize_plumbing_trade() -> None:
     from services.triage import ComplianceAgent
     
     agent = ComplianceAgent()
-    transcript = "Gas pressure test passed at 2.5kPa, water flow rate was 15L/min, backflow prevention device installed"
+    transcript = "Gas pressure test passed at 2.5kPa, water flow rate was 15L/min, backflow prevention device installed, RCD trip time verified"
     
     result = agent.summarize(transcript, "PLUMBING")
     
@@ -305,8 +305,8 @@ def test_compliance_agent_summarize_empty_transcript() -> None:
     agent = ComplianceAgent()
     result = agent.summarize("", "ELECTRICAL")
     
-    assert result.status == "COMPLETE"  # No transcript means no tests required yet
-    assert "No transcript captured yet" in result.notes
+    assert result.status == "ACTION_REQUIRED"
+    assert "No transcript available" in result.notes
 
 
 def test_compliance_agent_normalizes_trade() -> None:
