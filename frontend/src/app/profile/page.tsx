@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 
@@ -197,7 +196,6 @@ export default function ProfilePage(): React.JSX.Element {
   const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
-  const displayOrganizationId = details?.organization_id || "Unknown";
   const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
 
   useEffect(() => {
@@ -252,37 +250,38 @@ export default function ProfilePage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
+            <p className="text-sm text-slate-300">{displayEmail}</p>
           </div>
 
           {isOwner ? (
             <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Mode</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 inline-flex min-h-11 rounded-full border border-slate-600 bg-slate-900/80 p-1">
                 <button
                   type="button"
                   onClick={() => setMode("FIELD")}
-                  className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
                     mode === "FIELD"
-                      ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-100"
-                      : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-emerald-500/50"
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-300 hover:text-amber-200"
                   }`}
                 >
-                  Sparky Mode
+                  Field
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("ADMIN")}
-                  className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
                     mode === "ADMIN"
-                      ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
-                      : "border-slate-600 bg-slate-900/70 text-slate-300 hover:border-amber-500/50"
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-300 hover:text-amber-200"
                   }`}
                 >
-                  Boss Mode
+                  Admin
                 </button>
               </div>
             </section>
@@ -297,20 +296,9 @@ export default function ProfilePage(): React.JSX.Element {
         ) : null}
 
         <div className="mt-6 grid gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300 sm:grid-cols-2">
-          <p><span className="font-semibold text-slate-100">Email:</span> {displayEmail}</p>
           <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
           <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
-          <p className="sm:col-span-2"><span className="font-semibold text-slate-100">Organization ID:</span> {displayOrganizationId}</p>
         </div>
-
-        {isOwner ? (
-          <Link
-            href="/admin"
-            className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
-          >
-            Open Business Dashboard
-          </Link>
-        ) : null}
 
         <div className="mt-4">
           <button

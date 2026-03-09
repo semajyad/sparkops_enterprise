@@ -67,7 +67,7 @@ export default function CapturePage() {
 
   const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
 
-  const { session, role } = useAuth();
+  const { session } = useAuth();
 
 
 
@@ -567,12 +567,6 @@ export default function CapturePage() {
 
             <h1 className="text-3xl font-bold tracking-tight text-white">Field Capture</h1>
 
-            {role === "OWNER" ? (
-
-              <p className="mt-1 text-xs text-slate-300">Field Focus active. Business metrics stay in Admin Mode so this screen stays job-first.</p>
-
-            ) : null}
-
           </div>
 
           <div className="relative flex items-center gap-2">
@@ -580,9 +574,9 @@ export default function CapturePage() {
               type="button"
               onClick={() => setSyncHint(syncIndicator.hint)}
               aria-label={syncIndicator.label}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-600 bg-slate-950/70"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full"
             >
-              <span className={`h-2 w-2 rounded-full ${syncIndicator.colorClass} ${syncIndicator.pulseClass}`}></span>
+              <span className={`h-2 w-2 rounded-full ${syncIndicator.colorClass} ${syncIndicator.pulseClass}`} aria-hidden="true"></span>
             </button>
             {pendingCount > 0 ? <span className="text-xs text-slate-400">{pendingCount} pending</span> : null}
             {syncHint ? (
@@ -651,7 +645,7 @@ export default function CapturePage() {
           ) : null}
         </section>
 
-        <section className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4">
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4 pb-[max(env(safe-area-inset-bottom),1.75rem)]">
           <p className="text-sm font-semibold text-slate-200">Quick Attach</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <button
