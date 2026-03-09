@@ -1,28 +1,60 @@
 # Page snapshot
 
 ```yaml
-- main [ref=e2]:
-  - generic [ref=e3]:
-    - generic [ref=e4]:
-      - img [ref=e5]
-      - heading "Application failed to respond" [level=1] [ref=e8]
-    - generic [ref=e9]:
-      - paragraph [ref=e10]: This error appears to be caused by the application.
-      - paragraph [ref=e11]:
-        - text: If this is your project, check out your
-        - link "deploy logs" [ref=e12] [cursor=pointer]:
-          - /url: https://docs.railway.com/guides/logs
-        - text: to see what went wrong. Refer to our
-        - link "docs on Fixing Common Errors" [ref=e13] [cursor=pointer]:
-          - /url: https://docs.railway.com/guides/fixing-common-errors
-        - text: for help, or reach out over our
-        - link "Help Station" [ref=e14] [cursor=pointer]:
-          - /url: https://station.railway.com
-        - text: .
-      - paragraph [ref=e15]: If you are a visitor, please contact the application owner or try again later.
-      - paragraph [ref=e17]:
-        - text: "Request ID:"
-        - text: b5LAaDbbRFWhnL9xAXC71g
-      - link "Go to Railway" [ref=e19] [cursor=pointer]:
-        - /url: https://railway.com
+- generic [active] [ref=e1]:
+  - 'button "Sync status: Syncing" [ref=e2]'
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: Capture Console
+        - heading "Field Capture" [level=1] [ref=e9]
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: Voice First
+        - paragraph [ref=e12]: Tap the mic and speak your job notes naturally.
+        - button "Start recording" [ref=e14]:
+          - generic [ref=e15]: Start recording
+          - img [ref=e16]
+        - paragraph [ref=e19]: Ready. Tap to start
+      - generic [ref=e20]:
+        - paragraph [ref=e21]: Quick Attach
+        - generic [ref=e22]:
+          - button "Photo" [ref=e23]:
+            - img [ref=e24]
+            - generic [ref=e27]: Photo
+          - button "Invoice" [ref=e28]:
+            - img [ref=e29]
+            - generic [ref=e33]: Invoice
+          - button "Timer" [ref=e34]:
+            - img [ref=e35]
+            - generic [ref=e38]: Timer
+        - paragraph [ref=e39]: "Timer: 0m 0s"
+      - generic [ref=e40]: Voice Notes (Text)
+      - textbox "Voice Notes (Text)" [ref=e41]:
+        - /placeholder: "Optional: add extra notes after voice capture"
+      - button "Save / Sync Now" [disabled] [ref=e42]:
+        - img [ref=e43]
+        - text: Save / Sync Now
+      - paragraph [ref=e48]: Pending drafts sync complete.
+  - navigation [ref=e49]:
+    - link "Home" [ref=e50] [cursor=pointer]:
+      - /url: /home
+      - img [ref=e51]
+      - text: Home
+    - link "Jobs" [ref=e54] [cursor=pointer]:
+      - /url: /jobs
+      - img [ref=e55]
+      - text: Jobs
+    - link "Capture" [ref=e58] [cursor=pointer]:
+      - /url: /capture
+      - img [ref=e59]
+      - text: Capture
+    - link "Map" [ref=e62] [cursor=pointer]:
+      - /url: /map
+      - img [ref=e63]
+      - text: Map
+    - link "Profile" [ref=e66] [cursor=pointer]:
+      - /url: /profile
+      - img [ref=e67]
+      - text: Profile
+  - alert [ref=e70]
 ```
