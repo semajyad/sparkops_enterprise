@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, Home, MapPinned, Mic, UserRound } from "lucide-react";
+import { BriefcaseBusiness, Building2, LayoutDashboard, MapPinned, Mic, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 function itemClass(isActive: boolean): string {
@@ -18,50 +18,95 @@ function centerItemClass(isActive: boolean): string {
   ].join(" ");
 }
 
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  isActive: (pathname: string) => boolean;
+  highlighted?: boolean;
+};
+
+const HIDDEN_PATH_PREFIXES = ["/login", "/signup", "/auth"];
+
 export function MobileNav(): React.JSX.Element {
   const pathname = usePathname();
   const { role, mode } = useAuth();
   const isAdminMode = role === "OWNER" && mode === "ADMIN";
-  const homeHref = isAdminMode ? "/dashboard" : "/";
-  const homeActive = isAdminMode ? pathname === "/dashboard" : pathname === "/";
-  const centerHref = isAdminMode ? "/admin" : "/capture";
-  const centerLabel = isAdminMode ? "Admin" : "Capture";
-  const centerActive = isAdminMode ? pathname.startsWith("/admin") : pathname.startsWith("/capture");
+
+  if (pathname === "/" || HIDDEN_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return <></>;
+  }
+
+  const navItems: NavItem[] = isAdminMode
+    ? [
+        {
+          href: "/dashboard",
+          label: "Dashboard",
+          Icon: LayoutDashboard,
+          isActive: (path) => path === "/dashboard",
+        },
+        {
+          href: "/jobs",
+          label: "Jobs",
+          Icon: BriefcaseBusiness,
+          isActive: (path) => path.startsWith("/jobs"),
+        },
+        {
+          href: "/admin",
+          label: "Business",
+          Icon: Building2,
+          isActive: (path) => path.startsWith("/admin"),
+          highlighted: true,
+        },
+        {
+          href: "/profile",
+          label: "Profile",
+          Icon: UserRound,
+          isActive: (path) => path.startsWith("/profile"),
+        },
+      ]
+    : [
+        {
+          href: "/jobs",
+          label: "Jobs",
+          Icon: BriefcaseBusiness,
+          isActive: (path) => path.startsWith("/jobs"),
+        },
+        {
+          href: "/capture",
+          label: "Capture",
+          Icon: Mic,
+          isActive: (path) => path.startsWith("/capture"),
+          highlighted: true,
+        },
+        {
+          href: "/tracking",
+          label: "Map",
+          Icon: MapPinned,
+          isActive: (path) => path.startsWith("/tracking"),
+        },
+        {
+          href: "/profile",
+          label: "Profile",
+          Icon: UserRound,
+          isActive: (path) => path.startsWith("/profile"),
+        },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-slate-900/95 backdrop-blur">
-      <Link
-        href={homeHref}
-        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(homeActive)}`}
-      >
-        <Home className="h-5 w-5" />
-        {isAdminMode ? "Dashboard" : "Home"}
-      </Link>
-      <Link
-        href="/jobs"
-        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/jobs"))}`}
-      >
-        <BriefcaseBusiness className="h-5 w-5" />
-        Jobs
-      </Link>
-      <Link href={centerHref} className={centerItemClass(centerActive)}>
-        {isAdminMode ? <BriefcaseBusiness className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-        {centerLabel}
-      </Link>
-      <Link
-        href="/tracking"
-        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/tracking"))}`}
-      >
-        <MapPinned className="h-5 w-5" />
-        Map
-      </Link>
-      <Link
-        href="/profile"
-        className={`inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(pathname.startsWith("/profile"))}`}
-      >
-        <UserRound className="h-5 w-5" />
-        Profile
-      </Link>
+      {navItems.map((item) => {
+        const active = item.isActive(pathname);
+        const sharedClasses = item.highlighted
+          ? centerItemClass(active)
+          : `inline-flex flex-col items-center gap-1 text-xs font-medium ${itemClass(active)}`;
+        return (
+          <Link key={item.href} href={item.href} className={sharedClasses}>
+            <item.Icon className="h-5 w-5" />
+            {item.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

@@ -256,36 +256,6 @@ export default function ProfilePage(): React.JSX.Element {
             <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
             <p className="text-sm text-slate-300">{displayEmail}</p>
           </div>
-
-          {isOwner ? (
-            <section className="rounded-2xl border border-slate-700 bg-slate-950/70 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Mode</p>
-              <div className="mt-2 inline-flex min-h-11 rounded-full border border-slate-600 bg-slate-900/80 p-1">
-                <button
-                  type="button"
-                  onClick={() => setMode("FIELD")}
-                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    mode === "FIELD"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-amber-200"
-                  }`}
-                >
-                  Field
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("ADMIN")}
-                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    mode === "ADMIN"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-amber-200"
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
-            </section>
-          ) : null}
         </div>
 
         {loading ? (
@@ -310,14 +280,45 @@ export default function ProfilePage(): React.JSX.Element {
           </button>
         </div>
 
+        {isOwner ? (
+          <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">App Settings</h2>
+            <p className="mt-1 text-xs text-slate-400">Session Mode</p>
+            <div className="mt-3 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+              <button
+                type="button"
+                onClick={() => setMode("FIELD")}
+                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  mode === "FIELD"
+                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                    : "text-slate-200 hover:text-white"
+                }`}
+              >
+                Field
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("ADMIN")}
+                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  mode === "ADMIN"
+                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                    : "text-slate-200 hover:text-white"
+                }`}
+              >
+                Admin
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {isEditOpen ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center">
-            <section className="flex h-[85vh] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70 sm:h-auto sm:max-h-[85vh]">
+            <section className="flex w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70 sm:max-h-[85vh]">
               <div className="border-b border-slate-700 px-5 py-4">
                 <h2 className="text-lg font-semibold text-slate-100">Edit Profile</h2>
               </div>
-              <form className="flex h-full flex-col" onSubmit={onSubmitProfileUpdate}>
-                <div className="space-y-4 overflow-y-auto px-5 py-4">
+              <form className="flex flex-col" onSubmit={onSubmitProfileUpdate}>
+                <div className="space-y-4 overflow-y-auto px-5 py-4 sm:max-h-[60vh]">
                   <label className="block text-sm text-slate-200">
                     Full Name
                     <input
@@ -349,7 +350,7 @@ export default function ProfilePage(): React.JSX.Element {
                     />
                   </label>
                 </div>
-                <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-700 bg-slate-900/95 px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur">
+                <div className="flex items-center justify-end gap-2 border-t border-slate-700 bg-slate-900 px-5 py-3">
                   <button
                     type="button"
                     onClick={() => setIsEditOpen(false)}

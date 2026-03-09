@@ -79,6 +79,14 @@ export async function updateSession(request: NextRequest) {
   const hasUser = Boolean(user)
   const isAuthPage = pathname === '/login' || pathname === '/signup'
 
+  if (hasUser && pathname === '/') {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/jobs'
+    const redirectResponse = NextResponse.redirect(redirectUrl)
+    copyResponseCookies(supabaseResponse, redirectResponse)
+    return redirectResponse
+  }
+
   if (!hasUser && isProtectedPath(pathname)) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'

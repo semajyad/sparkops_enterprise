@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
-import { db } from "@/lib/db";
+import { db, deleteJobFromCache } from "@/lib/db";
 import { useJob } from "@/hooks/useJob";
 import { formatJobDate, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
@@ -115,16 +115,30 @@ export default function JobReviewPage(): React.JSX.Element {
         throw new Error("Invalid job id.");
       }
 
-      await db.drafts.delete(job.id);
+      try {
+        await db.drafts.delete(job.id);
+      } catch {
+        // Best effort: local draft cache may already be gone.
+      }
+
+      try {
+        await deleteJobFromCache(job.id);
+        await db.job_details.delete(job.id);
+      } catch {
+        // Best effort: local cache cleanup must never block remote deletion.
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, {
         method: "DELETE",
       });
-      if (!response.ok) {
+      if (!response.ok && response.status !== 404) {
         const body = await response.text();
         throw new Error(body || `Delete failed (${response.status})`);
       }
 
-      await parseApiJson<{ status: string; id: string }>(response);
+      if (response.status !== 404) {
+        await parseApiJson<{ status: string; id: string }>(response);
+      }
 
       setToast("Draft Deleted");
       router.push("/jobs?deleted=1");
