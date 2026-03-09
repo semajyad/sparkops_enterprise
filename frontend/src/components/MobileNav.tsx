@@ -5,15 +5,15 @@ import { usePathname } from "next/navigation";
 import { Building2, ClipboardList, Home, MapPin, Mic, UserRound } from "lucide-react";
 
 function itemClass(isActive: boolean): string {
-  return isActive ? "text-amber-400" : "text-slate-400";
+  return isActive ? "text-orange-600" : "text-gray-400";
 }
 
 function centerItemClass(isActive: boolean): string {
   return [
     "inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-xs font-semibold transition",
     isActive
-      ? "border-amber-400/80 bg-amber-500/20 text-amber-100"
-      : "border-slate-600 bg-slate-900/80 text-slate-300 hover:border-amber-400/60",
+      ? "border-orange-500/80 bg-orange-50 text-orange-600"
+      : "border-gray-300 bg-white text-gray-600 hover:border-orange-500/60",
   ].join(" ");
 }
 
@@ -77,7 +77,7 @@ export function MobileNav(): React.JSX.Element {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-slate-900/95 backdrop-blur">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white backdrop-blur">
       {navItems.map((item) => {
         const active = item.isActive(pathname);
         const sharedClasses = item.highlighted

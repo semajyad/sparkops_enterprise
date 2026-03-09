@@ -7,7 +7,7 @@ describe("LadderModeToggle", () => {
   it("shows active state label when enabled", () => {
     render(<LadderModeToggle enabled onChange={() => undefined} />);
 
-    const toggle = screen.getByRole("switch", { name: /ladder mode/i });
+    const toggle = screen.getByRole("switch", { name: /driving mode/i });
     expect(toggle.getAttribute("aria-checked")).toBe("true");
     expect(screen.queryByText("ACTIVE")).not.toBeNull();
   });
@@ -16,7 +16,7 @@ describe("LadderModeToggle", () => {
     const onChange = jest.fn();
     render(<LadderModeToggle enabled={false} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("switch", { name: /ladder mode/i }));
+    fireEvent.click(screen.getByRole("switch", { name: /driving mode/i }));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 });

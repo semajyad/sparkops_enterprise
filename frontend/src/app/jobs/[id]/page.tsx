@@ -247,7 +247,7 @@ export default function JobReviewPage(): React.JSX.Element {
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-amber-400">Evidence Locker</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Job Details</p>
             <h1 className="text-3xl font-bold tracking-tight text-white">{job?.extracted_data?.client ?? "Unknown Client"}</h1>
             {job ? <p className="mt-1 text-sm text-slate-400">{formatJobDate(job.created_at)}</p> : null}
           </div>
@@ -277,7 +277,7 @@ export default function JobReviewPage(): React.JSX.Element {
         ) : job ? (
           <>
             <details className="rounded-xl border border-slate-700 bg-slate-950/70 p-4" open>
-              <summary className="cursor-pointer text-sm font-semibold text-white">Raw Transcript</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-white">Voice Note</summary>
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{job.raw_transcript || "No transcript found."}</p>
             </details>
 
@@ -313,7 +313,7 @@ export default function JobReviewPage(): React.JSX.Element {
             ) : null}
 
             <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">AI Breakdown</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Detected Items</h2>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>

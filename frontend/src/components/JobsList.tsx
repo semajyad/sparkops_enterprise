@@ -7,12 +7,12 @@ import { formatJobDate, JobListItem, isValidJobUuid, normalizeJobStatus } from "
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
   if (normalized === "DONE") {
-    return "border-emerald-500/50 bg-emerald-500/20 text-emerald-200";
+    return "border-green-500/50 bg-green-50 text-green-700";
   }
   if (normalized === "SYNCING") {
-    return "border-amber-500/50 bg-amber-500/20 text-amber-200";
+    return "border-orange-500/50 bg-orange-50 text-orange-700";
   }
-  return "border-slate-600 bg-slate-700/50 text-slate-200";
+  return "border-gray-300 bg-gray-50 text-gray-600";
 }
 
 type JobsListProps = {
@@ -28,12 +28,16 @@ export function JobsList({ jobs }: JobsListProps): React.JSX.Element {
         <li key={job.id}>
           <Link
             href={`/jobs/${job.id}`}
-            className="block rounded-2xl border border-slate-700 bg-slate-950/70 p-4 transition hover:border-amber-500/60"
+            className={`block rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-orange-500/60 hover:shadow-md relative overflow-hidden ${
+              normalizeJobStatus(job.status) === "DONE" ? "border-l-4 border-l-green-500" : 
+              normalizeJobStatus(job.status) === "SYNCING" ? "border-l-4 border-l-orange-500" : 
+              "border-l-4 border-l-orange-500"
+            }`}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 pl-1">
               <div>
-                <p className="text-sm text-slate-400">{formatJobDate(job.date_scheduled || job.created_at)}</p>
-                <p className="mt-1 text-lg font-semibold text-white">{job.client_name || "Unknown Client"}</p>
+                <p className="text-sm text-gray-500">{formatJobDate(job.date_scheduled || job.created_at)}</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{job.client_name || "Unknown Client"}</p>
               </div>
               <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
                 {normalizeJobStatus(job.status)}

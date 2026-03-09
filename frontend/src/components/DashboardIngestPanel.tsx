@@ -41,7 +41,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
     }
     const base64 = await blobToBase64(file);
     setAudioBase64(base64);
-    setMessage(`Loaded ${file.name}. Ready to ingest.`);
+    setMessage(`Loaded ${file.name}. Ready to save.`);
   }
 
   async function startRecording(): Promise<void> {
@@ -66,7 +66,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
       const base64 = await blobToBase64(blob);
       setAudioBase64(base64);
-      setMessage("Recording captured. Ready to ingest.");
+      setMessage("Recording captured. Ready to save.");
       stream.getTracks().forEach((track) => track.stop());
       mediaRecorderRef.current = null;
     };
@@ -92,7 +92,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
     setMessage(null);
 
     if (!voiceNotes.trim() && !audioBase64) {
-      setMessage("Add voice notes, upload audio, or record audio before ingest.");
+      setMessage("Add voice notes, upload audio, or record audio before save.");
       return;
     }
 
@@ -117,14 +117,14 @@ export function DashboardIngestPanel(): React.JSX.Element {
 
       if (!response.ok) {
         const body = await response.text();
-        throw new Error(body || `Ingest failed with status ${response.status}`);
+        throw new Error(body || `Save failed with status ${response.status}`);
       }
 
       setVoiceNotes("");
       setAudioBase64("");
-      setMessage("Ingest queued successfully.");
+      setMessage("Save queued successfully.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to submit ingest payload.");
+      setMessage(error instanceof Error ? error.message : "Unable to submit save payload.");
     } finally {
       setIsSubmitting(false);
     }
@@ -132,8 +132,8 @@ export function DashboardIngestPanel(): React.JSX.Element {
 
   return (
     <section className="rounded-2xl border border-slate-700 bg-slate-900/60 p-5">
-      <h2 className="text-lg font-semibold text-white">Data Factory Ingest</h2>
-      <p className="mt-1 text-sm text-slate-300">Upload an audio file or record a job note and send it straight to /api/ingest.</p>
+      <h2 className="text-lg font-semibold text-white">Data Factory Save</h2>
+      <p className="mt-1 text-sm text-slate-300">Upload an audio file or record a job note and send it straight to /api/save.</p>
 
       <form className="mt-4 space-y-4" onSubmit={(event) => void onSubmit(event)}>
         <label className="block text-sm text-slate-200" htmlFor="dashboard-voice-notes">
@@ -181,7 +181,7 @@ export function DashboardIngestPanel(): React.JSX.Element {
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-50"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Send to Ingest
+          Send to Save
         </button>
       </form>
 

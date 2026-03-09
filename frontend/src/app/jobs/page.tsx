@@ -15,7 +15,7 @@ import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncSer
 const STALE_CACHE_MS = 5 * 60 * 1000;
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
-  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
 
 export default function JobsPage(): React.JSX.Element {
@@ -265,30 +265,30 @@ export default function JobsPage(): React.JSX.Element {
   }, [jobs, search]);
 
   return (
-    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
-        <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Job Manager</p>
+    <main className="min-h-screen bg-gray-50 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+      <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+        <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Job Manager</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Job Drafts</h1>
 
-        <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-300">
-          <Search className="h-4 w-4 text-amber-400" />
+        <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
+          <Search className="h-4 w-4 text-orange-600" />
           <input
             id="jobs-search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by client or date (e.g. Mar 8)"
-            className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
         </label>
 
-        {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-slate-400">Refreshing in background...</p> : null}
-        {!hasResolvedCache ? <p className="mt-4 text-xs text-slate-400">Loading local jobs...</p> : null}
-        {staleData ? <p className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-200">Showing cached jobs while revalidating in background.</p> : null}
-        {error ? <p className="mt-4 rounded-xl border border-rose-500/60 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
-        {toast ? <p className="mt-4 rounded-xl border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-100">{toast}</p> : null}
+        {hasLocalData && isRevalidating ? <p className="mt-4 text-xs text-gray-500">Refreshing in background...</p> : null}
+        {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading local jobs...</p> : null}
+        {staleData ? <p className="mt-4 rounded-xl border border-orange-500/50 bg-orange-50 p-3 text-xs text-orange-700">Showing cached jobs while revalidating in background.</p> : null}
+        {error ? <p className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+        {toast ? <p className="mt-4 rounded-xl border border-green-500/50 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
 
         {hasResolvedCache && !isRevalidating && filteredJobs.length === 0 ? (
-          <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">No jobs found for your search.</p>
+          <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found for your search.</p>
         ) : null}
 
         <JobsList jobs={filteredJobs} />
@@ -297,7 +297,7 @@ export default function JobsPage(): React.JSX.Element {
       <button
         type="button"
         onClick={() => setIsCreateOpen(true)}
-        className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-slate-950 shadow-lg shadow-black/50 transition hover:bg-amber-400"
+        className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-orange-600 text-white shadow-lg transition hover:bg-orange-700"
         aria-label="Create new job"
       >
         <Plus className="h-6 w-6" />
@@ -305,13 +305,13 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl shadow-black/70">
-            <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
-              <h2 className="text-xl font-semibold text-slate-100">New Job</h2>
+          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-600 text-slate-300"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-300 text-gray-600"
                 aria-label="Close new job form"
               >
                 <X className="h-4 w-4" />
@@ -398,7 +398,7 @@ export default function JobsPage(): React.JSX.Element {
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="mb-[20px] min-h-11 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+                  className="mb-[20px] min-h-11 w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
                 >
                   {isCreating ? "Creating Draft..." : "Create Draft"}
                 </button>

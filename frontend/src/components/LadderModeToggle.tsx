@@ -22,7 +22,7 @@ export function LadderModeToggle({ enabled, disabled = false, onChange }: Ladder
         disabled ? "cursor-not-allowed opacity-60" : "hover:scale-[1.01]",
       ].join(" ")}
     >
-      <span className="block text-xs uppercase tracking-[0.24em]">Ladder Mode</span>
+      <span className="block text-xs uppercase tracking-[0.24em]">Driving Mode</span>
       <span className="mt-1 block text-2xl font-bold">{enabled ? "ACTIVE" : "OFF"}</span>
       <span className="mt-2 block text-sm opacity-90">
         {enabled ? "Calls route to AI voicemail triage." : "Direct call flow restored."}
