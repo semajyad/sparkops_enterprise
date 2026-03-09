@@ -72,8 +72,14 @@ export function AddressAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const suppressFetchRef = useRef(false);
 
   useEffect(() => {
+    if (suppressFetchRef.current) {
+      suppressFetchRef.current = false;
+      return;
+    }
+
     const query = value.trim();
     if (query.length < 3) {
       return;
@@ -82,7 +88,7 @@ export function AddressAutocomplete({
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setIsLoading(true);
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`;
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en&bbox=166.0,-47.5,179.0,-34.0`;
       void fetch(url, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -191,8 +197,10 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 onClick={() => {
+                  suppressFetchRef.current = true;
                   onChange(suggestion.label);
                   onSelect(suggestion);
+                  setSuggestions([]);
                   setOpen(false);
                 }}
                 className="flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-amber-500/15 hover:text-amber-100"

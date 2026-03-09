@@ -510,6 +510,7 @@ class ManualJobCreateRequest(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     latitude: float | None = None
     longitude: float | None = None
+    assigned_to_user_id: UUID | None = None
     scheduled_date: str | None = Field(default=None, max_length=64)
     client_email: str | None = Field(default=None, max_length=255)
 
@@ -1636,6 +1637,27 @@ def create_job_draft(
 ) -> JobDraftResponse:
     """Create a new job draft."""
 
+    assigned_user_id = current_user.id
+    if current_user.role == "OWNER" and payload.assigned_to_user_id is not None:
+        with Session(ENGINE) as session:
+            assignee_row = session.exec(
+                text(
+                    """
+                    SELECT id
+                    FROM public.profiles
+                    WHERE id = :user_id AND organization_id = :organization_id
+                    LIMIT 1
+                    """
+                ),
+                params={
+                    "user_id": str(payload.assigned_to_user_id),
+                    "organization_id": str(current_user.organization_id),
+                },
+            ).first()
+        if assignee_row is None:
+            raise HTTPException(status_code=400, detail="Assigned user must belong to your organization.")
+        assigned_user_id = payload.assigned_to_user_id
+
     client_name = payload.client_name.strip()
     title = payload.title.strip()
     location = payload.location.strip()
@@ -1651,6 +1673,7 @@ def create_job_draft(
         "address": address,
         "latitude": latitude,
         "longitude": longitude,
+        "assigned_to_user_id": str(assigned_user_id),
         "scheduled_date": scheduled_date or None,
         "line_items": [],
         "safety_tests": [],
@@ -1664,7 +1687,7 @@ def create_job_draft(
 
     with Session(ENGINE) as session:
         draft = JobDraft(
-            user_id=current_user.id,
+            user_id=assigned_user_id,
             organization_id=current_user.organization_id,
             raw_transcript=f"Manual job: {title}",
             extracted_data=extracted_data,

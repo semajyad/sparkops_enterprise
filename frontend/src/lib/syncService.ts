@@ -141,6 +141,7 @@ export async function queueJobCreate(payload: {
   address?: string;
   latitude?: number;
   longitude?: number;
+  assigned_to_user_id?: string;
   scheduled_date: string | null;
 }): Promise<number> {
   return enqueueSyncAction({

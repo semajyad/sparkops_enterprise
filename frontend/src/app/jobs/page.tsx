@@ -5,17 +5,18 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Map, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
-import { db, putJobInCache } from "@/lib/db";
+import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
 
 export default function JobsPage(): React.JSX.Element {
-  const { user } = useAuth();
+  const { role, user } = useAuth();
   const [search, setSearch] = useState("");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,12 @@ export default function JobsPage(): React.JSX.Element {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [scheduledDate, setScheduledDate] = useState("");
+  const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
+  const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
+
+  const isOwner = role === "OWNER";
 
   useEffect(() => {
     console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
@@ -42,6 +48,71 @@ export default function JobsPage(): React.JSX.Element {
     }
     return;
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    if (!isOwner) {
+      setAssignedToUserId(user.id);
+      return;
+    }
+
+    let cancelled = false;
+    async function hydrateTeam(): Promise<void> {
+      const cached = await getTeamCache();
+      if (cancelled) {
+        return;
+      }
+
+      if (cached) {
+        setTeamMembers(cached.activeUsers);
+      }
+
+      const teamResult = await listTeamMembers();
+      if (cancelled) {
+        return;
+      }
+
+      if (teamResult.success) {
+        setTeamMembers(teamResult.activeUsers);
+        await setTeamCache({
+          activeUsers: teamResult.activeUsers,
+          pendingInvites: teamResult.pendingInvites,
+        });
+        setTeamError(null);
+      } else {
+        setTeamError(teamResult.message);
+      }
+    }
+
+    void hydrateTeam();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    if (!isOwner) {
+      setAssignedToUserId(user.id);
+      return;
+    }
+
+    if (!assignedToUserId) {
+      setAssignedToUserId(user.id);
+      return;
+    }
+
+    const hasSelectedMember = teamMembers.some((member) => member.id === assignedToUserId);
+    if (assignedToUserId !== user.id && !hasSelectedMember) {
+      setAssignedToUserId(user.id);
+    }
+  }, [assignedToUserId, isOwner, teamMembers, user?.id]);
 
   const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
   const hasResolvedCache = Array.isArray(cachedJobs);
@@ -109,6 +180,7 @@ export default function JobsPage(): React.JSX.Element {
         address: location.trim(),
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
+        assigned_to_user_id: isOwner ? assignedToUserId || user?.id : user?.id,
         scheduled_date: scheduledDate || null,
       };
 
@@ -139,6 +211,7 @@ export default function JobsPage(): React.JSX.Element {
       setLocation("");
       setLatitude(null);
       setLongitude(null);
+      setAssignedToUserId(user?.id ?? "");
       setScheduledDate("");
       setIsCreateOpen(false);
     } catch (createError) {
@@ -211,7 +284,7 @@ export default function JobsPage(): React.JSX.Element {
       </button>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
           <section className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70">
             <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
               <h2 className="text-xl font-semibold text-slate-100">New Job</h2>
@@ -226,7 +299,7 @@ export default function JobsPage(): React.JSX.Element {
             </div>
 
             <form className="flex h-full flex-col" onSubmit={onCreateManualJob}>
-              <div className="grid gap-3 overflow-y-auto px-5 py-4">
+              <div className="grid gap-3 overflow-y-auto px-5 py-4 pb-24">
                 <label className="text-sm text-slate-200">
                   Client Name
                   <input
@@ -270,28 +343,29 @@ export default function JobsPage(): React.JSX.Element {
                   />
                 </label>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <input type="hidden" name="latitude" value={latitude ?? ""} />
+                <input type="hidden" name="longitude" value={longitude ?? ""} />
+
+                {isOwner ? (
                   <label className="text-sm text-slate-200">
-                    Latitude
-                    <input
-                      type="text"
-                      readOnly
-                      value={latitude !== null ? latitude.toFixed(6) : ""}
-                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-slate-200"
-                      placeholder="Auto"
-                    />
+                    Assign To
+                    <select
+                      value={assignedToUserId}
+                      onChange={(event) => setAssignedToUserId(event.target.value)}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                    >
+                      <option value={user?.id ?? ""}>Me</option>
+                      {teamMembers
+                        .filter((member) => member.id !== user?.id)
+                        .map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.full_name} ({member.email})
+                          </option>
+                        ))}
+                    </select>
+                    {teamError ? <span className="mt-1 block text-xs text-amber-300">{teamError}</span> : null}
                   </label>
-                  <label className="text-sm text-slate-200">
-                    Longitude
-                    <input
-                      type="text"
-                      readOnly
-                      value={longitude !== null ? longitude.toFixed(6) : ""}
-                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-slate-200"
-                      placeholder="Auto"
-                    />
-                  </label>
-                </div>
+                ) : null}
 
                 <label className="text-sm text-slate-200">
                   Scheduled Date

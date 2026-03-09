@@ -42,8 +42,8 @@ export function TrackingMap({ current, jobs }: TrackingMapProps): React.JSX.Elem
     <div className="tracking-map-shell relative z-0 h-[380px] w-full overflow-hidden rounded-2xl">
       <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
-          url="https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FollowCurrentLocation current={current} />
 

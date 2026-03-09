@@ -196,7 +196,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
         {!isReady ? null : jobs.length === 0 ? (
           <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">
-            No active jobs with coordinates yet. Add latitude/longitude in location (e.g. &quot;-36.8485, 174.7633&quot;) to plot a job.
+            No active jobs with coordinates yet. Create a job with a selected address and it will appear on the dispatch map.
           </p>
         ) : null}
       </section>
