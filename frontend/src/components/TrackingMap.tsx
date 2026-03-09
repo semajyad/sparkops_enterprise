@@ -54,6 +54,7 @@ function getMapboxToken(): string {
 function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinate; recenterSignal: number }): null {
   const map = useMap();
   const hasInitializedRef = useRef(false);
+  const handledRecenterSignalRef = useRef(0);
 
   useEffect(() => {
     if (hasInitializedRef.current) {
@@ -70,6 +71,11 @@ function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinat
     if (recenterSignal <= 0) {
       return;
     }
+
+    if (handledRecenterSignalRef.current === recenterSignal) {
+      return;
+    }
+    handledRecenterSignalRef.current = recenterSignal;
 
     map.flyTo([current.lat, current.lng], map.getZoom(), {
       animate: true,

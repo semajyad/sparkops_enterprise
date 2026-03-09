@@ -1,10 +1,28 @@
-import { computePulseMetrics, formatJobDate, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
+import {
+  computePulseMetrics,
+  formatJobDate,
+  isMissingJobId,
+  isValidJobUuid,
+  normalizeJobStatus,
+  parseNumeric,
+} from "@/lib/jobs";
 
 describe("jobs helpers", () => {
   it("parses numeric values from strings and numbers", () => {
     expect(parseNumeric("$42.50")).toBeCloseTo(42.5);
     expect(parseNumeric(3)).toBe(3);
     expect(parseNumeric("invalid")).toBe(0);
+  });
+
+  it("flags missing IDs and validates UUIDs", () => {
+    expect(isMissingJobId(undefined)).toBe(true);
+    expect(isMissingJobId("   ")).toBe(true);
+    expect(isMissingJobId("null")).toBe(true);
+    expect(isMissingJobId("job-123")).toBe(false);
+
+    expect(isValidJobUuid("550e8400-e29b-41d4-a716-446655440000")).toBe(true);
+    expect(isValidJobUuid("not-a-uuid")).toBe(false);
+    expect(isValidJobUuid("undefined")).toBe(false);
   });
 
   it("normalizes known statuses and uppercases unknown ones", () => {

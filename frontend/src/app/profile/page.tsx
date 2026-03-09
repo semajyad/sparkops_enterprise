@@ -262,7 +262,7 @@ export default function ProfilePage(): React.JSX.Element {
         {loading ? (
           <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
             <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
-            Syncing profile in background...
+            Refreshing profile in background...
           </div>
         ) : null}
 
@@ -323,7 +323,7 @@ export default function ProfilePage(): React.JSX.Element {
               onClick={() => router.push("/admin")}
               className="text-sm text-gray-500 transition hover:text-orange-600"
             >
-              Unified Owner Suite
+              Admin
             </button>
           </div>
         ) : null}

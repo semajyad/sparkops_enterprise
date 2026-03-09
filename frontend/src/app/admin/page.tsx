@@ -2,7 +2,6 @@
 
 import { Loader2, Plus, Trash2, Upload } from "lucide-react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { signOut } from "@/app/login/actions";
@@ -102,14 +101,12 @@ function initialsFromName(fullName: string): string {
 }
 
 export default function AdminPage(): React.JSX.Element {
-  const router = useRouter();
-  const { loading: authLoading, role, user, setMode } = useAuth();
+  const { loading: authLoading, role, user } = useAuth();
   const [activeSection, setActiveSection] = useState<AdminSection>("profile");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
   const [pendingInvites, setPendingInvites] = useState<TeamMember[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isSavingVehicle, setIsSavingVehicle] = useState(false);
@@ -175,7 +172,6 @@ export default function AdminPage(): React.JSX.Element {
       return;
     }
 
-    setIsSyncing(true);
     setIsTeamLoading(true);
     setError(null);
     try {
@@ -223,7 +219,6 @@ export default function AdminPage(): React.JSX.Element {
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Unable to refresh admin data.");
     } finally {
-      setIsSyncing(false);
       setIsTeamLoading(false);
     }
   }, [isOwner]);
@@ -264,11 +259,6 @@ export default function AdminPage(): React.JSX.Element {
       setIsInviting(false);
       setIsTeamLoading(false);
     }
-  }
-
-  function onExitToField(): void {
-    setMode("FIELD");
-    router.push("/jobs");
   }
 
   useEffect(() => {
@@ -600,15 +590,11 @@ export default function AdminPage(): React.JSX.Element {
         <header className="rounded-2xl border border-gray-200 bg-white p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Unified Owner Suite</h1>
-              {isSyncing ? <p className="mt-2 text-xs text-gray-500">Syncing latest org data...</p> : null}
+              <h1 className="text-xl font-semibold text-gray-900">Admin</h1>
             </div>
-            <button type="button" onClick={onExitToField} className="text-sm text-gray-500 transition hover:text-orange-600">
-              Exit to Field
-            </button>
           </div>
 
-          <nav className="sticky top-0 z-20 -mb-px mt-4 flex gap-5 overflow-x-auto border-b border-gray-200 bg-white">
+          <nav className="sticky top-0 z-20 -mb-px mt-4 flex gap-5 overflow-x-auto border-b border-gray-200 bg-white [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {([
               ["profile", "Profile"],
               ["team", "Team"],

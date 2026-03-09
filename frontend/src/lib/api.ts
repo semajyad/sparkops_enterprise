@@ -80,8 +80,6 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
 
   if (init.body instanceof FormData) {
     headers.delete("Content-Type");
-  } else if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
   }
 
   const response = await fetch(input, {

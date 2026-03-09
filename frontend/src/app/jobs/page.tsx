@@ -4,13 +4,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { createJob } from "@/app/actions/createJob";
 import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
-import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
@@ -208,25 +208,17 @@ export default function JobsPage(): React.JSX.Element {
         scheduled_date: scheduledIso,
       };
 
-      const supabase = createSupabaseClient();
-      const { error: supabaseCreateError } = await supabase.from("jobs").upsert(
-        {
-          id: payload.client_generated_id,
-          client_name: payload.client_name,
-          title: payload.title,
-          location: payload.location,
-          address: payload.address,
-          latitude: payload.latitude ?? null,
-          longitude: payload.longitude ?? null,
-          assigned_to_user_id: payload.assigned_to_user_id ?? null,
-          scheduled_date: payload.scheduled_date,
-          status: "SYNCING",
-        },
-        { onConflict: "id" }
-      );
-      if (supabaseCreateError) {
-        throw new Error(`Supabase jobs create failed: ${supabaseCreateError.message}`);
-      }
+      await createJob({
+        id: payload.client_generated_id,
+        client_name: payload.client_name,
+        title: payload.title,
+        location: payload.location,
+        address: payload.address,
+        latitude: payload.latitude ?? null,
+        longitude: payload.longitude ?? null,
+        assigned_to_user_id: payload.assigned_to_user_id ?? null,
+        scheduled_date: payload.scheduled_date,
+      });
 
       await putJobInCache(
         toCachedJob({

@@ -66,7 +66,7 @@ export function MobileNav(): React.JSX.Element {
     isOwner
       ? {
           href: "/admin",
-          label: "Profile",
+          label: "Admin",
           Icon: Building2,
           isActive: (path) => path.startsWith("/admin"),
         }

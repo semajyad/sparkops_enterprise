@@ -12,6 +12,7 @@ type AppRole = "OWNER" | "EMPLOYEE" | null;
 type AppMode = "ADMIN" | "FIELD";
 
 const MODE_STORAGE_KEY = "sparkops_owner_mode";
+const ROLE_STORAGE_KEY = "sparkops_user_role";
 
 type AuthContextValue = {
   session: Session | null;
@@ -43,7 +44,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<AppRole>(null);
+  const [role, setRole] = useState<AppRole>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
+    return storedRole === "OWNER" || storedRole === "EMPLOYEE" ? storedRole : null;
+  });
   const [mode, setModeState] = useState<AppMode>(() => {
     if (typeof window === "undefined") {
       return "FIELD";
@@ -105,6 +112,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession?.user ?? null);
       if (!nextSession) {
         setRole(null);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(ROLE_STORAGE_KEY);
+        }
         return;
       }
 
@@ -136,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function loadRole(): Promise<void> {
       if (!session?.access_token) {
         setRole(null);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(ROLE_STORAGE_KEY);
+        }
         return;
       }
 
@@ -153,11 +166,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const normalized = (payload.role ?? "").toUpperCase();
         if (normalized === "OWNER" || normalized === "EMPLOYEE") {
           setRole(normalized);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(ROLE_STORAGE_KEY, normalized);
+          }
         } else {
           setRole(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem(ROLE_STORAGE_KEY);
+          }
         }
       } catch {
         setRole(null);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(ROLE_STORAGE_KEY);
+        }
       }
     }
 

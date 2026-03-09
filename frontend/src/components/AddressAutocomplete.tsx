@@ -36,7 +36,7 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
 }
 
 type AddressAutocompleteProps = {
