@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import CapturePage from "@/app/capture/page";
 import { SyncContext } from "@/components/SyncProvider";
 
-describe("Capture page network indicators", () => {
+describe("Capture page save/sync controls", () => {
   function renderWithSyncState(state: {
     isOnline: boolean;
     isSyncing: boolean;
@@ -23,17 +23,16 @@ describe("Capture page network indicators", () => {
     );
   }
 
-  it("shows Offline indicator when connection is down", () => {
+  it("shows always-visible Save / Sync action while offline", () => {
     renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 3 });
 
-    expect(screen.queryByLabelText(/Sync status: Offline/i)).not.toBeNull();
-    expect(screen.queryByText(/3 pending/i)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /save \/ sync now/i })).not.toBeNull();
   });
 
-  it("shows Syncing indicator while sync is in progress", () => {
+  it("shows sync action for pending drafts while online", async () => {
     renderWithSyncState({ isOnline: true, isSyncing: true, pendingCount: 2 });
 
-    expect(screen.queryByLabelText(/Sync status: Syncing/i)).not.toBeNull();
-    expect(screen.queryByText(/2 pending/i)).not.toBeNull();
+    const syncButton = screen.getByRole("button", { name: /^sync pending drafts$/i });
+    expect(syncButton).not.toBeNull();
   });
 });

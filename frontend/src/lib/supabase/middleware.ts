@@ -15,7 +15,7 @@ function authTrace(message: string): void {
   }
 }
 
-const PROTECTED_PREFIXES = ['/dashboard', '/capture', '/jobs', '/profile', '/settings', '/tracking', '/ladder']
+const PROTECTED_PREFIXES = ['/home', '/dashboard', '/capture', '/jobs', '/profile', '/settings', '/map', '/tracking', '/ladder']
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
@@ -81,7 +81,7 @@ export async function updateSession(request: NextRequest) {
 
   if (hasUser && pathname === '/') {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/jobs'
+    redirectUrl.pathname = '/home'
     const redirectResponse = NextResponse.redirect(redirectUrl)
     copyResponseCookies(supabaseResponse, redirectResponse)
     return redirectResponse
@@ -97,7 +97,7 @@ export async function updateSession(request: NextRequest) {
 
   if (hasUser && isAuthPage) {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
+    redirectUrl.pathname = '/home'
     const redirectResponse = NextResponse.redirect(redirectUrl)
     copyResponseCookies(supabaseResponse, redirectResponse)
     return redirectResponse

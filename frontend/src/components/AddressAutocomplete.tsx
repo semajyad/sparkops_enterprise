@@ -16,8 +16,11 @@ type PhotonFeature = {
     name?: string;
     house_number?: string;
     housenumber?: string;
+    osm_key?: string;
+    osm_value?: string;
     street?: string;
     suburb?: string;
+    city_district?: string;
     district?: string;
     locality?: string;
     city?: string;
@@ -56,11 +59,11 @@ function buildLabel(properties: PhotonFeature["properties"] | undefined): string
 
   const houseNumber = pickFirstString(properties.house_number, properties.housenumber);
   const street = pickFirstString(properties.street, properties.name);
-  const city = pickFirstString(properties.city, properties.suburb, properties.locality, properties.district, properties.state);
+  const location = pickFirstString(properties.suburb, properties.city_district, properties.city, properties.locality, properties.district, properties.state);
   const country = pickFirstString(properties.country);
 
   if (houseNumber && street) {
-    const locationParts = [city, country].filter((part) => part.length > 0);
+    const locationParts = [location, country].filter((part) => part.length > 0);
     const streetLine = `${houseNumber} ${street}`.trim();
     return [streetLine, ...locationParts].join(", ");
   }
@@ -136,6 +139,11 @@ export function AddressAutocomplete({
               }
 
               const properties = feature.properties;
+              const isMunicipalityOnly = properties?.osm_key === "place" && properties?.osm_value === "municipality";
+              if (isMunicipalityOnly) {
+                return null;
+              }
+
               const houseNumber = pickFirstString(properties?.house_number, properties?.housenumber);
               if (!houseNumber) {
                 return null;

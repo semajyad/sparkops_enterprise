@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, Building2, LayoutDashboard, MapPinned, Mic, UserRound } from "lucide-react";
+import { Building2, ClipboardList, Home, MapPin, Mic, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 function itemClass(isActive: boolean): string {
@@ -40,36 +40,15 @@ export function MobileNav(): React.JSX.Element {
   const navItems: NavItem[] = isAdminMode
     ? [
         {
-          href: "/dashboard",
-          label: "Dashboard",
-          Icon: LayoutDashboard,
-          isActive: (path) => path === "/dashboard",
+          href: "/home",
+          label: "Home",
+          Icon: Home,
+          isActive: (path) => path === "/home" || path === "/dashboard",
         },
         {
           href: "/jobs",
           label: "Jobs",
-          Icon: BriefcaseBusiness,
-          isActive: (path) => path.startsWith("/jobs"),
-        },
-        {
-          href: "/admin",
-          label: "Business",
-          Icon: Building2,
-          isActive: (path) => path.startsWith("/admin"),
-          highlighted: true,
-        },
-        {
-          href: "/profile",
-          label: "Profile",
-          Icon: UserRound,
-          isActive: (path) => path.startsWith("/profile"),
-        },
-      ]
-    : [
-        {
-          href: "/jobs",
-          label: "Jobs",
-          Icon: BriefcaseBusiness,
+          Icon: ClipboardList,
           isActive: (path) => path.startsWith("/jobs"),
         },
         {
@@ -80,10 +59,43 @@ export function MobileNav(): React.JSX.Element {
           highlighted: true,
         },
         {
-          href: "/tracking",
+          href: "/map",
           label: "Map",
-          Icon: MapPinned,
-          isActive: (path) => path.startsWith("/tracking"),
+          Icon: MapPin,
+          isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
+        },
+        {
+          href: "/admin",
+          label: "Admin",
+          Icon: Building2,
+          isActive: (path) => path.startsWith("/admin"),
+        },
+      ]
+    : [
+        {
+          href: "/home",
+          label: "Home",
+          Icon: Home,
+          isActive: (path) => path === "/home" || path === "/dashboard",
+        },
+        {
+          href: "/jobs",
+          label: "Jobs",
+          Icon: ClipboardList,
+          isActive: (path) => path.startsWith("/jobs"),
+        },
+        {
+          href: "/capture",
+          label: "Capture",
+          Icon: Mic,
+          isActive: (path) => path.startsWith("/capture"),
+          highlighted: true,
+        },
+        {
+          href: "/map",
+          label: "Map",
+          Icon: MapPin,
+          isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
         },
         {
           href: "/profile",

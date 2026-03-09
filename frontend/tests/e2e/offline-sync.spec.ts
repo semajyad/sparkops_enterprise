@@ -9,7 +9,7 @@ async function ensureAuthenticated(page: import("@playwright/test").Page): Promi
     await page.getByLabel("Email").first().fill(configuredEmail);
     await page.getByLabel("Password").first().fill(configuredPassword);
     await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 20_000 });
     return;
   }
 
@@ -23,15 +23,15 @@ async function ensureAuthenticated(page: import("@playwright/test").Page): Promi
   await page.getByRole("button", { name: "Create Account" }).click();
 
   await Promise.race([
-    expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 }),
+    expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 20_000 }),
     page.getByRole("button", { name: "Sign In to SparkOps" }).waitFor({ state: "visible", timeout: 20_000 }),
   ]);
 
-  if (!page.url().includes("/dashboard")) {
+  if (!page.url().includes("/dashboard") && !page.url().includes("/home")) {
     await page.getByLabel("Email").first().fill(uniqueEmail);
     await page.getByLabel("Password").first().fill(password);
     await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/(home|dashboard)/);
   }
 }
 
@@ -75,7 +75,7 @@ test("captures offline then syncs when back online", async ({ page, context }) =
 
   await context.setOffline(true);
   await page.getByLabel("Voice Notes (text)").fill("Hot water cylinder in cupboard");
-  await page.getByRole("button", { name: "Save Draft Offline Now" }).click();
+  await page.getByRole("button", { name: /save \/ sync now/i }).click();
 
   await expect.poll(() => getPendingCount(page)).toBeGreaterThan(0);
 

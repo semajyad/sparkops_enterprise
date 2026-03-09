@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
-import { db, deleteJobFromCache } from "@/lib/db";
+import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/client";
 import { useJob } from "@/hooks/useJob";
 import { formatJobDate, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
@@ -122,10 +123,17 @@ export default function JobReviewPage(): React.JSX.Element {
       }
 
       try {
-        await deleteJobFromCache(job.id);
+        await db.jobs.delete(job.id);
         await db.job_details.delete(job.id);
       } catch {
         // Best effort: local cache cleanup must never block remote deletion.
+      }
+
+      try {
+        const supabase = createClient();
+        await supabase.from("jobs").delete().eq("id", job.id);
+      } catch {
+        // Best effort: Supabase table delete should not block backend delete path.
       }
 
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, {

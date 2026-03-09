@@ -312,7 +312,7 @@ export default function ProfilePage(): React.JSX.Element {
         ) : null}
 
         {isEditOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
             <section className="flex w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/70 sm:max-h-[85vh]">
               <div className="border-b border-slate-700 px-5 py-4">
                 <h2 className="text-lg font-semibold text-slate-100">Edit Profile</h2>

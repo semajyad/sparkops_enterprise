@@ -81,7 +81,7 @@ function toCachedVehicleRecord(record: VehicleRecord): CachedVehicle {
 }
 
 export default function AdminPage(): React.JSX.Element {
-  const { loading: authLoading, role, user } = useAuth();
+  const { loading: authLoading, role, mode, setMode, user } = useAuth();
   const [activeSection, setActiveSection] = useState<AdminSection>("team");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
@@ -451,6 +451,34 @@ export default function AdminPage(): React.JSX.Element {
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/50">
           <h1 className="text-2xl font-semibold text-white">{sectionTitle}</h1>
+
+          <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session Mode</h2>
+            <div className="mt-3 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+              <button
+                type="button"
+                onClick={() => setMode("FIELD")}
+                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  mode === "FIELD"
+                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                    : "text-slate-200 hover:text-white"
+                }`}
+              >
+                Field
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("ADMIN")}
+                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  mode === "ADMIN"
+                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                    : "text-slate-200 hover:text-white"
+                }`}
+              >
+                Admin
+              </button>
+            </div>
+          </section>
 
           {activeSection === "team" ? (
             <div className="mt-4 space-y-4">

@@ -7,7 +7,7 @@ import Image from "next/image";
 
 import { motion, useReducedMotion } from "framer-motion";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 
 
@@ -65,7 +65,7 @@ function fileToBase64(file: Blob): Promise<string> {
 
 export default function CapturePage() {
 
-  const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
+  const { isOnline, pendingCount, refreshCounts } = useSync();
 
   const { session } = useAuth();
 
@@ -90,7 +90,6 @@ export default function CapturePage() {
   const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState("");
-  const [syncHint, setSyncHint] = useState<string | null>(null);
   const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -105,35 +104,6 @@ export default function CapturePage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
-
-
-
-  const syncIndicator = useMemo(() => {
-    if (isSyncing || isSyncingNow) {
-      return {
-        colorClass: "bg-amber-400",
-        pulseClass: "animate-pulse",
-        label: "Sync status: Syncing",
-        hint: "Syncing changes to cloud...",
-      };
-    }
-
-    if (!isOnline) {
-      return {
-        colorClass: "bg-rose-500",
-        pulseClass: "",
-        label: "Sync status: Offline",
-        hint: "Offline - changes are saved locally.",
-      };
-    }
-
-    return {
-      colorClass: "bg-emerald-400",
-      pulseClass: "",
-      label: "Sync status: All saved",
-      hint: "All changes saved to cloud.",
-    };
-  }, [isOnline, isSyncing, isSyncingNow]);
 
 
 
@@ -542,17 +512,6 @@ export default function CapturePage() {
     return () => window.clearInterval(interval);
   }, [isTimerRunning, timerStartedAt]);
 
-  useEffect(() => {
-    if (!syncHint) {
-      return;
-    }
-    const timer = window.setTimeout(() => setSyncHint(null), 1800);
-    return () => window.clearTimeout(timer);
-  }, [syncHint]);
-
-
-
-
   return (
 
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
@@ -567,23 +526,6 @@ export default function CapturePage() {
 
             <h1 className="text-3xl font-bold tracking-tight text-white">Field Capture</h1>
 
-          </div>
-
-          <div className="relative flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSyncHint(syncIndicator.hint)}
-              aria-label={syncIndicator.label}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full"
-            >
-              <span className={`h-2 w-2 rounded-full ${syncIndicator.colorClass} ${syncIndicator.pulseClass}`} aria-hidden="true"></span>
-            </button>
-            {pendingCount > 0 ? <span className="text-xs text-slate-400">{pendingCount} pending</span> : null}
-            {syncHint ? (
-              <p className="absolute right-0 top-12 z-20 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-slate-200 shadow-lg shadow-black/50">
-                {syncHint}
-              </p>
-            ) : null}
           </div>
 
         </header>
@@ -728,24 +670,25 @@ export default function CapturePage() {
 
 
 
-        {!isOnline ? (
-          <button
-            type="button"
-            onClick={() => void saveOfflineDraft()}
-            disabled={isSavingDraft || isRecording || !hasMeaningfulContent()}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-4 text-lg font-bold text-slate-950 transition hover:bg-amber-400 active:opacity-80 disabled:opacity-50"
-          >
+        <button
+          type="button"
+          onClick={() =>
+            void (hasMeaningfulContent()
+              ? saveOfflineDraft()
+              : isOnline && pendingCount > 0
+                ? handleForceSync()
+                : Promise.resolve())
+          }
+          disabled={isSavingDraft || isSyncingNow || isRecording || (!hasMeaningfulContent() && (!isOnline || pendingCount === 0))}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-4 text-lg font-bold text-slate-950 transition hover:bg-amber-400 active:opacity-80 disabled:opacity-50"
+        >
+          {isSavingDraft || isSyncingNow ? <Loader2 className="h-5 w-5 animate-spin" /> : isOnline ? <RefreshCw className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
+          {hasMeaningfulContent() ? "Save / Sync Now" : isOnline && pendingCount > 0 ? "Sync Pending Drafts" : "Save / Sync Now"}
+        </button>
 
-            {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-
-            Save Draft Offline Now
-
-          </button>
-        ) : null}
 
 
-
-        {isOnline && pendingCount > 0 ? (
+        {isOnline && pendingCount > 0 && !hasMeaningfulContent() ? (
           <button
             type="button"
             onClick={() => void handleForceSync()}

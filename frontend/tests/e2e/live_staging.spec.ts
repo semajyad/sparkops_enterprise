@@ -13,7 +13,7 @@ async function ensureAuthenticated(page: import("@playwright/test").Page): Promi
   await page.getByLabel("Email").first().fill(configuredEmail);
   await page.getByLabel("Password").first().fill(configuredPassword);
   await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  await expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 20_000 });
 }
 
 test.describe("Live staging auth and onboarding", () => {
@@ -24,7 +24,7 @@ test.describe("Live staging auth and onboarding", () => {
     );
 
     await ensureAuthenticated(page);
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/(home|dashboard)/);
     await expect(page.getByRole("heading", { level: 1, name: /Welcome/i })).toBeVisible();
     const startJobCta = page.getByRole("link", { name: "Start New Job" });
     const recentActivity = page.getByRole("heading", { level: 2, name: "Recent Activity" });
