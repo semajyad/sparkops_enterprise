@@ -10,6 +10,7 @@ import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
@@ -206,6 +207,26 @@ export default function JobsPage(): React.JSX.Element {
         assigned_to_user_id: isOwner ? assignedToUserId || user?.id : user?.id,
         scheduled_date: scheduledIso,
       };
+
+      const supabase = createSupabaseClient();
+      const { error: supabaseCreateError } = await supabase.from("jobs").upsert(
+        {
+          id: payload.client_generated_id,
+          client_name: payload.client_name,
+          title: payload.title,
+          location: payload.location,
+          address: payload.address,
+          latitude: payload.latitude ?? null,
+          longitude: payload.longitude ?? null,
+          assigned_to_user_id: payload.assigned_to_user_id ?? null,
+          scheduled_date: payload.scheduled_date,
+          status: "SYNCING",
+        },
+        { onConflict: "id" }
+      );
+      if (supabaseCreateError) {
+        throw new Error(`Supabase jobs create failed: ${supabaseCreateError.message}`);
+      }
 
       await putJobInCache(
         toCachedJob({

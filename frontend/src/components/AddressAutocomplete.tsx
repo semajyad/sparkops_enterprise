@@ -35,11 +35,9 @@ type MapboxResponse = {
   features?: MapboxFeature[];
 };
 
-const MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ??
-  process.env.NEXT_PUBLIC_VITE_MAPBOX_TOKEN ??
-  process.env["VITE_MAPBOX_TOKEN"] ??
-  "";
+function getMapboxToken(): string {
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+}
 
 type AddressAutocompleteProps = {
   id: string;
@@ -133,14 +131,15 @@ export function AddressAutocomplete({
       return;
     }
 
-    if (!MAPBOX_TOKEN.trim()) {
+    const mapboxToken = getMapboxToken().trim();
+    if (!mapboxToken) {
       return;
     }
 
     const controller = new AbortController();
     const fetchSuggestions = async (): Promise<void> => {
       setIsLoading(true);
-      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${MAPBOX_TOKEN}`;
+      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
       const mapboxResponse = await fetch(mapboxUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -152,7 +151,14 @@ export function AddressAutocomplete({
       }
 
       const payload = (await mapboxResponse.json()) as MapboxResponse;
+      console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
       const rows = Array.isArray(payload.features) ? payload.features : [];
+      if (rows.length === 0) {
+        console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
+          query,
+          url: mapboxUrl,
+        });
+      }
       const mapped = rows
         .map((feature) => {
           const coordinates = feature.geometry?.coordinates ?? feature.center;
@@ -221,7 +227,7 @@ export function AddressAutocomplete({
   );
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative z-[9999]" ref={containerRef}>
       <input
         id={id}
         type="text"

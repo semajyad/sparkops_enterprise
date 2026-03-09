@@ -47,6 +47,10 @@ type TrackingMapProps = {
   onJobSelect: (jobId: string) => void;
 };
 
+function getMapboxToken(): string {
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+}
+
 function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinate; recenterSignal: number }): null {
   const map = useMap();
   const hasInitializedRef = useRef(false);
@@ -89,6 +93,10 @@ function avatarIcon(location: StaffLocation): DivIcon {
   });
 }
 
+function escapeAttribute(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#39;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
 function jobIcon(job: MapJob, selected: boolean): DivIcon {
   const stateClass =
     job.markerState === "done"
@@ -98,7 +106,7 @@ function jobIcon(job: MapJob, selected: boolean): DivIcon {
         : "map-job-marker--pending";
 
   const avatarHtml = job.avatarUrl
-    ? `<div class="map-job-avatar" style="background-image:url('${job.avatarUrl}');"></div>`
+    ? `<img class="map-job-avatar" src="${escapeAttribute(job.avatarUrl)}" alt="${escapeAttribute(job.clientName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="map-job-avatar-fallback" style="display:none">${job.initials}</div>`
     : `<div class="map-job-avatar-fallback">${job.initials}</div>`;
 
   return L.divIcon({
@@ -120,14 +128,8 @@ function youIcon(): DivIcon {
 
 export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
-  const hasMapboxToken = mapboxToken.trim().length > 0;
-  const tileUrl = hasMapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-  const tileAttribution = hasMapboxToken
-    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${getMapboxToken()}`;
+  const tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>';
 
   const markers = useMemo(
     () =>
@@ -136,6 +138,16 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
         icon: avatarIcon(location),
       })),
     [staffLocations],
+  );
+
+  const mappableJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        const latitude = job.coordinate?.lat;
+        const longitude = job.coordinate?.lng;
+        return Number.isFinite(latitude) && Number.isFinite(longitude);
+      }),
+    [jobs],
   );
 
   return (
@@ -163,13 +175,9 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
           </Marker>
         ))}
 
-        {jobs.map((job) => {
-          const latitude = job.coordinate?.lat;
-          const longitude = job.coordinate?.lng;
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-            return null;
-          }
-
+        {mappableJobs.map((job) => {
+          const latitude = job.coordinate.lat;
+          const longitude = job.coordinate.lng;
           return (
             <Marker
               key={job.id}

@@ -12,6 +12,7 @@ export type JobListItem = {
   id: string;
   status: JobStatus;
   compliance_status?: string | null;
+  avatar_url?: string | null;
   created_at: string;
   date_scheduled?: string | null;
   client_name: string;
@@ -21,7 +22,9 @@ export type JobListItem = {
     job_title?: string;
     location?: string;
     address?: string;
+    assigned_to_user_id?: string;
     assigned_to_name?: string;
+    avatar_url?: string | null;
     scheduled_date?: string | null;
     latitude?: number | string;
     longitude?: number | string;

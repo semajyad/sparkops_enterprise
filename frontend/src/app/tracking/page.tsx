@@ -319,6 +319,30 @@ export default function TrackingIndexPage(): React.JSX.Element {
             return aTime - bTime;
           });
 
+        const assigneeIds = Array.from(
+          new Set(
+            todaysJobs
+              .map((job) => String(job.extracted_data?.assigned_to_user_id ?? "").trim())
+              .filter((value) => value.length > 0),
+          ),
+        );
+        let assigneeAvatarById = new Map<string, string | null>();
+        if (assigneeIds.length > 0) {
+          const { data: assignees } = await supabase
+            .from("profiles")
+            .select("id,avatar_url")
+            .in("id", assigneeIds);
+
+          if (Array.isArray(assignees)) {
+            assigneeAvatarById = new Map(
+              assignees.map((assignee) => [
+                String((assignee as { id?: string }).id ?? ""),
+                ((assignee as { avatar_url?: string | null }).avatar_url ?? null),
+              ]),
+            );
+          }
+        }
+
         let hasActiveAssigned = false;
         const mappedJobs = todaysJobs.reduce<MapJob[]>((accumulator, job) => {
             const rawLatitude = parseCoordinate(job.extracted_data?.latitude);
@@ -347,6 +371,11 @@ export default function TrackingIndexPage(): React.JSX.Element {
                   ? (hasActiveAssigned = true, "active")
                   : "pending";
             const fallbackName = String(job.extracted_data?.assigned_to_name || job.client_name || "Spark").trim();
+            const assigneeId = String(job.extracted_data?.assigned_to_user_id ?? "").trim();
+            const avatarUrl =
+              job.avatar_url ??
+              job.extracted_data?.avatar_url ??
+              (assigneeId ? assigneeAvatarById.get(assigneeId) ?? null : null);
 
             accumulator.push({
               id: job.id,
@@ -356,7 +385,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
               addressLabel: formattedAddress,
               coordinate,
               navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formattedAddress)}`,
-              avatarUrl: null,
+              avatarUrl,
               initials: buildInitials(fallbackName),
               markerState,
             });
