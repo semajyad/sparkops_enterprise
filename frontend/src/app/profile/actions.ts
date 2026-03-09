@@ -48,7 +48,7 @@ type InviteUserResult = {
 type ProfileRow = {
   id: string;
   role: string;
-  organization_id: string;
+  organization_id: string | null;
   full_name?: string | null;
 };
 
@@ -75,6 +75,14 @@ async function getOwnerProfileContext(): Promise<
     return { success: false, message: "Unable to resolve your organization profile." };
   }
 
+  const organizationId = typeof profile.organization_id === "string" ? profile.organization_id.trim() : "";
+  if (!organizationId) {
+    return {
+      success: false,
+      message: "Organization setup is incomplete. Please finish onboarding in Admin > Company before managing team members.",
+    };
+  }
+
   if (String(profile.role ?? "").toUpperCase() !== "OWNER") {
     return { success: false, message: "Owner role is required to manage team members." };
   }
@@ -86,7 +94,7 @@ async function getOwnerProfileContext(): Promise<
   return {
     success: true,
     userId: user.id,
-    organizationId: profile.organization_id,
+    organizationId,
     accessToken: session?.access_token ?? null,
   };
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Map, Plus, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
@@ -32,6 +31,7 @@ export default function JobsPage(): React.JSX.Element {
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
   const [teamError, setTeamError] = useState<string | null>(null);
+  const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
 
@@ -151,6 +151,7 @@ export default function JobsPage(): React.JSX.Element {
         id: String(job.id ?? "").trim(),
         status: job.status,
         created_at: job.created_at,
+        date_scheduled: job.date_scheduled,
         client_name: job.client_name,
         extracted_data: job.extracted_data,
       })),
@@ -169,11 +170,26 @@ export default function JobsPage(): React.JSX.Element {
 
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+
+    if (createInFlightRef.current) {
+      return;
+    }
+
+    createInFlightRef.current = true;
     setIsCreating(true);
     setError(null);
 
     try {
+      const scheduledIso =
+        scheduledDate.trim().length > 0
+          ? (() => {
+              const parsed = new Date(scheduledDate);
+              return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+            })()
+          : null;
+
       const payload = {
+        client_generated_id: crypto.randomUUID(),
         client_name: clientName.trim(),
         title: jobTitle.trim(),
         location: location.trim(),
@@ -181,16 +197,15 @@ export default function JobsPage(): React.JSX.Element {
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         assigned_to_user_id: isOwner ? assignedToUserId || user?.id : user?.id,
-        scheduled_date: scheduledDate || null,
+        scheduled_date: scheduledIso,
       };
 
-      const optimisticId = crypto.randomUUID();
       await putJobInCache(
         toCachedJob({
-          id: optimisticId,
+          id: payload.client_generated_id,
           client_name: payload.client_name,
           status: "SYNCING",
-          date_scheduled: payload.scheduled_date,
+          date_scheduled: payload.scheduled_date ?? null,
           extracted_data: {
             client: payload.client_name,
             job_title: payload.title,
@@ -218,12 +233,20 @@ export default function JobsPage(): React.JSX.Element {
       setError(createError instanceof Error ? createError.message : "Unable to create manual job.");
     } finally {
       setIsCreating(false);
+      createInFlightRef.current = false;
     }
   }
 
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const safeJobs = jobs.filter((job) => !isMissingJobId(job.id));
+    const dedupedById = new Map<string, JobListItem>();
+    for (const job of jobs) {
+      if (isMissingJobId(job.id)) {
+        continue;
+      }
+      dedupedById.set(job.id, job);
+    }
+    const safeJobs = Array.from(dedupedById.values());
     if (!term) {
       return safeJobs;
     }
@@ -239,16 +262,6 @@ export default function JobsPage(): React.JSX.Element {
       <section className="mx-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Job Manager</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Job Drafts</h1>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href="/tracking"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-amber-500/60"
-          >
-            <Map className="h-4 w-4 text-amber-400" />
-            Open Map Hub
-          </Link>
-        </div>
 
         <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-300">
           <Search className="h-4 w-4 text-amber-400" />
@@ -368,9 +381,9 @@ export default function JobsPage(): React.JSX.Element {
                 ) : null}
 
                 <label className="text-sm text-slate-200">
-                  Scheduled Date
+                  Scheduled Date & Time
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={scheduledDate}
                     onChange={(event) => setScheduledDate(event.target.value)}
                     className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"

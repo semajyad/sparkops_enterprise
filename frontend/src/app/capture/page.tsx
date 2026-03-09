@@ -89,7 +89,7 @@ export default function CapturePage() {
 
   const [isSyncingNow, setIsSyncingNow] = useState(false);
 
-  const [statusMessage, setStatusMessage] = useState("Ready for offline capture.");
+  const [statusMessage, setStatusMessage] = useState("");
   const [syncHint, setSyncHint] = useState<string | null>(null);
   const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
@@ -728,47 +728,41 @@ export default function CapturePage() {
 
 
 
-        <button
+        {!isOnline ? (
+          <button
+            type="button"
+            onClick={() => void saveOfflineDraft()}
+            disabled={isSavingDraft || isRecording || !hasMeaningfulContent()}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-4 text-lg font-bold text-slate-950 transition hover:bg-amber-400 active:opacity-80 disabled:opacity-50"
+          >
 
-          type="button"
+            {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
 
-          onClick={() => void saveOfflineDraft()}
+            Save Draft Offline Now
 
-          disabled={isSavingDraft || isRecording || !hasMeaningfulContent()}
-
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-4 text-lg font-bold text-slate-950 transition hover:bg-amber-400 active:opacity-80 disabled:opacity-50"
-
-        >
-
-          {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-
-          Save Draft Offline Now
-
-        </button>
+          </button>
+        ) : null}
 
 
 
-        <button
+        {isOnline && pendingCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => void handleForceSync()}
+            disabled={isSyncingNow || isRecording}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-amber-500/60 hover:text-amber-200 active:opacity-80 disabled:opacity-50"
+          >
 
-          type="button"
+            {isSyncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
 
-          onClick={() => void handleForceSync()}
+            Force Sync Pending Drafts
 
-          disabled={isSyncingNow || isRecording || pendingCount === 0}
-
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-amber-500/60 hover:text-amber-200 active:opacity-80 disabled:opacity-50"
-
-        >
-
-          {isSyncingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-
-          Force Sync Pending Drafts
-
-        </button>
+          </button>
+        ) : null}
 
 
 
-        <p className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-slate-200">{statusMessage}</p>
+        {statusMessage ? <p className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-slate-200">{statusMessage}</p> : null}
 
       </section>
 

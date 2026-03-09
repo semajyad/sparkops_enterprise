@@ -1,11 +1,13 @@
 "use client";
 
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Upload } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { inviteUser, listTeamMembers } from "@/app/profile/actions";
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import {
   deleteVehicleFromCache,
   getAdminSettingsCache,
@@ -21,6 +23,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8
 
 type AdminSettings = {
   logo_url: string | null;
+  website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
   terms_and_conditions: string | null;
@@ -50,6 +53,7 @@ type AdminSection = "team" | "company" | "fleet";
 
 const EMPTY_SETTINGS: AdminSettings = {
   logo_url: null,
+  website_url: null,
   business_name: null,
   gst_number: null,
   terms_and_conditions: null,
@@ -77,7 +81,7 @@ function toCachedVehicleRecord(record: VehicleRecord): CachedVehicle {
 }
 
 export default function AdminPage(): React.JSX.Element {
-  const { loading: authLoading, role } = useAuth();
+  const { loading: authLoading, role, user } = useAuth();
   const [activeSection, setActiveSection] = useState<AdminSection>("team");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
@@ -85,6 +89,7 @@ export default function AdminPage(): React.JSX.Element {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isSavingVehicle, setIsSavingVehicle] = useState(false);
   const [isTeamLoading, setIsTeamLoading] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
@@ -112,6 +117,7 @@ export default function AdminPage(): React.JSX.Element {
     if (cachedSettings) {
       setSettings({
         logo_url: cachedSettings.logo_url,
+        website_url: cachedSettings.website_url ?? null,
         business_name: cachedSettings.business_name,
         gst_number: cachedSettings.gst_number,
         terms_and_conditions: cachedSettings.terms_and_conditions,
@@ -156,6 +162,7 @@ export default function AdminPage(): React.JSX.Element {
         const settingsPayload = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(settingsResponse);
         const nextSettings: AdminSettings = {
           logo_url: settingsPayload.logo_url,
+          website_url: settingsPayload.website_url,
           business_name: settingsPayload.business_name,
           gst_number: settingsPayload.gst_number,
           terms_and_conditions: settingsPayload.terms_and_conditions,
@@ -252,6 +259,7 @@ export default function AdminPage(): React.JSX.Element {
 
     const optimisticSettings: AdminSettings = {
       logo_url: toNullable(toInput(settings.logo_url)),
+      website_url: toNullable(toInput(settings.website_url)),
       business_name: toNullable(toInput(settings.business_name)),
       gst_number: toNullable(toInput(settings.gst_number)),
       terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
@@ -275,6 +283,7 @@ export default function AdminPage(): React.JSX.Element {
       const payload = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(response);
       const canonical: AdminSettings = {
         logo_url: payload.logo_url,
+        website_url: payload.website_url,
         business_name: payload.business_name,
         gst_number: payload.gst_number,
         terms_and_conditions: payload.terms_and_conditions,
@@ -288,6 +297,45 @@ export default function AdminPage(): React.JSX.Element {
       setError(saveError instanceof Error ? saveError.message : "Failed to save admin settings.");
     } finally {
       setIsSavingSettings(false);
+    }
+  }
+
+  async function onLogoFileSelected(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/jpg"].includes(file.type)) {
+      setError("Logo must be a PNG or JPG image.");
+      return;
+    }
+
+    setError(null);
+    setIsUploadingLogo(true);
+    try {
+      const supabase = createSupabaseClient();
+      const fileExtension = file.name.split(".").pop()?.toLowerCase() ?? "png";
+      const safeUserId = user?.id ?? "owner";
+      const path = `logos/${safeUserId}/${Date.now()}.${fileExtension}`;
+
+      const { error: uploadError } = await supabase.storage.from("organization-assets").upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+      if (uploadError) {
+        throw new Error(uploadError.message || "Logo upload failed.");
+      }
+
+      const { data } = supabase.storage.from("organization-assets").getPublicUrl(path);
+      const logoUrl = data.publicUrl;
+      setSettings((prev) => ({ ...prev, logo_url: logoUrl }));
+      setToast("Logo uploaded. Save Company to persist.");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Failed to upload logo.");
+    } finally {
+      setIsUploadingLogo(false);
+      event.currentTarget.value = "";
     }
   }
 
@@ -485,6 +533,22 @@ export default function AdminPage(): React.JSX.Element {
           {activeSection === "company" ? (
             <div className="mt-4 space-y-4">
               <label className="block text-sm text-slate-200">
+                Logo Upload
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={(event) => void onLogoFileSelected(event)}
+                  className="mt-1 block min-h-11 w-full cursor-pointer rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950"
+                />
+                {isUploadingLogo ? (
+                  <span className="mt-2 inline-flex items-center gap-2 text-xs text-slate-300">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                    Uploading logo...
+                  </span>
+                ) : null}
+              </label>
+
+              <label className="block text-sm text-slate-200">
                 Logo URL
                 <input
                   value={toInput(settings.logo_url)}
@@ -493,6 +557,23 @@ export default function AdminPage(): React.JSX.Element {
                   placeholder="https://cdn.example.com/logo.png"
                 />
               </label>
+
+              <label className="block text-sm text-slate-200">
+                Website URL
+                <input
+                  value={toInput(settings.website_url)}
+                  onChange={(event) => setSettings((prev) => ({ ...prev, website_url: event.target.value }))}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="https://sparkops.co.nz"
+                />
+              </label>
+
+              {settings.logo_url ? (
+                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Logo Preview</p>
+                  <Image src={settings.logo_url} alt="Company logo preview" width={56} height={56} unoptimized className="mt-2 h-14 w-14 rounded-lg border border-slate-700 bg-slate-900 object-cover" />
+                </div>
+              ) : null}
               <label className="block text-sm text-slate-200">
                 Business Name
                 <input
@@ -611,10 +692,10 @@ export default function AdminPage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => void saveSettings()}
-                disabled={isSavingSettings}
+                disabled={isSavingSettings || isUploadingLogo}
                 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-500 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
               >
-                {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isSavingSettings || isUploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Save Company
               </button>
             </div>

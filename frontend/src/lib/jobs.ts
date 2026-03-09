@@ -13,6 +13,7 @@ export type JobListItem = {
   status: JobStatus;
   compliance_status?: string | null;
   created_at: string;
+  date_scheduled?: string | null;
   client_name: string;
   client_email?: string | null;
   extracted_data?: {
@@ -20,6 +21,7 @@ export type JobListItem = {
     job_title?: string;
     location?: string;
     address?: string;
+    assigned_to_name?: string;
     scheduled_date?: string | null;
     latitude?: number | string;
     longitude?: number | string;
@@ -124,5 +126,25 @@ export function formatJobDate(isoDate: string): string {
   if (Number.isNaN(parsed.getTime())) {
     return "Unknown date";
   }
-  return parsed.toLocaleDateString("en-NZ", { month: "short", day: "numeric" });
+
+  const day = parsed.getDate();
+  const suffix =
+    day % 10 === 1 && day % 100 !== 11
+      ? "st"
+      : day % 10 === 2 && day % 100 !== 12
+        ? "nd"
+        : day % 10 === 3 && day % 100 !== 13
+          ? "rd"
+          : "th";
+  const weekdayMonth = parsed.toLocaleDateString("en-NZ", {
+    weekday: "short",
+    month: "short",
+  });
+  const time = parsed.toLocaleTimeString("en-NZ", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return `${weekdayMonth} ${day}${suffix}, ${time}`;
 }

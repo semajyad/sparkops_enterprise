@@ -396,6 +396,8 @@ class JobDraftResponse(BaseModel):
 
     status: str
 
+    date_scheduled: datetime | None = None
+
     client_email: str | None = None
 
     compliance_status: str | None = None
@@ -421,6 +423,8 @@ class JobDraftListItemResponse(BaseModel):
     compliance_status: str | None = None
 
     created_at: datetime
+
+    date_scheduled: datetime | None = None
 
     client_name: str
 
@@ -510,6 +514,7 @@ class ManualJobCreateRequest(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     latitude: float | None = None
     longitude: float | None = None
+    client_generated_id: UUID | None = None
     assigned_to_user_id: UUID | None = None
     scheduled_date: str | None = Field(default=None, max_length=64)
     client_email: str | None = Field(default=None, max_length=255)
@@ -557,6 +562,7 @@ class OrganizationSettingsResponse(BaseModel):
 
     organization_id: UUID
     logo_url: str | None = None
+    website_url: str | None = None
     business_name: str | None = None
     gst_number: str | None = None
     terms_and_conditions: str | None = None
@@ -569,6 +575,7 @@ class OrganizationSettingsUpsertRequest(BaseModel):
     """Owner-updatable organization settings payload."""
 
     logo_url: str | None = Field(default=None, max_length=1000)
+    website_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
@@ -1421,6 +1428,7 @@ def _to_org_settings_response(record: OrganizationSettings) -> OrganizationSetti
     return OrganizationSettingsResponse(
         organization_id=record.organization_id,
         logo_url=record.logo_url,
+        website_url=record.website_url,
         business_name=record.business_name,
         gst_number=record.gst_number,
         terms_and_conditions=record.terms_and_conditions,
@@ -1530,6 +1538,7 @@ def upsert_organization_settings(
             settings = OrganizationSettings(organization_id=current_user.organization_id)
 
         settings.logo_url = payload.logo_url.strip() if isinstance(payload.logo_url, str) and payload.logo_url.strip() else None
+        settings.website_url = payload.website_url.strip() if isinstance(payload.website_url, str) and payload.website_url.strip() else None
         settings.business_name = payload.business_name.strip() if isinstance(payload.business_name, str) and payload.business_name.strip() else None
         settings.gst_number = payload.gst_number.strip() if isinstance(payload.gst_number, str) and payload.gst_number.strip() else None
         settings.terms_and_conditions = (
@@ -1638,12 +1647,13 @@ def create_job_draft(
     """Create a new job draft."""
 
     assigned_user_id = current_user.id
+    assigned_user_name = current_user.full_name or current_user.email or "Assigned User"
     if current_user.role == "OWNER" and payload.assigned_to_user_id is not None:
         with Session(ENGINE) as session:
             assignee_row = session.exec(
                 text(
                     """
-                    SELECT id
+                    SELECT id, full_name
                     FROM public.profiles
                     WHERE id = :user_id AND organization_id = :organization_id
                     LIMIT 1
@@ -1656,7 +1666,9 @@ def create_job_draft(
             ).first()
         if assignee_row is None:
             raise HTTPException(status_code=400, detail="Assigned user must belong to your organization.")
-        assigned_user_id = payload.assigned_to_user_id
+        assignee_id, assignee_full_name = assignee_row
+        assigned_user_id = UUID(str(assignee_id))
+        assigned_user_name = str(assignee_full_name or "").strip() or assigned_user_name
 
     client_name = payload.client_name.strip()
     title = payload.title.strip()
@@ -1665,6 +1677,14 @@ def create_job_draft(
     latitude = float(payload.latitude) if isinstance(payload.latitude, (int, float)) else None
     longitude = float(payload.longitude) if isinstance(payload.longitude, (int, float)) else None
     scheduled_date = payload.scheduled_date.strip() if isinstance(payload.scheduled_date, str) else ""
+    scheduled_at: datetime | None = None
+    if scheduled_date:
+        try:
+            scheduled_at = datetime.fromisoformat(scheduled_date.replace("Z", "+00:00"))
+            if scheduled_at.tzinfo is None:
+                scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Scheduled date must be a valid ISO datetime.") from exc
 
     extracted_data: dict[str, Any] = {
         "client": client_name,
@@ -1674,7 +1694,8 @@ def create_job_draft(
         "latitude": latitude,
         "longitude": longitude,
         "assigned_to_user_id": str(assigned_user_id),
-        "scheduled_date": scheduled_date or None,
+        "assigned_to_name": assigned_user_name,
+        "scheduled_date": scheduled_at.isoformat() if scheduled_at else None,
         "line_items": [],
         "safety_tests": [],
     }
@@ -1686,15 +1707,20 @@ def create_job_draft(
     }
 
     with Session(ENGINE) as session:
-        draft = JobDraft(
-            user_id=assigned_user_id,
-            organization_id=current_user.organization_id,
-            raw_transcript=f"Manual job: {title}",
-            extracted_data=extracted_data,
-            status="DRAFT",
-            client_email=payload.client_email.strip().lower() if isinstance(payload.client_email, str) and payload.client_email.strip() else None,
-            compliance_status=compliance_status,
-        )
+        draft_kwargs: dict[str, Any] = {
+            "user_id": assigned_user_id,
+            "organization_id": current_user.organization_id,
+            "raw_transcript": f"Manual job: {title}",
+            "extracted_data": extracted_data,
+            "status": "DRAFT",
+            "date_scheduled": scheduled_at,
+            "client_email": payload.client_email.strip().lower() if isinstance(payload.client_email, str) and payload.client_email.strip() else None,
+            "compliance_status": compliance_status,
+        }
+        if payload.client_generated_id is not None:
+            draft_kwargs["id"] = payload.client_generated_id
+
+        draft = JobDraft(**draft_kwargs)
 
         session.add(draft)
         session.commit()
@@ -1704,6 +1730,7 @@ def create_job_draft(
             raw_transcript=draft.raw_transcript,
             extracted_data=draft.extracted_data,
             status=draft.status,
+            date_scheduled=draft.date_scheduled,
             client_email=draft.client_email,
             compliance_status=draft.compliance_status,
             certificate_pdf_url=draft.certificate_pdf_url,
@@ -1743,6 +1770,7 @@ def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user))
                     status=draft.status,
                     compliance_status=draft.compliance_status,
                     created_at=draft.created_at,
+                    date_scheduled=draft.date_scheduled,
                     client_name=client_name,
                     extracted_data=extracted_data,
                 )
@@ -1786,6 +1814,7 @@ def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_cu
             raw_transcript=draft.raw_transcript,
             extracted_data=extracted_data,
             status=draft.status,
+            date_scheduled=draft.date_scheduled,
             client_email=draft.client_email,
             compliance_status=draft.compliance_status,
             certificate_pdf_url=draft.certificate_pdf_url,

@@ -106,6 +106,7 @@ class JobDraft(SQLModel, table=True):
     raw_transcript: str = Field(sa_column=Column(Text, nullable=False))
     extracted_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="DRAFT", max_length=32)
+    date_scheduled: datetime | None = Field(default=None, nullable=True)
     client_email: str | None = Field(default=None, max_length=255)
     compliance_status: str = Field(default="UNKNOWN", max_length=32)
     certificate_pdf_url: str | None = Field(default=None, max_length=1000)
@@ -154,6 +155,7 @@ class OrganizationSettings(SQLModel, table=True):
 
     organization_id: UUID = Field(primary_key=True)
     logo_url: str | None = Field(default=None, max_length=1000)
+    website_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
@@ -292,6 +294,7 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ALTER TABLE IF EXISTS public.job_drafts
                     ADD COLUMN IF NOT EXISTS user_id UUID,
                     ADD COLUMN IF NOT EXISTS organization_id UUID,
+                    ADD COLUMN IF NOT EXISTS date_scheduled TIMESTAMPTZ,
                     ADD COLUMN IF NOT EXISTS client_email VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS compliance_status VARCHAR(32),
                     ADD COLUMN IF NOT EXISTS certificate_pdf_url VARCHAR(1000),
@@ -305,6 +308,7 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     """
                     ALTER TABLE IF EXISTS public.organization_settings
                     ADD COLUMN IF NOT EXISTS logo_url VARCHAR(1000),
+                    ADD COLUMN IF NOT EXISTS website_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS business_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS gst_number VARCHAR(64),
                     ADD COLUMN IF NOT EXISTS terms_and_conditions VARCHAR(5000),

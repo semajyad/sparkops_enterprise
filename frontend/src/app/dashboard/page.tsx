@@ -13,6 +13,18 @@ import { db } from "@/lib/db";
 import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { backgroundSync } from "@/lib/syncService";
 
+function initialsFromName(name: string): string {
+  const tokens = name
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, 2);
+  if (tokens.length === 0) {
+    return "--";
+  }
+  return tokens.map((token) => token[0]?.toUpperCase() ?? "").join("");
+}
+
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
   if (normalized === "DONE") {
@@ -41,6 +53,7 @@ export default function DashboardPage(): React.JSX.Element {
         id: job.id,
         status: job.status,
         created_at: job.created_at,
+        date_scheduled: job.date_scheduled,
         client_name: job.client_name,
         extracted_data: job.extracted_data,
       })),
@@ -211,14 +224,24 @@ export default function DashboardPage(): React.JSX.Element {
 
               <ul className="mt-3 space-y-2 text-sm text-slate-300">
                 {recentActivity.map((job) => (
-                  <li key={job.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2">
-                    <div>
-                      <p className="font-medium text-slate-100">{job.client_name || "Unknown Client"}</p>
-                      <p className="text-xs text-slate-400">{formatJobDate(job.created_at)}</p>
-                    </div>
-                    <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
-                      {normalizeJobStatus(job.status)}
-                    </span>
+                  <li key={job.id}>
+                    <Link href={`/jobs/${job.id}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 transition hover:border-amber-500/60">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-100">{job.client_name || "Unknown Client"}</p>
+                        <p className="text-xs text-slate-400">{formatJobDate(job.date_scheduled || job.created_at)}</p>
+                        {role === "OWNER" && typeof job.extracted_data?.assigned_to_name === "string" && job.extracted_data.assigned_to_name.trim() ? (
+                          <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-300">
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-[10px] font-semibold text-amber-200">
+                              {initialsFromName(job.extracted_data.assigned_to_name)}
+                            </span>
+                            <span className="truncate">{job.extracted_data.assigned_to_name}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
+                        {normalizeJobStatus(job.status)}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>

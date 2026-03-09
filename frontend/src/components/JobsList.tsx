@@ -32,7 +32,7 @@ export function JobsList({ jobs }: JobsListProps): React.JSX.Element {
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-slate-400">{formatJobDate(job.created_at)}</p>
+                <p className="text-sm text-slate-400">{formatJobDate(job.date_scheduled || job.created_at)}</p>
                 <p className="mt-1 text-lg font-semibold text-white">{job.client_name || "Unknown Client"}</p>
               </div>
               <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>

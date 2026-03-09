@@ -133,6 +133,7 @@ export interface CachedProfileState {
 export interface CachedAdminState {
   key: "admin";
   logo_url: string | null;
+  website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
   terms_and_conditions: string | null;

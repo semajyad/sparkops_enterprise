@@ -14,7 +14,12 @@ type PhotonFeature = {
   geometry?: { coordinates?: [number, number] };
   properties?: {
     name?: string;
+    house_number?: string;
+    housenumber?: string;
     street?: string;
+    suburb?: string;
+    district?: string;
+    locality?: string;
     city?: string;
     state?: string;
     country?: string;
@@ -35,9 +40,29 @@ type AddressAutocompleteProps = {
   className?: string;
 };
 
+function pickFirstString(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
 function buildLabel(properties: PhotonFeature["properties"] | undefined): string {
   if (!properties) {
     return "Unknown address";
+  }
+
+  const houseNumber = pickFirstString(properties.house_number, properties.housenumber);
+  const street = pickFirstString(properties.street, properties.name);
+  const city = pickFirstString(properties.city, properties.suburb, properties.locality, properties.district, properties.state);
+  const country = pickFirstString(properties.country);
+
+  if (houseNumber && street) {
+    const locationParts = [city, country].filter((part) => part.length > 0);
+    const streetLine = `${houseNumber} ${street}`.trim();
+    return [streetLine, ...locationParts].join(", ");
   }
 
   const orderedParts = [
@@ -110,9 +135,21 @@ export function AddressAutocomplete({
                 return null;
               }
 
+              const properties = feature.properties;
+              const houseNumber = pickFirstString(properties?.house_number, properties?.housenumber);
+              if (!houseNumber) {
+                return null;
+              }
+
+              const label = buildLabel(properties);
+              const isGenericCouncilLabel = /auckland council/i.test(label) && !/\d/.test(label);
+              if (isGenericCouncilLabel) {
+                return null;
+              }
+
               return {
                 id: `${latitude}:${longitude}:${index}`,
-                label: buildLabel(feature.properties),
+                label,
                 latitude,
                 longitude,
               } satisfies AddressSuggestion;

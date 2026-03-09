@@ -135,6 +135,7 @@ export async function backgroundSync(): Promise<{ fetched: number; upserted: num
 }
 
 export async function queueJobCreate(payload: {
+  client_generated_id?: string;
   client_name: string;
   title: string;
   location: string;
