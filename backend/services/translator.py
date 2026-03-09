@@ -69,6 +69,9 @@ class KiwiTranslator:
         """
 
         normalized = raw_notes.strip().lower()
+        if not normalized:
+            return []
+
         if normalized in HARD_CODED_TRANSLATIONS:
             return [HARD_CODED_TRANSLATIONS[normalized]]
 
@@ -77,6 +80,9 @@ class KiwiTranslator:
                 return [professional]
 
         response_text = self._translate_with_reasoning_model(raw_notes)
+        if not str(response_text).strip():
+            return []
+
         parsed = self._safe_parse_line_items(response_text)
         if parsed:
             return parsed
@@ -189,7 +195,7 @@ class KiwiTranslator:
 
         try:
             payload: dict[str, Any] = json.loads(text)
-        except json.JSONDecodeError:
+        except (TypeError, json.JSONDecodeError):
             return []
 
         items = payload.get("line_items")

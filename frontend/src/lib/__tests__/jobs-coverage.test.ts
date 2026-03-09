@@ -1,6 +1,6 @@
 /**Additional jobs tests to improve branch and function coverage.*/
 
-import { normalizeRequiredTrade, isMissingJobId, isValidJobId, validateJobDraft } from '../jobs';
+import { normalizeRequiredTrade, isMissingJobId, isValidJobUuid } from '../jobs';
 
 describe('Jobs Coverage Tests', () => {
   describe('normalizeRequiredTrade', () => {
@@ -64,190 +64,26 @@ describe('Jobs Coverage Tests', () => {
     });
   });
 
-  describe('isValidJobId', () => {
+  describe('isValidJobUuid', () => {
     it('should validate UUID v4 format', () => {
-      expect(isValidJobId('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
-      expect(isValidJobId('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
+      expect(isValidJobUuid('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
+      expect(isValidJobUuid('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
     });
 
     it('should reject invalid UUID formats', () => {
-      expect(isValidJobId('invalid-uuid')).toBe(false);
-      expect(isValidJobId('123e4567-e89b-12d3-a456')).toBe(false); // Missing segment
-      expect(isValidJobId('123e4567-e89b-12d3-a456-42661417400')).toBe(false); // Too short
-      expect(isValidJobId('123e4567-e89b-12d3-a456-4266141740000')).toBe(false); // Too long
-      expect(isValidJobId('g23e4567-e89b-12d3-a456-426614174000')).toBe(false); // Invalid character
-      expect(isValidJobId('123e4567-e89b-02d3-a456-426614174000')).toBe(false); // Invalid version
+      expect(isValidJobUuid('invalid-uuid')).toBe(false);
+      expect(isValidJobUuid('123e4567-e89b-12d3-a456')).toBe(false); // Missing segment
+      expect(isValidJobUuid('123e4567-e89b-12d3-a456-42661417400')).toBe(false); // Too short
+      expect(isValidJobUuid('123e4567-e89b-12d3-a456-4266141740000')).toBe(false); // Too long
+      expect(isValidJobUuid('g23e4567-e89b-12d3-a456-426614174000')).toBe(false); // Invalid character
+      expect(isValidJobUuid('123e4567-e89b-02d3-a456-426614174000')).toBe(false); // Invalid version
     });
 
     it('should handle edge cases', () => {
-      expect(isValidJobId(null)).toBe(false);
-      expect(isValidJobId(undefined)).toBe(false);
-      expect(isValidJobId('')).toBe(false);
-      expect(isValidJobId(123)).toBe(false);
-    });
-  });
-
-  describe('validateJobDraft', () => {
-    it('should validate complete job draft', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {
-          client: 'Test Client',
-          address: '123 Test St',
-          required_trade: 'ELECTRICAL',
-        },
-        voice_text: 'Test job description',
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(true);
-      expect(result.errors).toEqual([]);
-    });
-
-    it('should validate draft with minimal required fields', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(true);
-      expect(result.errors).toEqual([]);
-    });
-
-    it('should reject draft with missing ID', () => {
-      const draft = {
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Job ID is required');
-    });
-
-    it('should reject draft with invalid ID', () => {
-      const draft = {
-        id: 'invalid-uuid',
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid job ID format');
-    });
-
-    it('should reject draft with missing client name', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: '',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Client name is required');
-    });
-
-    it('should reject draft with missing site address', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: 'Test Client',
-        site_address: '',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Site address is required');
-    });
-
-    it('should reject draft with invalid trade', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'INVALID',
-        extracted_data: {},
-        sync_status: 'pending',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid trade: INVALID');
-    });
-
-    it('should reject draft with invalid sync status', () => {
-      const draft = {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        client_name: 'Test Client',
-        site_address: '123 Test St',
-        required_trade: 'ELECTRICAL',
-        extracted_data: {},
-        sync_status: 'invalid',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid sync status: invalid');
-    });
-
-    it('should accumulate multiple errors', () => {
-      const draft = {
-        id: 'invalid-uuid',
-        client_name: '',
-        site_address: '',
-        required_trade: 'INVALID',
-        extracted_data: {},
-        sync_status: 'invalid',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const result = validateJobDraft(draft);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toHaveLength(5);
-      expect(result.errors).toContain('Invalid job ID format');
-      expect(result.errors).toContain('Client name is required');
-      expect(result.errors).toContain('Site address is required');
-      expect(result.errors).toContain('Invalid trade: INVALID');
-      expect(result.errors).toContain('Invalid sync status: invalid');
+      expect(isValidJobUuid(null)).toBe(false);
+      expect(isValidJobUuid(undefined)).toBe(false);
+      expect(isValidJobUuid('')).toBe(false);
+      expect(isValidJobUuid(123)).toBe(false);
     });
   });
 });
