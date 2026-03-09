@@ -1,0 +1,616 @@
+# SparkOps Enterprise - Primary Instructions
+
+> **This is the primary source of truth for all SparkOps development activities.**
+> 
+> **Agent Instructions**: Read this file completely at the start of every session. Use web_search for any uncertainties > 2 minutes. Check available MCPs and use relevant ones for each task.
+
+---
+
+## QUICK NAVIGATION
+
+### Project Overview
+- **Core Context**: See `AGENTS.md` for project overview, technology stack, and constraints
+- **Always Available**: AGENTS.md provides project-wide context for all development
+
+### Quality Standards
+- **Quality Gates**: See `.windsurf/rules/quality-gates.md` for coverage and testing requirements
+- **Learning System**: See `.windsurf/rules/learning-system.md` for knowledge capture protocol
+- **Additional Rules**: Testing requirements, Railway deployment rules
+
+### 🛠️ Skills (Automatic Invocation)
+- **Railway Deployment**: `@railway-deployment` - Complete deployment process with safety checks
+- **Test Coverage**: `@test-coverage` - Coverage analysis and reporting
+- **Quality Verification**: `@quality-verification` - Complete Definition of Done verification
+- **E2E Testing**: `@e2e-testing` - End-to-end test setup and execution
+- **Workflow Monitor**: `@workflow-monitor` - Real-time workflow monitoring and status reporting
+
+### Knowledge Base
+- **Past Learnings**: See `.windsurf/learnings/agent-learnings.md` for all patterns, pitfalls, and fixes
+- **Sprint Tracking**: See `.windsurf/sprint-tracking.md` for current sprint number and git commit format
+- **Search First**: Always check learnings before starting new work
+
+---
+
+## IMMEDIATE ACTIONS (Session Start)
+
+### 1. Read Core Context
+```
+Read AGENTS.md for project overview and constraints
+```
+
+### 2. Check Past Learnings
+```
+Search .windsurf/learnings/agent-learnings.md for relevant keywords
+```
+
+### 3. Use Skills for Complex Tasks
+```
+Skills automatically invoke based on task context:
+- Deployment tasks → @railway-deployment
+- Testing analysis → @test-coverage  
+- Quality verification → @quality-verification
+```
+
+### 4. Add New Learnings
+```
+Document discoveries in .windsurf/learnings/agent-learnings.md
+Follow learning system rule for proper formatting
+```
+
+---
+
+## Development Workflow
+
+### Starting New Work
+1. **Read AGENTS.md** - Project context and constraints
+2. **Search Learnings** - Past solutions and patterns
+3. **Check Rules** - Quality requirements and constraints
+4. **Execute Task** - Using appropriate skills and patterns
+
+### During Development
+1. **Apply Patterns** - Use proven approaches from learnings
+2. **Avoid Pitfalls** - Check learnings for known issues
+3. **Follow Rules** - Adhere to quality gates and constraints
+4. **Document Discoveries** - Add new learnings immediately
+
+### Completing Work (MANDATORY SEQUENCE)
+1. **Context7 Library Verification**: Use `mcp0_resolve-library-id` and `mcp0_query-docs` to verify all libraries/dependencies before implementation
+2. **API Cost-Effectiveness Analysis**: Use `mcp16_web-search` to research APIs and balance cost vs product effectiveness
+3. **Check Sprint Number**: Read `.windsurf/sprint-tracking.md` for current sprint
+4. **Quality Verification**: Use `@quality-verification` skill
+5. **Test Coverage**: Use `@test-coverage` skill  
+6. **Staging Deployment**: Use `@railway-deployment` skill (MANDATORY - must complete successfully)
+7. **Git Commit**: Use `feat(sprint${CURRENT_SPRINT}): description` format
+8. **Git Push**: Push to dev branch (MANDATORY)
+9. **Update Learnings**: Document new patterns and fixes
+
+---
+
+## Key Constraints (Always Active)
+
+### Financial & Compliance
+- **Decimal Only**: Use `decimal.Decimal` for all financial calculations (NO float math)
+- **AS/NZS 3000**: Compliance requirements for electrical work
+- **PII Sanitization**: Local regex patterns for data protection
+- **WORM Pattern**: Write-Once-Read-Many for compliance documents
+
+### Development Standards
+- **Test Coverage**: Backend >85%, Frontend >90%
+- **E2E Golden Paths**: Login → Capture → Sync must pass
+- **Mock-First**: No real external API calls in unit tests
+- **Offline-First**: Every data-entry feature needs offline/sync testing
+
+### Architecture
+- **Voice-to-Cash**: Core business model for NZ electricians
+- **$50/month OpEx**: Strict operational cost cap
+- **Supabase Auth**: Authentication and data layer
+- **Railway Deployment**: Staging and production infrastructure
+
+---
+
+## Available Skills
+
+### @railway-deployment
+**When to use**: Any Railway deployment or infrastructure task
+**Includes**: Pre-deployment checks, deployment process, health verification, troubleshooting
+
+### @test-coverage  
+**When to use**: Test coverage analysis, reporting, or improvement
+**Includes**: Coverage analysis, gap identification, improvement strategies
+
+### @quality-verification
+**When to use**: Verifying Definition of Done compliance
+**Includes**: Complete quality checklist, deployment verification, testing validation
+
+### @e2e-testing
+**When to use**: End-to-end test setup and execution
+**Includes**: Environment configuration, test execution, troubleshooting
+
+### @workflow-monitor
+**When to use**: Real-time workflow monitoring and status reporting
+**Includes**: Progress tracking, stage monitoring, failure analysis, performance metrics
+
+---
+
+## Critical Files
+
+### Primary Sources
+- `AGENTS.md` - Project overview and constraints
+- `.windsurfinstructions` - This navigation file
+- `.windsurf/learnings/agent-learnings.md` - All past learnings
+
+### Rules
+- `.windsurf/rules/quality-gates.md` - Quality requirements
+- `.windsurf/rules/learning-system.md` - Learning protocol
+- `.windsurf/rules/testing-requirements.md` - Testing standards
+- `.windsurf/rules/railway-deployment.md` - Deployment rules
+
+### Skills
+- `.windsurf/skills/railway-deployment/` - Deployment procedures
+- `.windsurf/skills/test-coverage/` - Coverage analysis
+- `.windsurf/skills/quality-verification/` - Quality verification
+- `.windsurf/skills/e2e-testing/` - E2E test setup and execution
+- `.windsurf/skills/workflow-monitor/` - Real-time workflow monitoring
+
+---
+
+## Memory Implant Protocol
+
+### Session End Requirements
+1. **Analyze Session Success** - Review what worked well
+2. **Document Learnings** - Add to `.windsurf/learnings/agent-learnings.md`
+3. **Update Patterns** - Refine existing approaches if better found
+4. **Record Fixes** - Document solutions to problems encountered
+
+### Learning Categories
+- **Patterns**: Efficient approaches discovered
+- **Pitfalls**: Issues to avoid in future
+- **Commands**: Verified command sequences
+- **Fixes**: Specific problem solutions
+- **Optimizations**: Performance improvements
+- **Architecture**: Structural decisions
+- **Testing**: Testing insights
+- **Deployment**: Infrastructure learnings
+
+---
+
+*This file serves as the central navigation hub for the SparkOps development environment. All detailed instructions are organized into the appropriate Cascade components for optimal context management.*
+
+## Learned Optimizations 2026-03-09 13:06 NZDT
+
+### verified_deploy_commands
+- `railway status`
+- `railway up --detach --service sparkops_staging_backend`
+- `railway up --detach --service sparkops_staging_frontend`
+- `railway deployment list --service sparkops_staging_backend --environment staging`
+- `railway deployment list --service sparkops_staging_frontend --environment staging`
+- `railway logs --service sparkops_staging_backend --environment staging --lines 200`
+- `railway logs --service sparkops_staging_frontend --environment staging --lines 200`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+- Staging E2E: `$env:PLAYWRIGHT_TEST_EMAIL='jimmybobday@gmail.com'; $env:PLAYWRIGHT_TEST_PASSWORD='Samdoggy1!'; npx playwright test` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- Address autocomplete selection stability: use a `suppressFetchRef` guard + clear suggestions to prevent dropdown re-open after selection.
+- Owner assignment UX: hydrate assignee list from Dexie first (`getTeamCache`), then refresh from server (`listTeamMembers`) and persist back (`setTeamCache`).
+- Mobile modal safety: combine `z-[1000]`, scrollable content region, and `pb-24` so bottom nav/keyboard never obscures primary action.
+- Map reliability baseline: global `leaflet.css` import + explicit map container height + OSM tile URL (`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`).
+
+### pitfalls_to_avoid
+- Do not run backend tests from monorepo root (`python -m pytest tests` from wrong cwd yields `file or directory not found: tests`).
+- In PowerShell, avoid regex strings containing `HTTP/1.1` without safe quoting; it can be interpreted as module syntax.
+- Railway MCP project resolution can fail even when CLI is linked; fallback to direct Railway CLI from repo root for deploy/list/log operations.
+
+## Learned Optimizations 2026-03-09 13:31 NZDT
+
+### verified_deploy_commands
+- `railway status`
+- `railway link --project 5373037b-1635-49e0-a26d-20e099815060`
+- `railway up --detach --service sparkops_staging_backend`
+- `railway up --detach --service sparkops_staging_frontend`
+- `railway deployment list --service sparkops_staging_backend --environment staging`
+- `railway deployment list --service sparkops_staging_frontend --environment staging`
+- `railway logs --service sparkops_staging_backend --environment staging --lines 200`
+- `railway logs --service sparkops_staging_frontend --environment staging --lines 200`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+- Staging E2E baseline pass: `$env:PLAYWRIGHT_TEST_EMAIL='jimmybobday@gmail.com'; $env:PLAYWRIGHT_TEST_PASSWORD='Samdoggy1!'; npx playwright test` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- Owner mode navigation should compute per-slot href/label from `useAuth().mode` so the center CTA can switch from Capture to Admin without changing nav layout width.
+- Profile mode switching feels cleaner as a segmented pill (`inline-flex + rounded-full + p-1`) with concise labels (`Field` / `Admin`) instead of stacked mode cards.
+- Capture sync affordance is less noisy as a simple 8px header dot (`h-2 w-2`) with optional pending count text and tooltip-on-tap.
+- Quick-attach clipping on mobile is prevented with safe-area aware bottom padding: `pb-[max(env(safe-area-inset-bottom),1.75rem)]`.
+
+### pitfalls_to_avoid
+- Railway MCP commands can still fail with "Project not found" even after CLI auth; use root-level Railway CLI fallback and confirm link with `railway status`.
+- Post-deploy Playwright runs can be interrupted/canceled in IDE; capture at least one successful staging E2E pass in-session before finalizing story completion.
+
+## Learned Optimizations 2026-03-09 14:45 NZDT
+
+### verified_deploy_commands
+- `railway status`
+- `railway up --detach --service sparkops_staging_backend`
+- `railway up --detach --service sparkops_staging_frontend`
+- `railway deployment list --service sparkops_staging_backend --environment staging`
+- `railway deployment list --service sparkops_staging_frontend --environment staging`
+- `railway logs --service sparkops_staging_backend --environment staging --lines 200`
+- `railway logs --service sparkops_staging_frontend --environment staging --lines 200`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+- Staging E2E: `$env:PLAYWRIGHT_TEST_EMAIL='jimmybobday@gmail.com'; $env:PLAYWRIGHT_TEST_PASSWORD='Samdoggy1!'; npx playwright test` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- Keep root-to-work redirect in Supabase middleware (`/` -> `/jobs` when authenticated) to prevent marketing page bleed into authenticated workflow.
+- Build bottom nav from a mode-driven item array on each render to avoid stale OWNER mode toggles and to keep role-mode intent obvious.
+- For delete resilience, use best-effort local draft delete with explicit warning logging, then continue with job delete and cache cleanup so user intent is never blocked by missing draft state.
+
+### pitfalls_to_avoid
+- Do not disable destructive action buttons solely due to draft-state assumptions (`disabled={!job || isDeleting}`) when the action must support stale/missing local draft state.
+- When mode-driven UI is required on profile, avoid rendering field and admin blocks together; use immediate conditional rendering (`mode === "FIELD"` vs `"ADMIN"`) to prevent mixed-context UX.
+
+## Learned Optimizations 2026-03-09 15:20 NZDT
+
+### verified_deploy_commands
+- `git add .`
+- `git commit -m "feat(map): uber-style upgrade"`
+- `git push origin dev`
+- `railway status`
+- `railway deployment list --service sparkops_staging_backend --environment staging`
+- `railway deployment list --service sparkops_staging_frontend --environment staging`
+- `railway logs --service sparkops_staging_backend --environment staging --lines 200`
+- `railway logs --service sparkops_staging_frontend --environment staging --lines 200`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+- Staging E2E: `$env:PLAYWRIGHT_TEST_EMAIL='jimmybobday@gmail.com'; $env:PLAYWRIGHT_TEST_PASSWORD='Samdoggy1!'; npx playwright test` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- For map UI upgrades, export shared `TrackingMap` types and import them in page-level containers to prevent duplicate local type drift.
+- Keep staff beacons in `user_locations` with upsert throttling by both time (5m) and movement (>=500m) to reduce write noise while preserving freshness.
+- Build role/mode route polylines from a single source list (`visibleStaffLocations`) so admin vs field filtering stays deterministic.
+- Route aliases (`/home` and `/map`) allow UX-url changes without destabilizing existing page implementations (`/dashboard`, `/tracking`).
+- Use fixed bottom sheet with `z-[100]` and map shell `z-0` to guarantee detail sheet overlays map controls reliably on mobile.
+
+### pitfalls_to_avoid
+- If Playwright test runtime crosses 2 minutes, stop and inspect Railway logs immediately before retrying (usually selector drift or stale control labels).
+- Realtime map features depend on `user_locations` existence; ensure table creation is included in backend schema guard for fresh staging environments.
+
+## Learned Optimizations 2026-03-09 15:43 NZDT
+
+### verified_deploy_commands
+- `git add .`
+- `git commit -m "fix(sprint5): sticky sync dot, admin toggle transformer & force delete"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- Keep global sync affordance in root layout with a fixed-position container (`top-4 right-4 z-[9999]`) so status remains visible across route changes and scroll depth.
+- Place owner Field/Admin segmented control directly under profile identity (name/email) to reduce context-switch friction and keep role-mode intent obvious.
+- For delete resilience, sequence best-effort local draft delete, local jobs table delete, and best-effort Supabase `jobs` delete before backend API delete.
+- For modal cleanup, define one shared input class constant and apply it consistently across text, select, datetime, and autocomplete inputs.
+
+### pitfalls_to_avoid
+- Do not leave "Session Mode" toggles nested inside admin content cards when the global owner mode switch already controls context.
+- When editing long JSX files, validate closing tags/functions immediately after patches to catch accidental duplicated blocks before lint/build.
+
+## Learned Optimizations 2026-03-09 16:17 NZDT
+
+### verified_deploy_commands
+- `git add .`
+- `git commit -m "feat(sprint5): full screen uber map & strict admin context"`
+- `git push origin dev`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- For owner context switching UX, keep segmented `Field | Admin` control centered under the profile header and drive both title/body from the same `isAdminProfileMode` boolean.
+- For immersive dispatch UX, run map as full-screen background (`absolute/fixed`, `h-screen w-screen`, `z-0`) and layer status + job cards as translucent overlays at `z-[100]` with `backdrop-blur`.
+- Address labels are more reliable when generated as `house_number + street, suburb` with a strict fallback chain (`suburb > neighbourhood > city_district > village`) and council/government component filtering.
+
+### pitfalls_to_avoid
+- Avoid boxing maps in card wrappers when navigation-focused UX is required; padding/borders around map containers reduce usable surface on mobile.
+- If inserting new helper functions into dense utility blocks, re-check function boundaries immediately (misplaced insertion can silently break TypeScript scope).
+
+## Learned Optimizations 2026-03-09 16:33 NZDT
+
+### verified_deploy_commands
+- `git add .`
+- `git commit -m "feat(sprint5): admin ux redesign, context sync & map css fix"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- Keep owner mode as a global provider wrapping the shell (`AuthProvider` -> `UserModeProvider` -> app + nav) so mode flips immediately re-render bottom navigation and shell context.
+- For admin command-center UX, use one top header action (`Exit to Field`) plus a sticky underline tab rail (`Team | Fleet | Company`) and render tab content directly without nested launcher cards.
+- For Leaflet avatar reliability, assign `className: "map-avatar-marker"` directly on `L.divIcon` and keep fallback initials as a dedicated `.map-avatar-fallback` class.
+- For map visual containment, remove non-essential dispatch cards/overlays and keep only essential controls (e.g., Locate Me) above the map canvas.
+
+### pitfalls_to_avoid
+- Do not gate address suggestions on required house numbers; many valid NZ addresses omit a number in geocoder payloads.
+- Avoid mode toggles inside admin body content when global mode is already controlled by shell context.
+- If lint shows `Unknown at rule @theme` in `globals.css`, treat as editor CSS parser warning for Tailwind v4 syntax unless build/lint fails.
+
+## Learned Optimizations 2026-03-09 16:46 NZDT
+
+### verified_deploy_commands
+- `git add .`
+- `git commit -m "fix(sprint5): force delete logic, map time-pills & ui polish"`
+- `git push origin dev`
+
+### verified_test_commands
+- Frontend lint: `npm run lint` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit: `npm test -- --runInBand` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build: `npm run build` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests: `python -m pytest tests` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- For ghost-job delete resilience, navigate optimistically to `/jobs?deleted=1` immediately, then run best-effort local (`db.drafts/db.jobs/db.job_details`) and Supabase (`job_drafts`, `jobs`) cleanup in the background.
+- Map utility is clearer when job markers are DivIcons with avatar/initials plus attached time-pill badge; marker state colors should map to workflow state (`done` green, `active` orange, `pending` gray).
+- To enforce dispatch focus, filter tracking jobs by local-day `date_scheduled` key (`YYYY-MM-DD`) before rendering route/marker state.
+- Status dots feel stable when hard-pinned to `fixed; top:12px; right:12px; z-index:9999` and driven by sync context (`offline` red, `pending` orange pulse, `clean` green).
+- New-job modal polish is fastest via shared utility classes (`MODAL_INPUT_CLASS`, `MODAL_LABEL_CLASS`) plus `gap-5` layout for consistent touch-friendly 48px controls.
+
+### pitfalls_to_avoid
+- Do not block delete UX on missing draft rows; 404/missing local draft must be treated as success for user intent.
+- Avoid rendering map jobs without `date_scheduled` when product asks for "today-only" planning; fallback dates can reintroduce irrelevant markers.
+- Keep the existing Live Dispatch overlay card untouched while changing markers/routes; map utility and dispatch panel are separate concerns.
+
+## Learned Optimizations 2026-03-09 17:09 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add .`
+- `git commit -m "chore(sprint6): enforce quality gates & update windsurf instructions"`
+- `git push`
+
+### verified_test_commands
+- Backend unit+integration (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+- Backend service coverage (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests/unit/test_ai_services.py','--cov=services.triage','--cov=services.vision','--cov=services.pdf','--cov=services.pdf','--cov-report=term'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+- Frontend unit suite (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend capture page logic tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand','src/app/capture/__tests__/page.test.tsx'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend capture logic coverage probe (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand','--coverage','--collectCoverageFrom=src/app/capture/captureLogic.ts','src/app/capture/__tests__/captureLogic.test.ts'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- E2E smoke (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npx.cmd','playwright','test'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- Extract dense page decision logic into pure helper modules (`captureLogic.ts`) to achieve high deterministic unit coverage without browser API flakiness.
+- For Python service tests in environments missing optional libs (e.g., `reportlab`), inject lightweight module stubs in tests to keep unit suites deterministic and offline.
+- Keep E2E environment switching in Playwright config via env (`PLAYWRIGHT_TARGET`/`PLAYWRIGHT_BASE_URL`) so local and staging runs share the same spec files.
+
+### pitfalls_to_avoid
+- Avoid relying solely on Jest `--coverage` over UI pages when global thresholds are high; isolate pure logic modules for targeted coverage guarantees.
+- For hook-heavy components, prefer context-provider rendering in tests over brittle hook redefinition when exported hooks are non-configurable.
+
+## Learned Optimizations 2026-03-09 17:36 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add .`
+- `git commit -m "fix(sprint6): dot route quarantine, mapbox & nav alignment"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','lint'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','build'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- Route-quarantined status indicators are cleanest as a single root-mounted component that returns `null` outside explicit route guards (`/map|/tracking` and `/capture`).
+- For strict map UI cleanup, replace icon-in-circle control chrome with text-pill action buttons when a separate global status dot exists to avoid visual dot duplication.
+- Mapbox autocomplete reliability improves with direct `address + text + context(locality|neighborhood)` label composition and immediate request flow (no secondary geocoder fallback drift).
+
+### pitfalls_to_avoid
+- New React ESLint rule `react-hooks/set-state-in-effect` will fail lint if `setState` is called directly in effect body; move state updates into async callbacks/subscriptions.
+- Capture page-level status dots can conflict with shell-level route-gated dots; keep a single source of truth for indicator rendering.
+
+## Learned Optimizations 2026-03-09 17:58 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add .`
+- `git commit -m "fix(sprint6): force delete logic, map time-pills & ui polish"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','lint'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','build'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- For anti-shake map behavior, split camera logic into two effects: one for first-load initialization and a second keyed on explicit `recenterSignal` for manual recenter actions only.
+- Page-local status indicators are clearer than global dots for field workflows: render dot state from page-owned signals (Map: GPS+network, Capture: sync+network).
+- Signup confirmation is more reliable when `emailRedirectTo` is derived from request origin in server actions, then UI confirms next step with an explicit login-page message.
+- Keep auth-state redirect logic centralized in `AuthProvider` on `SIGNED_IN` so confirmation and password flows converge consistently.
+
+### pitfalls_to_avoid
+- Avoid recentering map on every GPS tick (`flyTo`/`setView` in live update loops) because it causes motion jitter and blocks manual map exploration.
+- Do not keep shell-level status dots when product asks for contextual indicators; duplicate dots across pages causes conflicting state and visual noise.
+
+## Learned Optimizations 2026-03-09 18:19 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add frontend/src/app/jobs/page.tsx frontend/src/app/jobs/[id]/page.tsx frontend/src/app/layout.tsx frontend/src/app/tracking/page.tsx frontend/src/components/GlobalSyncStatusDot.tsx .windsurfinstructions`
+- `git commit -m "fix(sprint5): modal viewport fit, nuclear delete & fixed status dot"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','lint'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','build'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- For viewport-safe modals, put scroll on the modal wrapper (`max-h-[90vh]` + `overflow-y-auto`) and keep CTA spacing via an explicit `mb-[20px]` on the submit button.
+- For ghost-delete UX, push user back to `/jobs?deleted=1` immediately, run best-effort draft delete silently, and execute direct `jobs` delete without surfacing draft-missing noise.
+- Keep sync indicator root-mounted in `layout.tsx` with fixed positioning so it is not affected by page-level scroll containers.
+- For map visual containment, remove non-essential dispatch cards/overlays and keep only essential controls (e.g., Locate Me) above the map canvas.
+
+### pitfalls_to_avoid
+- Do not run Windows npm commands through Python `subprocess` without `.cmd` (`npm` can fail with `FileNotFoundError`; use `npm.cmd`).
+- Avoid page-local status indicators on full-screen map routes when a root fixed indicator is required; duplicated dots create layering and behavior conflicts.
+
+## Learned Optimizations 2026-03-09 18:41 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add .`
+- `git commit -m "chore(sprint6): enforce quality gates & update windsurf instructions"`
+- `git push`
+
+### verified_test_commands
+- Backend unit+integration (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+- Backend service coverage (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests/unit/test_ai_services.py','--cov=services.triage','--cov=services.vision','--cov=services.pdf','--cov-report=term'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+- Frontend unit suite (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend capture page logic tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand','src/app/capture/__tests__/page.test.tsx'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend capture logic coverage probe (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand','--coverage','--collectCoverageFrom=src/app/capture/captureLogic.ts','src/app/capture/__tests__/captureLogic.test.ts'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- E2E smoke (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npx.cmd','playwright','test'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+
+### efficient_patterns
+- Extract dense page decision logic into pure helper modules (`captureLogic.ts`) to achieve high deterministic unit coverage without browser API flakiness.
+- For Python service tests in environments missing optional libs (e.g., `reportlab`), inject lightweight module stubs in tests to keep unit suites deterministic and offline.
+- Keep E2E environment switching in Playwright config via env (`PLAYWRIGHT_TARGET`/`PLAYWRIGHT_BASE_URL`) so local and staging runs share the same spec files.
+
+### pitfalls_to_avoid
+- Avoid relying solely on Jest `--coverage` over UI pages when global thresholds are high; isolate pure logic modules for targeted coverage guarantees.
+- For hook-heavy components, prefer context-provider rendering in tests over brittle hook redefinition when exported hooks are non-configurable.
+
+## Learned Optimizations 2026-03-09 18:58 NZDT
+
+### verified_deploy_commands
+- `git status --short`
+- `git add .`
+- `git commit -m "fix(sprint6): stable map, contextual dots & ui polish"`
+- `git push`
+
+### verified_test_commands
+- Frontend lint (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','lint'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend unit (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','test','--','--runInBand'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Frontend build (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['npm.cmd','run','build'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/frontend`)
+- Backend tests (2-min guard): `python -c "import subprocess,sys; sys.exit(subprocess.run(['python','-m','pytest','tests'], timeout=120).returncode)"` (cwd: `sparkops_enterprise/backend`)
+
+### efficient_patterns
+- For anti-shake map behavior, split camera logic into two effects: one for first-load initialization and a second keyed on explicit `recenterSignal` for manual recenter actions only.
+- Page-local status indicators are clearer than global dots for field workflows: render dot state from page-owned signals (Map: GPS+network, Capture: sync+network).
+- Signup confirmation is more reliable when `emailRedirectTo` is derived from request origin in server actions, then UI confirms next step with an explicit login-page message.
+- Keep auth-state redirect logic centralized in `AuthProvider` on `SIGNED_IN` so confirmation and password flows converge consistently.
+
+### pitfalls_to_avoid
+- Avoid recentering map on every GPS tick (`flyTo`/`setView` in live update loops) because it causes motion jitter and blocks manual map exploration.
+- Do not keep shell-level status dots when product asks for contextual indicators; duplicate dots across pages causes conflicting state and visual noise.
+
+---
+
+## MANDATORY VERIFICATION SEQUENCE (STRICT ENFORCEMENT)
+
+### Pre-Implementation Requirements
+1. **Context7 Library Verification** (MANDATORY)
+   - Use `mcp0_resolve-library-id` to verify all libraries/dependencies
+   - Use `mcp0_query-docs` to get up-to-date documentation
+   - Verify compatibility with current project stack
+   - Document library versions and capabilities
+
+2. **API Cost-Effectiveness Analysis** (MANDATORY)
+   - Use `mcp16_web-search` to research all APIs being used
+   - Analyze cost vs product effectiveness
+   - Document cost analysis and justification
+   - Choose most cost-effective option that meets requirements
+
+### Implementation Requirements
+3. **Quality Verification** (MANDATORY)
+   - Use `@quality-verification` skill
+   - Verify all Definition of Done criteria
+   - Ensure coverage thresholds met
+   - Validate E2E golden paths
+
+4. **Test Coverage Analysis** (MANDATORY)
+   - Use `@test-coverage` skill
+   - Backend >85% coverage (Triage, Vision, PDF, Sync)
+   - Frontend >90% coverage (api.ts, syncManager.ts)
+   - Document coverage gaps and improvements
+
+5. **Staging Deployment** (MANDATORY)
+   - Use `@railway-deployment` skill
+   - Must complete successfully
+   - Verify staging environment health
+   - Run staging E2E tests
+
+### Post-Implementation Requirements
+6. **Git Operations** (MANDATORY)
+   - Read current sprint from `.windsurf/sprint-tracking.md`
+   - Use format: `feat(sprint${CURRENT_SPRINT}): description`
+   - Push to dev branch (MANDATORY)
+   - Verify push succeeded
+
+7. **Learning Documentation** (MANDATORY)
+   - Document new patterns in `.windsurf/learnings/agent-learnings.md`
+   - Record cost-effectiveness analysis results
+   - Note library verification outcomes
+   - Update sprint tracking if needed
+
+---
+
+## 🛡️ QUALITY CONSTITUTION (MANDATORY)
+
+### 1. The "No-Fly" Zone (Coverage Gates)
+* **Backend Services:** strictly > 85% coverage. (Focus: Triage, Vision, PDF, Sync).
+* **Frontend Utilities:** strictly > 90% coverage. (Focus: api.ts, syncManager.ts).
+* **New Features:** NO new feature may be marked "Done" without accompanying unit tests.
+
+### 1.5 The "Sparky" Rule (E2E Golden Paths)
+* **No PR merges** without passing E2E golden paths covering: **Login -> Capture -> Sync**.
+
+### 1.6 The "Offline" Rule (Resilience-by-Default)
+* Every data-entry feature must have an accompanying **Offline/Sync** test case.
+
+### 2. The "Mock-First" Law
+* **External APIs:** You MUST NOT make real HTTP calls to OpenAI, Xero, Supabase, or Google Maps in Unit Tests.
+* **Implementation:** Use `unittest.mock` (Python) or `jest.spyOn` (TS) for all external interactions.
+* **Reasoning:** Speed, Cost, and Determinism.
+
+### 3. The "Hangman" Protocol
+* **Timeout:** If ANY test suite hangs for > 2 minutes, kill the process immediately.
+* **Diagnosis:** Inspect HTTP clients for missing timeouts or un-mocked network calls.
+
+### 4. The "Ghost" Rule (Data Integrity)
+* **Deletion:** Deletion logic must always be Optimistic (UI first) and Resilient (Swallow 404s on backend).
+* **Navigation:** Navigation must be Explicit (No "Modes" hidden behind toggles).
+
+### 5. The "Mandatory Sequence" Rule (Strict Enforcement)
+* **Context7 Verification:** MUST verify all libraries with `mcp0_resolve-library-id` and `mcp0_query-docs` before implementation
+* **API Cost Analysis:** MUST research APIs with `mcp16_web-search` and document cost-effectiveness
+* **Staging Deployment:** MUST complete successfully using `@railway-deployment` skill
+* **Git Operations:** MUST use sprint-numbered commits and push to dev branch
+* **Quality Gates:** MUST pass all coverage thresholds and E2E golden paths
+* **Learning Documentation:** MUST document all outcomes in agent-learnings.md
