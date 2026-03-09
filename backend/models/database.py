@@ -178,6 +178,17 @@ class Vehicle(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+class UserLocation(SQLModel, table=True):
+    """Latest beaconed location per user for live fleet tracking."""
+
+    __tablename__ = "user_locations"
+
+    user_id: UUID = Field(primary_key=True)
+    lat: Decimal = Field(sa_column=Column(Numeric(9, 6), nullable=False))
+    lng: Decimal = Field(sa_column=Column(Numeric(9, 6), nullable=False))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class UserSettings(SQLModel, table=True):
     """Global user-configurable defaults used during invoice pricing."""
 
@@ -326,6 +337,19 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS notes VARCHAR(500),
                     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.user_locations (
+                        user_id UUID PRIMARY KEY,
+                        lat NUMERIC(9,6) NOT NULL,
+                        lng NUMERIC(9,6) NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
                     """
                 )
             )

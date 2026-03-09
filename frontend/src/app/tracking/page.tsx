@@ -2,28 +2,32 @@
 
 import dynamic from "next/dynamic";
 import { Loader2, Navigation } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
 import { formatJobDate, JobListItem } from "@/lib/jobs";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/TrackingMap";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const TrackingMap = dynamic(() => import("@/components/TrackingMap").then((m) => m.TrackingMap), {
   ssr: false,
-  loading: () => <div className="h-[380px] animate-pulse rounded-2xl bg-slate-800/70" />,
+  loading: () => <div className="h-full min-h-[340px] animate-pulse rounded-2xl bg-slate-800/70" />,
 });
 
-type Coordinate = { lat: number; lng: number };
-type MapJob = {
-  id: string;
-  clientName: string;
-  timeLabel: string;
-  coordinate: Coordinate;
-  navigateUrl: string;
+type UserLocationRow = {
+  user_id: string;
+  lat: number | string;
+  lng: number | string;
+  updated_at: string;
 };
 
 const DEFAULT_CURRENT: Coordinate = { lat: -36.8485, lng: 174.7633 };
+const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000;
+const BEACON_INTERVAL_MS = 5 * 60 * 1000;
+const BEACON_DISTANCE_KM = 0.5;
 
 function parseCoordinate(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -56,18 +60,159 @@ function parseCoordsFromLocation(location: string | undefined): Coordinate | nul
   return { lat, lng };
 }
 
+function distanceKm(a: Coordinate, b: Coordinate): number {
+  const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = deg2rad(b.lat - a.lat);
+  const dLng = deg2rad(b.lng - a.lng);
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(a.lat)) * Math.cos(deg2rad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function buildAvatarUrl(seed: string): string {
+  return `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+function colorFromSeed(seed: string): string {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = seed.charCodeAt(index) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue} 80% 55%)`;
+}
+
+function isStale(updatedAt: string): boolean {
+  const timestamp = Date.parse(updatedAt);
+  if (Number.isNaN(timestamp)) {
+    return true;
+  }
+  return Date.now() - timestamp > STALE_THRESHOLD_MS;
+}
+
 export default function TrackingIndexPage(): React.JSX.Element {
+  const { mode, role, user } = useAuth();
+  const isAdminMode = role === "OWNER" && mode === "ADMIN";
   const geolocationUnavailable = typeof window !== "undefined" && !navigator.geolocation;
   const [current, setCurrent] = useState<Coordinate>(DEFAULT_CURRENT);
   const [jobs, setJobs] = useState<MapJob[]>([]);
+  const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState(
     geolocationUnavailable ? "Geolocation is unavailable on this device." : "Waiting for GPS lock...",
   );
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
+  const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
+
+  const selectedJob = useMemo(() => jobs.find((job) => job.id === selectedJobId) ?? null, [jobs, selectedJobId]);
+
+  const visibleStaffLocations = useMemo(() => {
+    if (isAdminMode) {
+      return staffLocations;
+    }
+    return staffLocations.filter((staff) => staff.userId === user?.id);
+  }, [isAdminMode, staffLocations, user?.id]);
+
+  const orderedJobs = [...jobs];
+  const routeLines: RouteLine[] = !isAdminMode && user?.id
+    ? [
+        {
+          id: `route-${user.id}`,
+          points: [
+            [
+              (visibleStaffLocations[0]?.coordinate ?? current).lat,
+              (visibleStaffLocations[0]?.coordinate ?? current).lng,
+            ],
+            ...orderedJobs.map((job) => [job.coordinate.lat, job.coordinate.lng] as [number, number]),
+          ],
+          color: colorFromSeed(user.id),
+        },
+      ]
+    : visibleStaffLocations.map((staff) => ({
+        id: `route-${staff.userId}`,
+        points: [
+          [staff.coordinate.lat, staff.coordinate.lng] as [number, number],
+          ...orderedJobs.map((job) => [job.coordinate.lat, job.coordinate.lng] as [number, number]),
+        ],
+        color: colorFromSeed(staff.userId),
+      }));
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateTheme = () => setIsDarkTheme(media.matches);
+    updateTheme();
+    media.addEventListener("change", updateTheme);
+    return () => media.removeEventListener("change", updateTheme);
+  }, []);
 
   useEffect(() => {
     let watchId: number | null = null;
+    const supabase = createSupabaseClient();
+
+    async function upsertBeacon(nextCoordinate: Coordinate): Promise<void> {
+      if (!user?.id) {
+        return;
+      }
+
+      const now = Date.now();
+      const lastBeacon = lastBeaconRef.current;
+      const exceededTime = !lastBeacon || now - lastBeacon.at >= BEACON_INTERVAL_MS;
+      const exceededDistance = !lastBeacon || distanceKm(lastBeacon.coordinate, nextCoordinate) >= BEACON_DISTANCE_KM;
+
+      if (!exceededTime && !exceededDistance) {
+        return;
+      }
+
+      const { error } = await supabase.from("user_locations").upsert({
+        user_id: user.id,
+        lat: nextCoordinate.lat,
+        lng: nextCoordinate.lng,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (!error) {
+        lastBeaconRef.current = { coordinate: nextCoordinate, at: now };
+      }
+    }
+
+    async function loadStaffLocations(): Promise<void> {
+      const { data, error } = await supabase
+        .from("user_locations")
+        .select("user_id,lat,lng,updated_at")
+        .order("updated_at", { ascending: false });
+
+      if (error || !Array.isArray(data)) {
+        return;
+      }
+
+      const mapped = (data as UserLocationRow[])
+        .map((row) => {
+          const lat = parseCoordinate(row.lat);
+          const lng = parseCoordinate(row.lng);
+          if (lat === null || lng === null) {
+            return null;
+          }
+          return {
+            userId: row.user_id,
+            name: row.user_id === user?.id ? "You" : `Sparky ${row.user_id.slice(0, 6)}`,
+            avatarUrl: buildAvatarUrl(row.user_id),
+            coordinate: { lat, lng },
+            isStale: isStale(row.updated_at),
+          } satisfies StaffLocation;
+        })
+        .filter((row): row is StaffLocation => Boolean(row));
+
+      setStaffLocations(mapped);
+    }
 
     async function bootstrapFromCache(): Promise<void> {
       try {
@@ -116,7 +261,8 @@ export default function TrackingIndexPage(): React.JSX.Element {
             return {
               id: job.id,
               clientName: job.client_name || "Unknown Client",
-              timeLabel: `Scheduled ${formatJobDate(job.created_at)}`,
+              timeLabel: `Scheduled ${formatJobDate(job.date_scheduled || job.created_at)}`,
+              addressLabel: addressOrLocation,
               coordinate,
               navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressOrLocation)}`,
             } satisfies MapJob;
@@ -131,9 +277,23 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
     void bootstrapFromCache();
     void loadMapJobs();
+    void loadStaffLocations();
+
+    const channel = supabase
+      .channel("user_locations-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_locations" },
+        () => {
+          void loadStaffLocations();
+        },
+      )
+      .subscribe();
 
     if (!navigator.geolocation) {
-      return;
+      return () => {
+        void supabase.removeChannel(channel);
+      };
     }
 
     watchId = navigator.geolocation.watchPosition(
@@ -147,6 +307,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
             : `Tracking live with ±${position.coords.accuracy.toFixed(1)}m accuracy.`,
         );
         setIsReady(true);
+        void upsertBeacon(nextCurrent);
       },
       () => {
         setStatusMessage("Unable to get GPS signal. Showing last known area.");
@@ -163,16 +324,22 @@ export default function TrackingIndexPage(): React.JSX.Element {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
       }
+      void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     void setTrackingMapCache({ current, jobs });
   }, [current, jobs]);
 
+  function onJobSelect(jobId: string): void {
+    setSelectedJobId(jobId);
+    setIsSheetExpanded(false);
+  }
+
   return (
-    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8">
+    <main className="h-[calc(100vh-5rem)] bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-8">
+      <section className="mx-auto flex h-full w-full max-w-6xl flex-col rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-2xl shadow-black/50 md:p-6">
         <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Map Hub</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Live Dispatch View</h1>
         <p className="mt-2 text-sm text-slate-300">Track your van and active jobs in real time for faster dispatch decisions.</p>
@@ -183,11 +350,19 @@ export default function TrackingIndexPage(): React.JSX.Element {
           {accuracy !== null ? <span className="ml-auto text-xs text-slate-400">±{accuracy.toFixed(1)}m</span> : null}
         </div>
 
-        <div className="relative z-0 mt-4 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60">
+        <div className="relative z-0 mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/60">
           {isReady ? (
-            <TrackingMap current={current} jobs={jobs} />
+            <TrackingMap
+              current={current}
+              jobs={jobs}
+              staffLocations={visibleStaffLocations}
+              routeLines={routeLines}
+              selectedJobId={selectedJobId}
+              isDarkTheme={isDarkTheme}
+              onJobSelect={onJobSelect}
+            />
           ) : (
-            <div className="flex h-[380px] items-center justify-center gap-2 text-sm text-slate-300">
+            <div className="flex h-full min-h-[340px] items-center justify-center gap-2 text-sm text-slate-300">
               <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
               Initializing map and GPS...
             </div>
@@ -200,6 +375,40 @@ export default function TrackingIndexPage(): React.JSX.Element {
           </p>
         ) : null}
       </section>
+
+      {selectedJob ? (
+        <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">
+          <article className="rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl shadow-black/60 backdrop-blur">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{selectedJob.clientName}</p>
+                <p className="text-xs text-slate-300">{selectedJob.timeLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSheetExpanded((prev) => !prev)}
+                className="min-h-11 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200"
+              >
+                {isSheetExpanded ? "Collapse" : "Expand"}
+              </button>
+            </div>
+
+            {isSheetExpanded ? (
+              <div className="mt-3 space-y-3 text-sm text-slate-200">
+                <p className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">{selectedJob.addressLabel}</p>
+                <a
+                  href={selectedJob.navigateUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-amber-500 px-4 py-2 font-semibold text-slate-950"
+                >
+                  Navigate
+                </a>
+              </div>
+            ) : null}
+          </article>
+        </section>
+      ) : null}
     </main>
   );
 }

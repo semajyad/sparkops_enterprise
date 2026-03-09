@@ -1,25 +1,45 @@
 "use client";
 
-import { useEffect } from "react";
-import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
-import { useMap } from "react-leaflet";
+import L, { DivIcon } from "leaflet";
+import { useEffect, useMemo } from "react";
+import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
-type Coordinate = {
+export type Coordinate = {
   lat: number;
   lng: number;
 };
 
-type MapJob = {
+export type MapJob = {
   id: string;
   clientName: string;
   timeLabel: string;
+  addressLabel: string;
   coordinate: Coordinate;
   navigateUrl: string;
+};
+
+export type StaffLocation = {
+  userId: string;
+  name: string;
+  avatarUrl: string;
+  coordinate: Coordinate;
+  isStale: boolean;
+};
+
+export type RouteLine = {
+  id: string;
+  points: [number, number][];
+  color: string;
 };
 
 type TrackingMapProps = {
   current: Coordinate;
   jobs: MapJob[];
+  staffLocations: StaffLocation[];
+  routeLines: RouteLine[];
+  selectedJobId: string | null;
+  isDarkTheme: boolean;
+  onJobSelect: (jobId: string) => void;
 };
 
 function FollowCurrentLocation({ current }: { current: Coordinate }): null {
@@ -35,45 +55,68 @@ function FollowCurrentLocation({ current }: { current: Coordinate }): null {
   return null;
 }
 
-export function TrackingMap({ current, jobs }: TrackingMapProps): React.JSX.Element {
+function avatarIcon(location: StaffLocation): DivIcon {
+  return L.divIcon({
+    className: "sparkops-avatar-marker-wrapper",
+    html: `<div class="sparkops-avatar-marker ${location.isStale ? "stale" : ""}"><img src="${location.avatarUrl}" alt="${location.name}" /></div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
+
+export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, isDarkTheme, onJobSelect }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
+  const tileUrl = isDarkTheme
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
+  const markers = useMemo(
+    () =>
+      staffLocations.map((location) => ({
+        ...location,
+        icon: avatarIcon(location),
+      })),
+    [staffLocations],
+  );
 
   return (
-    <div className="tracking-map-shell relative z-0 h-[380px] w-full overflow-hidden rounded-2xl">
+    <div className="tracking-map-shell relative z-0 h-full w-full overflow-hidden rounded-2xl">
       <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+          url={tileUrl}
         />
         <FollowCurrentLocation current={current} />
 
-        <CircleMarker center={center} radius={8} pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.9 }}>
+        {routeLines.map((line) => (
+          <Polyline key={line.id} positions={line.points} pathOptions={{ color: line.color, weight: 4, opacity: 0.75 }} />
+        ))}
+
+        <CircleMarker center={center} radius={8} pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.95 }}>
           <Tooltip direction="top" offset={[0, -8]} permanent>
             Your Van
           </Tooltip>
         </CircleMarker>
 
+        {markers.map((location) => (
+          <Marker key={location.userId} position={[location.coordinate.lat, location.coordinate.lng]} icon={location.icon}>
+            <Tooltip direction="top" offset={[0, -12]}>{location.name}</Tooltip>
+          </Marker>
+        ))}
+
         {jobs.map((job) => (
           <CircleMarker
             key={job.id}
             center={[job.coordinate.lat, job.coordinate.lng]}
-            radius={8}
-            pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.85 }}
+            radius={selectedJobId === job.id ? 10 : 8}
+            pathOptions={{
+              color: selectedJobId === job.id ? "#fb7185" : "#f59e0b",
+              fillColor: selectedJobId === job.id ? "#fb7185" : "#f59e0b",
+              fillOpacity: 0.9,
+            }}
+            eventHandlers={{ click: () => onJobSelect(job.id) }}
           >
-            <Popup>
-              <article className="min-w-[180px] text-slate-900">
-                <p className="text-sm font-semibold">{job.clientName}</p>
-                <p className="mt-1 text-xs text-slate-600">{job.timeLabel}</p>
-                <a
-                  href={job.navigateUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950"
-                >
-                  Navigate
-                </a>
-              </article>
-            </Popup>
+            <Tooltip direction="top" offset={[0, -8]}>{job.clientName}</Tooltip>
           </CircleMarker>
         ))}
       </MapContainer>

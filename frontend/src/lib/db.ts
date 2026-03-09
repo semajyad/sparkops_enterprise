@@ -114,6 +114,7 @@ export interface CachedMapState {
     id: string;
     clientName: string;
     timeLabel: string;
+    addressLabel: string;
     coordinate: { lat: number; lng: number };
     navigateUrl: string;
   }>;
