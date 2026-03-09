@@ -13,6 +13,7 @@ import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
+const MODAL_INPUT_CLASS = "mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-slate-950 px-3 text-slate-100 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user } = useAuth();
@@ -30,7 +31,6 @@ export default function JobsPage(): React.JSX.Element {
   const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
-  const [teamError, setTeamError] = useState<string | null>(null);
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
@@ -81,9 +81,6 @@ export default function JobsPage(): React.JSX.Element {
           activeUsers: teamResult.activeUsers,
           pendingInvites: teamResult.pendingInvites,
         });
-        setTeamError(null);
-      } else {
-        setTeamError(teamResult.message);
       }
     }
 
@@ -312,32 +309,32 @@ export default function JobsPage(): React.JSX.Element {
             </div>
 
             <form className="flex h-full flex-col" onSubmit={onCreateManualJob}>
-              <div className="grid gap-3 overflow-y-auto px-5 py-4 pb-24">
-                <label className="text-sm text-slate-200">
+              <div className="grid overflow-y-auto px-5 py-4 pb-24">
+                <label className="mb-4 text-sm text-slate-200">
                   Client Name
                   <input
                     type="text"
                     required
                     value={clientName}
                     onChange={(event) => setClientName(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    className={MODAL_INPUT_CLASS}
                     placeholder="ACME Properties"
                   />
                 </label>
 
-                <label className="text-sm text-slate-200">
+                <label className="mb-4 text-sm text-slate-200">
                   Job Title / Description
                   <input
                     type="text"
                     required
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                    className={MODAL_INPUT_CLASS}
                     placeholder="Switchboard inspection and repairs"
                   />
                 </label>
 
-                <label className="text-sm text-slate-200">
+                <label className="mb-4 text-sm text-slate-200">
                   Address
                   <AddressAutocomplete
                     id="job-address"
@@ -353,6 +350,7 @@ export default function JobsPage(): React.JSX.Element {
                       setLongitude(selection.longitude);
                     }}
                     placeholder="Start typing an address"
+                    className={MODAL_INPUT_CLASS}
                   />
                 </label>
 
@@ -360,12 +358,12 @@ export default function JobsPage(): React.JSX.Element {
                 <input type="hidden" name="longitude" value={longitude ?? ""} />
 
                 {isOwner ? (
-                  <label className="text-sm text-slate-200">
+                  <label className="mb-4 text-sm text-slate-200">
                     Assign To
                     <select
                       value={assignedToUserId}
                       onChange={(event) => setAssignedToUserId(event.target.value)}
-                      className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                      className={MODAL_INPUT_CLASS}
                     >
                       <option value={user?.id ?? ""}>Me</option>
                       {teamMembers
@@ -376,17 +374,16 @@ export default function JobsPage(): React.JSX.Element {
                           </option>
                         ))}
                     </select>
-                    {teamError ? <span className="mt-1 block text-xs text-amber-300">{teamError}</span> : null}
                   </label>
                 ) : null}
 
-                <label className="text-sm text-slate-200">
+                <label className="mb-4 text-sm text-slate-200">
                   Scheduled Date & Time
                   <input
                     type="datetime-local"
                     value={scheduledDate}
                     onChange={(event) => setScheduledDate(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 focus:border-amber-400 focus:outline-none"
+                    className={MODAL_INPUT_CLASS}
                   />
                 </label>
               </div>

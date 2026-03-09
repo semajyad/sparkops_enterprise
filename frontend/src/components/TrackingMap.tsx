@@ -21,7 +21,8 @@ export type MapJob = {
 export type StaffLocation = {
   userId: string;
   name: string;
-  avatarUrl: string;
+  avatarUrl: string | null;
+  initials: string;
   coordinate: Coordinate;
   isStale: boolean;
 };
@@ -56,11 +57,24 @@ function FollowCurrentLocation({ current }: { current: Coordinate }): null {
 }
 
 function avatarIcon(location: StaffLocation): DivIcon {
+  const avatarHtml = location.avatarUrl
+    ? `<img src="${location.avatarUrl}" alt="${location.name}" />`
+    : `<div class="map-avatar-fallback">${location.initials}</div>`;
+
   return L.divIcon({
     className: "sparkops-avatar-marker-wrapper",
-    html: `<div class="sparkops-avatar-marker ${location.isStale ? "stale" : ""}"><img src="${location.avatarUrl}" alt="${location.name}" /></div>`,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
+    html: `<div class="sparkops-avatar-marker ${location.isStale ? "stale" : ""}">${avatarHtml}</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  });
+}
+
+function youIcon(): DivIcon {
+  return L.divIcon({
+    className: "sparkops-you-marker-wrapper",
+    html: '<div class="sparkops-you-marker"><span class="sparkops-you-core"></span></div>',
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
   });
 }
 
@@ -92,11 +106,11 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
           <Polyline key={line.id} positions={line.points} pathOptions={{ color: line.color, weight: 4, opacity: 0.75 }} />
         ))}
 
-        <CircleMarker center={center} radius={8} pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.95 }}>
+        <Marker position={center} icon={youIcon()}>
           <Tooltip direction="top" offset={[0, -8]} permanent>
-            Your Van
+            You
           </Tooltip>
-        </CircleMarker>
+        </Marker>
 
         {markers.map((location) => (
           <Marker key={location.userId} position={[location.coordinate.lat, location.coordinate.lng]} icon={location.icon}>

@@ -47,12 +47,14 @@ body {
 
 .sparkops-avatar-marker {
   display: inline-flex;
-  height: 36px;
-  width: 36px;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   border-radius: 9999px;
   border: 2px solid #ffffff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   transition: transform 0.75s ease, opacity 0.35s ease;
 }
 
@@ -62,6 +64,62 @@ body {
   object-fit: cover;
 }
 
+.map-avatar-fallback {
+  display: inline-flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .sparkops-avatar-marker.stale {
   opacity: 0.5;
+}
+
+.sparkops-you-marker {
+  position: relative;
+  display: inline-flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+}
+
+.sparkops-you-marker::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(34, 197, 94, 0.65);
+  animation: sparkops-you-pulse 1.6s ease-out infinite;
+}
+
+.sparkops-you-core {
+  height: 10px;
+  width: 10px;
+  border-radius: 9999px;
+  background: #22c55e;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.45);
+}
+
+@keyframes sparkops-you-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.8;
+  }
+  80% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
 }

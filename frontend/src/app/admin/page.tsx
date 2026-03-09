@@ -423,38 +423,10 @@ export default function AdminPage(): React.JSX.Element {
 
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
-      <section className="mx-auto grid w-full max-w-6xl gap-4 md:grid-cols-[240px_1fr]">
-        <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Admin Suite</p>
-          <nav className="mt-4 space-y-2">
-            {([
-              ["team", "Team"],
-              ["company", "Company"],
-              ["fleet", "Fleet Management"],
-            ] as Array<[AdminSection, string]>).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveSection(key)}
-                className={`w-full rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
-                  activeSection === key
-                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
-                    : "border-slate-700 bg-slate-950/60 text-slate-300 hover:border-amber-500/50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-          {isSyncing ? <p className="mt-4 text-xs text-slate-400">Syncing latest org data...</p> : null}
-        </aside>
-
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/50">
-          <h1 className="text-2xl font-semibold text-white">{sectionTitle}</h1>
-
-          <section className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session Mode</h2>
-            <div className="mt-3 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+      <section className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/50">
+        <header className="sticky top-2 z-10 space-y-4 rounded-2xl border border-slate-700 bg-slate-900/95 p-4 backdrop-blur">
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
               <button
                 type="button"
                 onClick={() => setMode("FIELD")}
@@ -478,7 +450,33 @@ export default function AdminPage(): React.JSX.Element {
                 Admin
               </button>
             </div>
-          </section>
+          </div>
+
+          <nav className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 p-2">
+            {([
+              ["team", "Team"],
+              ["fleet", "Fleet"],
+              ["company", "Company"],
+            ] as Array<[AdminSection, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveSection(key)}
+                className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  activeSection === key
+                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
+                    : "border-slate-700 bg-slate-950/60 text-slate-300 hover:border-amber-500/50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          {isSyncing ? <p className="text-center text-xs text-slate-400">Syncing latest org data...</p> : null}
+        </header>
+
+        <section className="mt-5">
+          <h1 className="text-2xl font-semibold text-white">{sectionTitle}</h1>
 
           {activeSection === "team" ? (
             <div className="mt-4 space-y-4">

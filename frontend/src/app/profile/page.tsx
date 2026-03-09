@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { signOut } from "@/app/login/actions";
@@ -23,6 +23,7 @@ type AuthMePayload = {
 
 export default function ProfilePage(): React.JSX.Element {
   const { user, session, loading: authLoading, mode, setMode } = useAuth();
+  const router = useRouter();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
   const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null; organization: string | null } | null>(null);
   const [ladderEnabled, setLadderEnabled] = useState(false);
@@ -215,6 +216,13 @@ export default function ProfilePage(): React.JSX.Element {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!isOwner || mode !== "ADMIN") {
+      return;
+    }
+    router.push("/admin");
+  }, [isOwner, mode, router]);
+
 
   function onSubmitProfileUpdate(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -356,25 +364,10 @@ export default function ProfilePage(): React.JSX.Element {
           </>
         ) : (
           <section className="mt-6 space-y-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Business Controls</h2>
-            <div className="grid gap-3 md:grid-cols-3">
-              {[
-                { title: "Company Card", href: "/admin", summary: "Logo, GST, terms, and business identity settings." },
-                { title: "Team Card", href: "/admin", summary: "Staff roster, role access, and invite controls." },
-                { title: "Fleet Card", href: "/admin", summary: "Vehicle list, assignments, and fleet readiness." },
-              ].map((item) => (
-                <article key={item.title} className="rounded-xl border border-slate-700 bg-slate-950/80 p-4">
-                  <h3 className="text-sm font-semibold text-slate-100">{item.title}</h3>
-                  <p className="mt-2 text-xs text-slate-400">{item.summary}</p>
-                  <Link
-                    href={item.href}
-                    className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-amber-500/60 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/25"
-                  >
-                    Open Admin
-                  </Link>
-                </article>
-              ))}
-            </div>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Admin Suite</h2>
+            <p className="rounded-xl border border-slate-700 bg-slate-950/80 p-4 text-sm text-slate-200">
+              Loading Team tab...
+            </p>
           </section>
         )}
 

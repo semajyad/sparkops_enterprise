@@ -54,12 +54,12 @@ export function GlobalSyncStatusDot(): React.JSX.Element {
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[9999] flex items-center gap-2">
+    <div className="fixed right-4 top-[max(env(safe-area-inset-top),12px)] z-[10000] flex items-center gap-2 pointer-events-auto">
       <button
         type="button"
         onClick={() => setHint(syncIndicator.hint)}
         aria-label={syncIndicator.label}
-        className="pointer-events-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-slate-900/85"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-slate-900/85"
       >
         <span className={`h-2 w-2 rounded-full ${syncIndicator.colorClass} ${syncIndicator.pulseClass}`} aria-hidden="true"></span>
       </button>

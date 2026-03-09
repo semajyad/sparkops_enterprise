@@ -24,6 +24,12 @@ type UserLocationRow = {
   updated_at: string;
 };
 
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
 const DEFAULT_CURRENT: Coordinate = { lat: -36.8485, lng: 174.7633 };
 const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 const BEACON_INTERVAL_MS = 5 * 60 * 1000;
@@ -89,8 +95,21 @@ function distanceKm(a: Coordinate, b: Coordinate): number {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function buildAvatarUrl(seed: string): string {
-  return `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(seed)}`;
+function buildInitials(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    return "SP";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function colorFromSeed(seed: string): string {
@@ -120,10 +139,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [statusMessage, setStatusMessage] = useState(
-    geolocationUnavailable ? "Geolocation is unavailable on this device." : "Waiting for GPS lock...",
-  );
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
 
@@ -212,6 +227,19 @@ export default function TrackingIndexPage(): React.JSX.Element {
         return;
       }
 
+      const uniqueUserIds = Array.from(new Set((data as UserLocationRow[]).map((row) => row.user_id)));
+      let profileById = new Map<string, ProfileRow>();
+      if (uniqueUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id,full_name,avatar_url")
+          .in("id", uniqueUserIds);
+
+        if (Array.isArray(profiles)) {
+          profileById = new Map((profiles as ProfileRow[]).map((profile) => [profile.id, profile]));
+        }
+      }
+
       const mapped = (data as UserLocationRow[])
         .map((row) => {
           const lat = parseCoordinate(row.lat);
@@ -219,10 +247,16 @@ export default function TrackingIndexPage(): React.JSX.Element {
           if (lat === null || lng === null) {
             return null;
           }
+
+          const profile = profileById.get(row.user_id);
+          const fallbackName = row.user_id === user?.id ? "You" : `Sparky ${row.user_id.slice(0, 6)}`;
+          const resolvedName = profile?.full_name?.trim() || fallbackName;
+
           return {
             userId: row.user_id,
-            name: row.user_id === user?.id ? "You" : `Sparky ${row.user_id.slice(0, 6)}`,
-            avatarUrl: buildAvatarUrl(row.user_id),
+            name: resolvedName,
+            avatarUrl: profile?.avatar_url ?? null,
+            initials: buildInitials(resolvedName),
             coordinate: { lat, lng },
             isStale: isStale(row.updated_at),
           } satisfies StaffLocation;
@@ -240,7 +274,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
         }
         setCurrent(cached.current);
         setJobs(cached.jobs);
-        setStatusMessage("Showing cached dispatch map while refreshing live data...");
         setIsReady(true);
       } catch {
         // best-effort cache hydration
@@ -319,17 +352,10 @@ export default function TrackingIndexPage(): React.JSX.Element {
       (position) => {
         const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrent(nextCurrent);
-        setAccuracy(position.coords.accuracy);
-        setStatusMessage(
-          position.coords.accuracy <= 5
-            ? "Live GPS locked (<5m)."
-            : `Tracking live with ±${position.coords.accuracy.toFixed(1)}m accuracy.`,
-        );
         setIsReady(true);
         void upsertBeacon(nextCurrent);
       },
       () => {
-        setStatusMessage("Unable to get GPS signal. Showing last known area.");
         setIsReady(true);
       },
       {
@@ -375,58 +401,46 @@ export default function TrackingIndexPage(): React.JSX.Element {
         </div>
       )}
 
-      <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
-        <div className="pointer-events-auto mx-auto max-w-4xl rounded-2xl border border-slate-600/70 bg-slate-900/55 p-4 shadow-xl shadow-black/40 backdrop-blur-md">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs uppercase tracking-[0.26em] text-amber-300">Map Hub</p>
-            {accuracy !== null ? <span className="ml-auto text-xs text-slate-200">±{accuracy.toFixed(1)}m</span> : null}
-          </div>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">Live Dispatch View</h1>
-          <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-500/70 bg-slate-950/55 p-3 text-sm text-slate-100">
-            <Navigation className="h-4 w-4 text-amber-300" />
-            {statusMessage}
-          </div>
-          {!isReady ? null : jobs.length === 0 ? (
-            <p className="mt-3 rounded-xl border border-slate-500/70 bg-slate-950/55 p-3 text-sm text-slate-100">
-              No active jobs with coordinates yet. Create a job with a selected address and it will appear on the dispatch map.
-            </p>
-          ) : null}
-        </div>
-      </section>
+    <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
+      <div className="pointer-events-auto mx-auto flex w-fit items-center gap-2 rounded-full border border-emerald-300/50 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200 shadow-lg shadow-black/45 backdrop-blur-md">
+        <Navigation className="h-3.5 w-3.5 text-emerald-300" />
+        <span>Live Tracking Active</span>
+      </div>
+    </section>
 
-      {selectedJob ? (
-        <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">
-          <article className="rounded-2xl border border-slate-600/80 bg-slate-900/75 p-4 shadow-2xl shadow-black/60 backdrop-blur-md">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-white">{selectedJob.clientName}</p>
-                <p className="text-xs text-slate-300">{selectedJob.timeLabel}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSheetExpanded((prev) => !prev)}
-                className="min-h-11 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200"
-              >
-                {isSheetExpanded ? "Collapse" : "Expand"}
-              </button>
+    {selectedJob ? (
+      <section className="fixed inset-x-0 bottom-20 z-[100] mx-auto w-full max-w-3xl px-4">
+        <article className="rounded-2xl border border-slate-600/80 bg-slate-900/75 p-4 shadow-2xl shadow-black/60 backdrop-blur-md">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">{selectedJob.clientName}</p>
+              <p className="text-xs text-slate-300">{selectedJob.timeLabel}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsSheetExpanded((prev) => !prev)}
+              className="min-h-11 rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200"
+            >
+              {isSheetExpanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
 
-            {isSheetExpanded ? (
-              <div className="mt-3 space-y-3 text-sm text-slate-200">
-                <p className="rounded-xl border border-slate-500/70 bg-slate-950/65 p-3">{selectedJob.addressLabel}</p>
-                <a
-                  href={selectedJob.navigateUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center rounded-xl bg-amber-500 px-4 py-2 font-semibold text-slate-950"
-                >
-                  Navigate
-                </a>
-              </div>
-            ) : null}
-          </article>
-        </section>
-      ) : null}
-    </main>
-  );
+          {isSheetExpanded ? (
+            <div className="mt-3 space-y-3 text-sm text-slate-200">
+              <p className="rounded-xl border border-slate-500/70 bg-slate-950/65 p-3">{selectedJob.addressLabel}</p>
+              <a
+                href={selectedJob.navigateUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center rounded-xl bg-amber-500 px-4 py-2 font-semibold text-slate-950"
+              >
+                Navigate
+              </a>
+            </div>
+          ) : null}
+        </article>
+      </section>
+    ) : null}
+  </main>
+);
 }
