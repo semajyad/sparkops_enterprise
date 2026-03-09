@@ -137,6 +137,8 @@ export interface CachedAdminState {
   website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
+  tax_rate: number | null;
+  standard_markup: number | null;
   terms_and_conditions: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;

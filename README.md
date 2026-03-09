@@ -61,6 +61,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # API Configuration  
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+
+# Maps
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token
 ```
 
 #### Backend (.env)
@@ -75,6 +78,13 @@ OPENAI_API_KEY=your_openai_api_key
 TWILIO_ACCOUNT_SID=your_twilio_sid
 TWILIO_AUTH_TOKEN=your_twilio_token
 TWILIO_PHONE_NUMBER=your_twilio_number
+
+# Xero (optional, owner invoicing integration)
+XERO_CLIENT_ID=your_xero_client_id
+XERO_CLIENT_SECRET=your_xero_client_secret
+XERO_REDIRECT_URI=https://your-api-domain/api/integrations/xero/callback
+XERO_SCOPES=offline_access accounting.transactions accounting.contacts
+XERO_STATE_SECRET=random_long_secret
 
 # Security
 SECRET_KEY=your_secret_key_here
@@ -261,6 +271,16 @@ POST /api/twilio/ladder-mode   # Toggle ladder mode
 ```http
 POST /api/eta/generate         # Generate tracking link
 GET  /api/eta/lookup/{id}      # Lookup tracking data
+```
+
+#### Xero Integration (Owner)
+```http
+GET  /api/integrations/xero/connect            # Build OAuth2 authorize URL
+GET  /api/integrations/xero/callback           # OAuth2 callback + token persistence
+POST /api/integrations/xero/push-invoice       # Push completed job invoice to Xero
+GET  /api/v1/integrations/xero/connect         # Versioned connect endpoint
+GET  /api/v1/integrations/xero/callback        # Versioned callback endpoint
+POST /api/v1/integrations/xero/push-invoice    # Versioned push endpoint
 ```
 
 ### Request/Response Examples

@@ -16,15 +16,22 @@ from __future__ import annotations
 
 import csv
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import json
+import hashlib
+import hmac
 
 import logging
 
 import os
+import secrets
 
 import base64
 
 import io
+from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.request import Request as UrlRequest, urlopen
 
 
 
@@ -70,7 +77,7 @@ from database import engine as database_engine
 
 from dependencies import AuthenticatedUser, get_current_user, require_owner
 
-from models.database import Invite, JobDraft, Material, OrganizationSettings, SafetyTest, Vehicle, create_db_and_tables
+from models.database import Integration, Invite, JobDraft, Material, OrganizationSettings, SafetyTest, Vehicle, create_db_and_tables
 
 
 
@@ -565,6 +572,8 @@ class OrganizationSettingsResponse(BaseModel):
     website_url: str | None = None
     business_name: str | None = None
     gst_number: str | None = None
+    tax_rate: Decimal | None = None
+    standard_markup: Decimal | None = None
     terms_and_conditions: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
@@ -578,9 +587,43 @@ class OrganizationSettingsUpsertRequest(BaseModel):
     website_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
+    tax_rate: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("1"))
+    standard_markup: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("5"))
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
     bank_account_name: str | None = Field(default=None, max_length=255)
     bank_account_number: str | None = Field(default=None, max_length=128)
+
+
+class XeroConnectResponse(BaseModel):
+    """OAuth connect URL payload for starting Xero authorization."""
+
+    provider: str
+    auth_url: str
+    state: str
+
+
+class XeroConnectCallbackResponse(BaseModel):
+    """OAuth callback token exchange response."""
+
+    status: str
+    organization_id: UUID
+    provider: str
+    tenant_id: str | None = None
+
+
+class XeroPushInvoiceRequest(BaseModel):
+    """Payload for pushing a completed JobDraft invoice into Xero."""
+
+    job_id: UUID
+
+
+class XeroPushInvoiceResponse(BaseModel):
+    """Result payload for Xero push operation."""
+
+    status: str
+    provider: str
+    job_id: UUID
+    invoice_payload: dict[str, Any]
 
 
 class VehicleCreateRequest(BaseModel):
@@ -1431,6 +1474,8 @@ def _to_org_settings_response(record: OrganizationSettings) -> OrganizationSetti
         website_url=record.website_url,
         business_name=record.business_name,
         gst_number=record.gst_number,
+        tax_rate=record.tax_rate,
+        standard_markup=record.standard_markup,
         terms_and_conditions=record.terms_and_conditions,
         bank_account_name=record.bank_account_name,
         bank_account_number=record.bank_account_number,
@@ -1541,6 +1586,10 @@ def upsert_organization_settings(
         settings.website_url = payload.website_url.strip() if isinstance(payload.website_url, str) and payload.website_url.strip() else None
         settings.business_name = payload.business_name.strip() if isinstance(payload.business_name, str) and payload.business_name.strip() else None
         settings.gst_number = payload.gst_number.strip() if isinstance(payload.gst_number, str) and payload.gst_number.strip() else None
+        if payload.tax_rate is not None:
+            settings.tax_rate = payload.tax_rate
+        if payload.standard_markup is not None:
+            settings.standard_markup = payload.standard_markup
         settings.terms_and_conditions = (
             payload.terms_and_conditions.strip()
             if isinstance(payload.terms_and_conditions, str) and payload.terms_and_conditions.strip()
@@ -1636,6 +1685,347 @@ def delete_vehicle(vehicle_id: UUID, current_user: AuthenticatedUser = Depends(r
         session.delete(vehicle)
         session.commit()
     return VehicleDeleteResponse(status="deleted", id=vehicle_id)
+
+
+def _xero_env_value(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise HTTPException(status_code=500, detail=f"{name} is not configured.")
+    return value
+
+
+def _xero_state_secret() -> str:
+    return os.getenv("XERO_STATE_SECRET", os.getenv("SECRET_KEY", "sparkops-xero-state-secret"))
+
+
+def _build_xero_state(organization_id: UUID) -> str:
+    payload = {
+        "org": str(organization_id),
+        "ts": int(datetime.now(timezone.utc).timestamp()),
+        "nonce": secrets.token_urlsafe(8),
+    }
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")).decode("utf-8").rstrip("=")
+    signature = hmac.new(_xero_state_secret().encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{signature}"
+
+
+def _decode_xero_state(state: str) -> dict[str, Any]:
+    try:
+        encoded_payload, supplied_signature = state.split(".", 1)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid Xero state.") from exc
+
+    expected_signature = hmac.new(_xero_state_secret().encode("utf-8"), encoded_payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_signature, supplied_signature):
+        raise HTTPException(status_code=400, detail="Invalid Xero state signature.")
+
+    padded_payload = encoded_payload + "=" * (-len(encoded_payload) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(padded_payload.encode("utf-8")).decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid Xero state payload.") from exc
+
+    timestamp = int(payload.get("ts") or 0)
+    if timestamp <= 0:
+        raise HTTPException(status_code=400, detail="Invalid Xero state timestamp.")
+
+    age_seconds = int(datetime.now(timezone.utc).timestamp()) - timestamp
+    if age_seconds > 20 * 60:
+        raise HTTPException(status_code=400, detail="Xero state has expired. Retry connect.")
+
+    return payload
+
+
+def _xero_oauth_headers(client_id: str, client_secret: str) -> dict[str, str]:
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("utf-8")
+    return {
+        "Authorization": f"Basic {basic}",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+    }
+
+
+def _xero_token_exchange(form_payload: dict[str, str]) -> dict[str, Any]:
+    client_id = _xero_env_value("XERO_CLIENT_ID")
+    client_secret = _xero_env_value("XERO_CLIENT_SECRET")
+    token_url = "https://identity.xero.com/connect/token"
+    body = urlencode(form_payload).encode("utf-8")
+
+    request = UrlRequest(token_url, data=body, method="POST")
+    for key, value in _xero_oauth_headers(client_id, client_secret).items():
+        request.add_header(key, value)
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore") if hasattr(exc, "read") else str(exc)
+        raise HTTPException(status_code=502, detail=f"Xero token exchange failed: {details or str(exc)}") from exc
+
+
+def _xero_connections(access_token: str) -> list[dict[str, Any]]:
+    request = UrlRequest("https://api.xero.com/connections", method="GET")
+    request.add_header("Authorization", f"Bearer {access_token}")
+    request.add_header("Accept", "application/json")
+    try:
+        with urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore") if hasattr(exc, "read") else str(exc)
+        raise HTTPException(status_code=502, detail=f"Xero connections lookup failed: {details or str(exc)}") from exc
+
+    return payload if isinstance(payload, list) else []
+
+
+def _decimal_or_default(value: Any, fallback: Decimal = Decimal("0")) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        normalized = value.strip().replace("$", "")
+        if not normalized:
+            return fallback
+        try:
+            return Decimal(normalized)
+        except Exception:
+            return fallback
+    return fallback
+
+
+def _build_xero_invoice_payload(job: JobDraft) -> dict[str, Any]:
+    extracted = job.extracted_data if isinstance(job.extracted_data, dict) else {}
+    contact_name = str(extracted.get("client") or "SparkOps Client").strip() or "SparkOps Client"
+    job_title = str(extracted.get("job_title") or "Electrical Services").strip() or "Electrical Services"
+    line_items_raw = extracted.get("line_items") if isinstance(extracted.get("line_items"), list) else []
+
+    line_items: list[dict[str, Any]] = []
+    for row in line_items_raw:
+        if not isinstance(row, dict):
+            continue
+        quantity = _decimal_or_default(row.get("qty"), Decimal("1"))
+        if quantity <= 0:
+            quantity = Decimal("1")
+        unit_amount = _decimal_or_default(row.get("unit_price"), Decimal("0"))
+        line_total = _decimal_or_default(row.get("line_total"), Decimal("0"))
+        if unit_amount <= 0 and line_total > 0 and quantity > 0:
+            unit_amount = (line_total / quantity).quantize(Decimal("0.01"))
+        if unit_amount <= 0:
+            continue
+
+        line_items.append(
+            {
+                "Description": str(row.get("description") or job_title).strip() or job_title,
+                "Quantity": float(quantity),
+                "UnitAmount": float(unit_amount),
+                "AccountCode": "200",
+                "TaxType": "OUTPUT2",
+            }
+        )
+
+    if not line_items:
+        line_items.append(
+            {
+                "Description": job_title,
+                "Quantity": 1.0,
+                "UnitAmount": 0.01,
+                "AccountCode": "200",
+                "TaxType": "OUTPUT2",
+            }
+        )
+
+    invoice_date = (job.date_scheduled or datetime.now(timezone.utc)).date()
+    due_date = invoice_date + timedelta(days=14)
+    return {
+        "Type": "ACCREC",
+        "Contact": {"Name": contact_name},
+        "Date": invoice_date.isoformat(),
+        "DueDate": due_date.isoformat(),
+        "Status": "AUTHORISED",
+        "Reference": str(job.id),
+        "LineItems": line_items,
+    }
+
+
+def _refresh_xero_access_token(integration: Integration) -> dict[str, Any]:
+    if not integration.refresh_token:
+        raise HTTPException(status_code=401, detail="Xero refresh token unavailable. Reconnect integration.")
+
+    token_payload = _xero_token_exchange(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": integration.refresh_token,
+        }
+    )
+
+    access_token = str(token_payload.get("access_token") or "").strip()
+    if not access_token:
+        raise HTTPException(status_code=502, detail="Xero refresh response missing access token.")
+
+    integration.access_token = access_token
+    refresh_token = str(token_payload.get("refresh_token") or "").strip()
+    integration.refresh_token = refresh_token or integration.refresh_token
+    expires_in = int(token_payload.get("expires_in") or 0)
+    if expires_in > 0:
+        integration.expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    integration.updated_at = datetime.now(timezone.utc)
+    return token_payload
+
+
+@app.get("/api/v1/integrations/xero/connect", response_model=XeroConnectResponse)
+@app.get("/api/integrations/xero/connect", response_model=XeroConnectResponse)
+def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> XeroConnectResponse:
+    """Build the OAuth2 authorization URL for Xero connect."""
+
+    client_id = _xero_env_value("XERO_CLIENT_ID")
+    redirect_uri = _xero_env_value("XERO_REDIRECT_URI")
+    scope = os.getenv("XERO_SCOPES", "offline_access accounting.transactions accounting.contacts").strip()
+    state = _build_xero_state(current_user.organization_id)
+
+    auth_query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+        }
+    )
+    return XeroConnectResponse(
+        provider="XERO",
+        auth_url=f"https://login.xero.com/identity/connect/authorize?{auth_query}",
+        state=state,
+    )
+
+
+@app.get("/api/v1/integrations/xero/callback", response_model=XeroConnectCallbackResponse)
+@app.get("/api/integrations/xero/callback", response_model=XeroConnectCallbackResponse)
+def connect_xero_callback(
+    code: str,
+    state: str,
+) -> XeroConnectCallbackResponse:
+    """Handle Xero OAuth callback and persist access/refresh tokens."""
+
+    parsed_state = _decode_xero_state(state)
+    state_org_id = str(parsed_state.get("org") or "").strip()
+    if not state_org_id:
+        raise HTTPException(status_code=400, detail="Xero state is missing organization id.")
+    try:
+        organization_id = UUID(state_org_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Xero state organization id is invalid.") from exc
+
+    token_payload = _xero_token_exchange(
+        {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": _xero_env_value("XERO_REDIRECT_URI"),
+        }
+    )
+
+    access_token = str(token_payload.get("access_token") or "").strip()
+    refresh_token = str(token_payload.get("refresh_token") or "").strip()
+    expires_in = int(token_payload.get("expires_in") or 0)
+    if not access_token:
+        raise HTTPException(status_code=502, detail="Xero callback missing access token.")
+
+    connections = _xero_connections(access_token)
+    tenant_id = None
+    for connection in connections:
+        if isinstance(connection, dict):
+            candidate = str(connection.get("tenantId") or connection.get("tenant_id") or "").strip()
+            if candidate:
+                tenant_id = candidate
+                break
+
+    with Session(ENGINE) as session:
+        existing = session.exec(
+            select(Integration)
+            .where(Integration.organization_id == organization_id)
+            .where(Integration.provider == "XERO")
+            .limit(1)
+        ).first()
+
+        record = existing or Integration(organization_id=organization_id, provider="XERO", access_token=access_token)
+        record.access_token = access_token
+        record.refresh_token = refresh_token or None
+        record.tenant_id = tenant_id
+        record.expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in) if expires_in > 0 else None
+        record.updated_at = datetime.now(timezone.utc)
+
+        session.add(record)
+        session.commit()
+
+    return XeroConnectCallbackResponse(
+        status="connected",
+        organization_id=organization_id,
+        provider="XERO",
+        tenant_id=tenant_id,
+    )
+
+
+@app.post("/api/v1/integrations/xero/push-invoice", response_model=XeroPushInvoiceResponse)
+@app.post("/api/integrations/xero/push-invoice", response_model=XeroPushInvoiceResponse)
+def push_invoice_to_xero(
+    payload: XeroPushInvoiceRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> XeroPushInvoiceResponse:
+    """Push a completed job draft invoice payload to Xero accounting."""
+
+    with Session(ENGINE) as session:
+        integration = session.exec(
+            select(Integration)
+            .where(Integration.organization_id == current_user.organization_id)
+            .where(Integration.provider == "XERO")
+            .limit(1)
+        ).first()
+        if integration is None:
+            raise HTTPException(status_code=404, detail="Xero integration is not connected for this organization.")
+        if not integration.tenant_id:
+            raise HTTPException(status_code=400, detail="Xero tenant not linked. Reconnect integration.")
+
+        draft = session.get(JobDraft, payload.job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+        if draft.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+        if str(draft.status).upper() != "DONE":
+            raise HTTPException(status_code=400, detail="Only completed jobs can be pushed to Xero.")
+
+        invoice_payload = _build_xero_invoice_payload(draft)
+        request_body = json.dumps({"Invoices": [invoice_payload]}).encode("utf-8")
+
+        def send_invoice(access_token: str) -> None:
+            request = UrlRequest("https://api.xero.com/api.xro/2.0/Invoices", data=request_body, method="POST")
+            request.add_header("Authorization", f"Bearer {access_token}")
+            request.add_header("Xero-tenant-id", integration.tenant_id or "")
+            request.add_header("Content-Type", "application/json")
+            request.add_header("Accept", "application/json")
+            with urlopen(request, timeout=20):
+                return
+
+        try:
+            send_invoice(integration.access_token)
+        except HTTPError as exc:
+            if exc.code == 401:
+                _refresh_xero_access_token(integration)
+                session.add(integration)
+                session.commit()
+                try:
+                    send_invoice(integration.access_token)
+                except HTTPError as retry_exc:
+                    details = retry_exc.read().decode("utf-8", errors="ignore") if hasattr(retry_exc, "read") else str(retry_exc)
+                    raise HTTPException(status_code=502, detail=f"Xero invoice push failed: {details or str(retry_exc)}") from retry_exc
+            else:
+                details = exc.read().decode("utf-8", errors="ignore") if hasattr(exc, "read") else str(exc)
+                raise HTTPException(status_code=502, detail=f"Xero invoice push failed: {details or str(exc)}") from exc
+
+    return XeroPushInvoiceResponse(
+        status="pushed",
+        provider="XERO",
+        job_id=payload.job_id,
+        invoice_payload=invoice_payload,
+    )
 
 
 @app.post("/api/v1/jobs", response_model=JobDraftResponse)

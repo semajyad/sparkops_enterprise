@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, ClipboardList, Home, MapPin, Mic, UserRound } from "lucide-react";
-import { useUserMode } from "@/lib/user-mode";
 
 function itemClass(isActive: boolean): string {
   return isActive ? "text-amber-400" : "text-slate-400";
@@ -30,79 +29,52 @@ const HIDDEN_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export function MobileNav(): React.JSX.Element {
   const pathname = usePathname();
-  const { isAdminMode } = useUserMode();
+  const isAdminRoute = pathname.startsWith("/admin");
 
   if (pathname === "/" || HIDDEN_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return <></>;
   }
 
-  const navItems: NavItem[] = isAdminMode
-    ? [
-        {
-          href: "/home",
-          label: "Home",
-          Icon: Home,
-          isActive: (path) => path === "/home" || path === "/dashboard",
-        },
-        {
-          href: "/jobs",
-          label: "Jobs",
-          Icon: ClipboardList,
-          isActive: (path) => path.startsWith("/jobs"),
-        },
-        {
-          href: "/capture",
-          label: "Capture",
-          Icon: Mic,
-          isActive: (path) => path.startsWith("/capture"),
-          highlighted: true,
-        },
-        {
-          href: "/map",
-          label: "Map",
-          Icon: MapPin,
-          isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
-        },
-        {
+  const navItems: NavItem[] = [
+    {
+      href: "/home",
+      label: "Home",
+      Icon: Home,
+      isActive: (path) => path === "/home" || path === "/dashboard",
+    },
+    {
+      href: "/jobs",
+      label: "Jobs",
+      Icon: ClipboardList,
+      isActive: (path) => path.startsWith("/jobs"),
+    },
+    {
+      href: "/capture",
+      label: "Capture",
+      Icon: Mic,
+      isActive: (path) => path.startsWith("/capture"),
+      highlighted: true,
+    },
+    {
+      href: "/map",
+      label: "Map",
+      Icon: MapPin,
+      isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
+    },
+    isAdminRoute
+      ? {
           href: "/admin",
           label: "Admin",
           Icon: Building2,
           isActive: (path) => path.startsWith("/admin"),
-        },
-      ]
-    : [
-        {
-          href: "/home",
-          label: "Home",
-          Icon: Home,
-          isActive: (path) => path === "/home" || path === "/dashboard",
-        },
-        {
-          href: "/jobs",
-          label: "Jobs",
-          Icon: ClipboardList,
-          isActive: (path) => path.startsWith("/jobs"),
-        },
-        {
-          href: "/capture",
-          label: "Capture",
-          Icon: Mic,
-          isActive: (path) => path.startsWith("/capture"),
-          highlighted: true,
-        },
-        {
-          href: "/map",
-          label: "Map",
-          Icon: MapPin,
-          isActive: (path) => path.startsWith("/map") || path.startsWith("/tracking"),
-        },
-        {
+        }
+      : {
           href: "/profile",
           label: "Profile",
           Icon: UserRound,
           isActive: (path) => path.startsWith("/profile"),
         },
-      ];
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-slate-900/95 backdrop-blur">

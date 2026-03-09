@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { db } from "@/lib/db";
+import { useAuth } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
 import { useJob } from "@/hooks/useJob";
 import { formatJobDate, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
@@ -48,6 +49,7 @@ function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
 }
 
 export default function JobReviewPage(): React.JSX.Element {
+  const { role } = useAuth();
   const params = useParams<{ id?: string | string[] }>();
   const routeId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const normalizedRouteId = typeof routeId === "string" ? routeId.trim() : "";
@@ -56,6 +58,7 @@ export default function JobReviewPage(): React.JSX.Element {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isPushingToXero, setIsPushingToXero] = useState(false);
   const [localError, setLocalError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
@@ -214,6 +217,32 @@ export default function JobReviewPage(): React.JSX.Element {
     }
   }
 
+  async function pushToXero(): Promise<void> {
+    if (!job || isPushingToXero) {
+      return;
+    }
+
+    setIsPushingToXero(true);
+    setLocalError("");
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/integrations/xero/push-invoice`, {
+        method: "POST",
+        body: JSON.stringify({ job_id: job.id }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Push to Xero failed (${response.status})`);
+      }
+
+      await parseApiJson<{ status: string }>(response);
+      setToast("Invoice pushed to Xero.");
+    } catch (pushError) {
+      setLocalError(pushError instanceof Error ? pushError.message : "Unable to push invoice to Xero.");
+    } finally {
+      setIsPushingToXero(false);
+    }
+  }
+
   const lineItems = job?.extracted_data?.line_items ?? [];
   const invoiceSummary = job?.invoice_summary;
   const complianceSummary = job?.compliance_summary;
@@ -349,6 +378,18 @@ export default function JobReviewPage(): React.JSX.Element {
               {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Complete Job
             </button>
+
+            {role === "OWNER" && normalizeJobStatus(job.status) === "DONE" ? (
+              <button
+                type="button"
+                onClick={() => void pushToXero()}
+                disabled={isPushingToXero}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-cyan-500/60 bg-cyan-500/20 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:opacity-50"
+              >
+                {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Push to Xero
+              </button>
+            ) : null}
 
             {toast ? <p className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{toast}</p> : null}
           </>

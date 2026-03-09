@@ -79,7 +79,7 @@ function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinat
 
 function avatarIcon(location: StaffLocation): DivIcon {
   const avatarHtml = location.avatarUrl
-    ? `<div style="width:100%;height:100%;background-image:url('${location.avatarUrl}');background-size:cover;background-position:center;"></div>`
+    ? `<img src="${location.avatarUrl}" alt="${location.name}" />`
     : `<div class="map-avatar-fallback">${location.initials}</div>`;
 
   return L.divIcon({

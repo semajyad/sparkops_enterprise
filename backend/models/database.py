@@ -161,6 +161,8 @@ class OrganizationSettings(SQLModel, table=True):
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
     bank_account_name: str | None = Field(default=None, max_length=255)
     bank_account_number: str | None = Field(default=None, max_length=128)
+    tax_rate: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.1500"))
+    standard_markup: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.2000"))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
@@ -196,6 +198,22 @@ class UserSettings(SQLModel, table=True):
 
     id: int = Field(default=1, primary_key=True)
     default_markup: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.2000"))
+
+
+class Integration(SQLModel, table=True):
+    """Third-party integration credentials linked to an organization."""
+
+    __tablename__ = "integrations"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    organization_id: UUID = Field(index=True, nullable=False)
+    provider: str = Field(index=True, max_length=32)
+    access_token: str = Field(sa_column=Column(Text, nullable=False))
+    refresh_token: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    tenant_id: str | None = Field(default=None, max_length=255)
+    expires_at: datetime | None = Field(default=None, nullable=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 def get_database_url() -> str:
@@ -325,6 +343,8 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS terms_and_conditions VARCHAR(5000),
                     ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(128),
+                    ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(6,4) NOT NULL DEFAULT 0.1500,
+                    ADD COLUMN IF NOT EXISTS standard_markup NUMERIC(6,4) NOT NULL DEFAULT 0.2000,
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     """
                 )
@@ -337,6 +357,24 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS notes VARCHAR(500),
                     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.integrations (
+                        id UUID PRIMARY KEY,
+                        organization_id UUID NOT NULL,
+                        provider VARCHAR(32) NOT NULL,
+                        access_token TEXT NOT NULL,
+                        refresh_token TEXT,
+                        tenant_id VARCHAR(255),
+                        expires_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
                     """
                 )
             )

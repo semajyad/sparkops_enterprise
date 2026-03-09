@@ -10,6 +10,26 @@ type AddressSuggestion = {
   longitude: number;
 };
 
+type MapboxFeature = {
+  id: string;
+  place_type?: string[];
+  place_name?: string;
+  text?: string;
+  address?: string;
+  center?: [number, number];
+  properties?: {
+    address?: string;
+  };
+  context?: Array<{
+    id?: string;
+    text?: string;
+  }>;
+};
+
+type MapboxResponse = {
+  features?: MapboxFeature[];
+};
+
 type PhotonFeature = {
   geometry?: { coordinates?: [number, number] };
   properties?: {
@@ -22,6 +42,7 @@ type PhotonFeature = {
     street?: string;
     suburb?: string;
     neighbourhood?: string;
+    hamlet?: string;
     city_district?: string;
     village?: string;
     district?: string;
@@ -36,6 +57,12 @@ type PhotonFeature = {
 type PhotonResponse = {
   features?: PhotonFeature[];
 };
+
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ??
+  process.env.NEXT_PUBLIC_VITE_MAPBOX_TOKEN ??
+  process.env["VITE_MAPBOX_TOKEN"] ??
+  "";
 
 type AddressAutocompleteProps = {
   id: string;
@@ -80,7 +107,7 @@ function buildLabel(properties: PhotonFeature["properties"] | undefined): string
   const location = pickFirstString(
     sanitizeAddressComponent(properties.suburb),
     sanitizeAddressComponent(properties.neighbourhood),
-    sanitizeAddressComponent(properties.city),
+    sanitizeAddressComponent(properties.hamlet),
   );
 
   if (street) {
@@ -89,6 +116,26 @@ function buildLabel(properties: PhotonFeature["properties"] | undefined): string
   }
 
   return "Unknown address";
+}
+
+function buildMapboxLabel(feature: MapboxFeature): string {
+  const houseNumber = sanitizeAddressComponent(pickFirstString(feature.address, feature.properties?.address));
+  const street = sanitizeAddressComponent(pickFirstString(feature.text));
+  const suburbFromContext = pickFirstString(
+    ...(feature.context ?? [])
+      .filter((entry) => {
+        const id = String(entry.id ?? "").toLowerCase();
+        return id.startsWith("neighborhood") || id.startsWith("locality") || id.startsWith("place") || id.startsWith("district");
+      })
+      .map((entry) => sanitizeAddressComponent(entry.text))
+  );
+
+  if (!street || !suburbFromContext) {
+    return "Unknown address";
+  }
+
+  const line1 = houseNumber ? `${houseNumber} ${street}`.trim() : street;
+  return `${line1}, ${suburbFromContext}`;
 }
 
 export function AddressAutocomplete({
@@ -119,73 +166,125 @@ export function AddressAutocomplete({
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setIsLoading(true);
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en&bbox=166.0,-47.5,179.0,-34.0`;
-      void fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Address lookup failed (${response.status})`);
+      void (async () => {
+        const hasMapbox = MAPBOX_TOKEN.trim().length > 0;
+
+        if (hasMapbox) {
+          const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?autocomplete=true&limit=5&country=nz&types=address,neighborhood,locality,place&access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
+          const mapboxResponse = await fetch(mapboxUrl, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          });
+
+          if (mapboxResponse.ok) {
+            const payload = (await mapboxResponse.json()) as MapboxResponse;
+            const rows = Array.isArray(payload.features) ? payload.features : [];
+            const mapped = rows
+              .map((feature) => {
+                const longitude = typeof feature.center?.[0] === "number" ? feature.center[0] : null;
+                const latitude = typeof feature.center?.[1] === "number" ? feature.center[1] : null;
+                if (latitude === null || longitude === null) {
+                  return null;
+                }
+
+                const label = buildMapboxLabel(feature);
+                if (!label || label === "Unknown address") {
+                  return null;
+                }
+
+                return {
+                  id: feature.id,
+                  label,
+                  latitude,
+                  longitude,
+                } satisfies AddressSuggestion;
+              })
+              .filter((row): row is AddressSuggestion => Boolean(row));
+
+            setSuggestions(mapped);
+            setOpen(mapped.length > 0);
+            return;
           }
+        }
 
-          const payload = (await response.json()) as PhotonResponse;
-          const rows = Array.isArray(payload.features) ? payload.features : [];
-          const mapped = rows
-            .map((feature, index) => {
-              const coords = feature.geometry?.coordinates;
-              const longitude = typeof coords?.[0] === "number" ? coords[0] : null;
-              const latitude = typeof coords?.[1] === "number" ? coords[1] : null;
-              if (latitude === null || longitude === null) {
-                return null;
-              }
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en&bbox=166.0,-47.5,179.0,-34.0`;
+        const photonResponse = await fetch(photonUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
 
-              const properties = feature.properties;
-              const hasBlockedComponent = [
-                properties?.name,
-                properties?.street,
-                properties?.suburb,
-                properties?.neighbourhood,
-                properties?.city_district,
-                properties?.village,
-                properties?.district,
-                properties?.locality,
-                properties?.city,
-                properties?.state,
-                properties?.country,
-              ].some((value) => isBlockedComponent(value));
-              if (hasBlockedComponent) {
-                return null;
-              }
+        if (!photonResponse.ok) {
+          throw new Error(`Address lookup failed (${photonResponse.status})`);
+        }
 
-              const placeType = pickFirstString(properties?.type, properties?.osm_value).toLowerCase();
-              if (placeType === "administrative" || placeType === "municipality") {
-                return null;
-              }
+        const payload = (await photonResponse.json()) as PhotonResponse;
+        const rows = Array.isArray(payload.features) ? payload.features : [];
+        const mapped = rows
+          .map((feature, index) => {
+            const coords = feature.geometry?.coordinates;
+            const longitude = typeof coords?.[0] === "number" ? coords[0] : null;
+            const latitude = typeof coords?.[1] === "number" ? coords[1] : null;
+            if (latitude === null || longitude === null) {
+              return null;
+            }
 
-              const isMunicipalityOnly = properties?.osm_key === "place" && properties?.osm_value === "municipality";
-              if (isMunicipalityOnly) {
-                return null;
-              }
+            const properties = feature.properties;
+            const hasBlockedComponent = [
+              properties?.name,
+              properties?.street,
+              properties?.suburb,
+              properties?.neighbourhood,
+              properties?.hamlet,
+              properties?.city_district,
+              properties?.village,
+              properties?.district,
+              properties?.locality,
+              properties?.city,
+              properties?.state,
+              properties?.country,
+            ].some((value) => isBlockedComponent(value));
+            if (hasBlockedComponent) {
+              return null;
+            }
 
-              const label = buildLabel(properties);
-              if (!label || label === "Unknown address") {
-                return null;
-              }
+            const placeType = pickFirstString(properties?.type, properties?.osm_value).toLowerCase();
+            if (placeType === "administrative" || placeType === "municipality") {
+              return null;
+            }
 
-              return {
-                id: `${latitude}:${longitude}:${index}`,
-                label,
-                latitude,
-                longitude,
-              } satisfies AddressSuggestion;
-            })
-            .filter((row): row is AddressSuggestion => Boolean(row));
+            const blockedOsmValue = pickFirstString(properties?.osm_value).toLowerCase();
+            if (blockedOsmValue === "state_district" || blockedOsmValue === "county" || blockedOsmValue === "municipality") {
+              return null;
+            }
 
-          setSuggestions(mapped);
-          setOpen(mapped.length > 0);
-        })
+            const suburbOrNeighbourhood = pickFirstString(
+              sanitizeAddressComponent(properties?.suburb),
+              sanitizeAddressComponent(properties?.neighbourhood),
+              sanitizeAddressComponent(properties?.hamlet),
+            );
+            if (!suburbOrNeighbourhood) {
+              return null;
+            }
+
+            const label = buildLabel(properties);
+            if (!label || label === "Unknown address") {
+              return null;
+            }
+
+            return {
+              id: `${latitude}:${longitude}:${index}`,
+              label,
+              latitude,
+              longitude,
+            } satisfies AddressSuggestion;
+          })
+          .filter((row): row is AddressSuggestion => Boolean(row));
+
+        setSuggestions(mapped);
+        setOpen(mapped.length > 0);
+      })()
         .catch(() => {
           setSuggestions([]);
           setOpen(false);

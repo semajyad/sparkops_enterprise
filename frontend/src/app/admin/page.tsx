@@ -27,6 +27,8 @@ type AdminSettings = {
   website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
+  tax_rate: number | null;
+  standard_markup: number | null;
   terms_and_conditions: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;
@@ -57,6 +59,8 @@ const EMPTY_SETTINGS: AdminSettings = {
   website_url: null,
   business_name: null,
   gst_number: null,
+  tax_rate: 15,
+  standard_markup: null,
   terms_and_conditions: null,
   bank_account_name: null,
   bank_account_number: null,
@@ -95,7 +99,7 @@ function initialsFromName(fullName: string): string {
 
 export default function AdminPage(): React.JSX.Element {
   const router = useRouter();
-  const { loading: authLoading, role, setMode, user } = useAuth();
+  const { loading: authLoading, role, user } = useAuth();
   const [activeSection, setActiveSection] = useState<AdminSection>("team");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
@@ -105,6 +109,7 @@ export default function AdminPage(): React.JSX.Element {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+  const [isConnectingXero, setIsConnectingXero] = useState(false);
   const [isTeamLoading, setIsTeamLoading] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +133,8 @@ export default function AdminPage(): React.JSX.Element {
         website_url: cachedSettings.website_url ?? null,
         business_name: cachedSettings.business_name,
         gst_number: cachedSettings.gst_number,
+        tax_rate: cachedSettings.tax_rate,
+        standard_markup: cachedSettings.standard_markup,
         terms_and_conditions: cachedSettings.terms_and_conditions,
         bank_account_name: cachedSettings.bank_account_name,
         bank_account_number: cachedSettings.bank_account_number,
@@ -173,6 +180,8 @@ export default function AdminPage(): React.JSX.Element {
           website_url: settingsPayload.website_url,
           business_name: settingsPayload.business_name,
           gst_number: settingsPayload.gst_number,
+          tax_rate: typeof settingsPayload.tax_rate === "number" ? settingsPayload.tax_rate * 100 : 15,
+          standard_markup: typeof settingsPayload.standard_markup === "number" ? settingsPayload.standard_markup : null,
           terms_and_conditions: settingsPayload.terms_and_conditions,
           bank_account_name: settingsPayload.bank_account_name,
           bank_account_number: settingsPayload.bank_account_number,
@@ -246,7 +255,6 @@ export default function AdminPage(): React.JSX.Element {
   }
 
   function onExitToField(): void {
-    setMode("FIELD");
     router.push("/profile");
   }
 
@@ -266,6 +274,29 @@ export default function AdminPage(): React.JSX.Element {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  async function connectXero(): Promise<void> {
+    setError(null);
+    setIsConnectingXero(true);
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/integrations/xero/connect`, {
+        method: "GET",
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Unable to start Xero connect (${response.status}).`);
+      }
+
+      const payload = await parseApiJson<{ auth_url: string }>(response);
+      if (!payload.auth_url) {
+        throw new Error("Xero connect response did not include auth_url.");
+      }
+      window.location.href = payload.auth_url;
+    } catch (connectError) {
+      setError(connectError instanceof Error ? connectError.message : "Failed to start Xero connect.");
+      setIsConnectingXero(false);
+    }
+  }
+
   async function saveSettings(): Promise<void> {
     setIsSavingSettings(true);
     setError(null);
@@ -275,6 +306,8 @@ export default function AdminPage(): React.JSX.Element {
       website_url: toNullable(toInput(settings.website_url)),
       business_name: toNullable(toInput(settings.business_name)),
       gst_number: toNullable(toInput(settings.gst_number)),
+      tax_rate: settings.tax_rate,
+      standard_markup: settings.standard_markup,
       terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
       bank_account_name: toNullable(toInput(settings.bank_account_name)),
       bank_account_number: toNullable(toInput(settings.bank_account_number)),
@@ -286,7 +319,11 @@ export default function AdminPage(): React.JSX.Element {
     try {
       const response = await apiFetch(`${API_BASE_URL}/api/admin/settings`, {
         method: "PUT",
-        body: JSON.stringify(optimisticSettings),
+        body: JSON.stringify({
+          ...optimisticSettings,
+          tax_rate: typeof optimisticSettings.tax_rate === "number" ? optimisticSettings.tax_rate / 100 : null,
+          standard_markup: optimisticSettings.standard_markup,
+        }),
       });
       if (!response.ok) {
         const body = await response.text();
@@ -299,6 +336,8 @@ export default function AdminPage(): React.JSX.Element {
         website_url: payload.website_url,
         business_name: payload.business_name,
         gst_number: payload.gst_number,
+        tax_rate: typeof payload.tax_rate === "number" ? payload.tax_rate * 100 : 15,
+        standard_markup: typeof payload.standard_markup === "number" ? payload.standard_markup : null,
         terms_and_conditions: payload.terms_and_conditions,
         bank_account_name: payload.bank_account_name,
         bank_account_number: payload.bank_account_number,
@@ -448,7 +487,7 @@ export default function AdminPage(): React.JSX.Element {
               onClick={onExitToField}
               className="inline-flex min-h-9 items-center rounded-lg border border-slate-500 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-amber-400 hover:text-amber-100"
             >
-              Exit to Field
+              Back to Profile
             </button>
           </div>
 
@@ -623,6 +662,47 @@ export default function AdminPage(): React.JSX.Element {
                   onChange={(event) => setSettings((prev) => ({ ...prev, gst_number: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
                   placeholder="123-456-789"
+                />
+              </label>
+              <label className="block text-sm text-slate-200">
+                Tax Rate (%)
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={typeof settings.tax_rate === "number" ? String(settings.tax_rate) : "15"}
+                  onChange={(event) => {
+                    const parsed = Number(event.target.value);
+                    setSettings((prev) => ({
+                      ...prev,
+                      tax_rate: Number.isFinite(parsed) ? parsed : 15,
+                    }));
+                  }}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="15"
+                />
+              </label>
+              <div className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                <p className="text-sm font-semibold text-slate-100">Xero Integration</p>
+                <p className="mt-1 text-xs text-slate-400">Connect your Xero org, then push completed jobs from Job Details.</p>
+                <button
+                  type="button"
+                  onClick={() => void connectXero()}
+                  disabled={isConnectingXero}
+                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-500/50 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25 disabled:opacity-60"
+                >
+                  {isConnectingXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Connect Xero
+                </button>
+              </div>
+              <label className="block text-sm text-slate-200">
+                Business Name
+                <input
+                  value={toInput(settings.business_name)}
+                  onChange={(event) => setSettings((prev) => ({ ...prev, business_name: event.target.value }))}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-600 bg-slate-950 px-3 text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="SparkOps Electrical"
                 />
               </label>
               <label className="block text-sm text-slate-200">

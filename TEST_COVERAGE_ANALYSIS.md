@@ -1,6 +1,6 @@
 # 📊 SparkOps Test Coverage Analysis Report
 
-> **Date**: March 9, 2026  
+> **Date**: March 9, 2026 (Updated)  
 > **Scope**: Comprehensive test coverage analysis for all testing types  
 > **Coverage Tool**: pytest (backend), Jest (frontend), Playwright (E2E)  
 
@@ -25,17 +25,17 @@
 
 ### 1. **Backend Unit Tests** (pytest)
 
-#### **Coverage: 30% Overall** - **NEEDS IMPROVEMENT**
+#### **Coverage: 30% Overall** - **NEEDS IMPROVEMENT** (No Change)
 
 | Module | Statements | Coverage | Status |
 |--------|------------|----------|---------|
 | **services/math_utils.py** | 34 | 100% | ✅ Excellent |
 | **services/invoice.py** | 110 | 62% | ⚠️ Moderate |
 | **services/translator.py** | 51 | 45% | ⚠️ Moderate |
-| **services/vision.py** | 73 | 38% | ❌ Low |
+| **services/vision.py** | 73 | 40% | ❌ Low |
 | **services/triage.py** | 185 | 33% | ❌ Critical Gap |
 | **services/pdf.py** | 188 | 0% | ❌ Critical Gap |
-| **services/mailer.py** | 22 | 0% | ❌ Critical Gap |
+| **services/mailer.py** | 22 | 32% | ❌ Critical Gap |
 
 #### **Test Files**: 3 unit test suites
 - `test_math.py` - 7 tests (100% coverage)
@@ -73,14 +73,14 @@
 
 ### 3. **Frontend Unit Tests** (Jest)
 
-#### **Coverage: 83.78% Overall** - **BELOW THRESHOLD**
+#### **Coverage: 84.21% Overall** - **BELOW THRESHOLD** (Slight Improvement)
 
 **Target**: 95% for all metrics (statements, branches, functions, lines)
 
 | Module | Statements | Branches | Functions | Lines | Status |
 |--------|------------|----------|-----------|-------|---------|
 | **api.ts** | 77.27% | 68.88% | 100% | 77.27% | ❌ Below Threshold |
-| **jobs.ts** | 83.01% | 75% | 66.66% | 83.01% | ❌ Below Threshold |
+| **jobs.ts** | 84.21% | 66.66% | 66.66% | 84.21% | ❌ Below Threshold |
 | **syncManager.ts** | 100% | 92.3% | 100% | 100% | ✅ Excellent |
 
 #### **Test Files**: 6 test suites, 32 tests total
@@ -91,10 +91,16 @@
 - `syncManager.test.ts` - 10 tests
 - `page.test.tsx` (capture) - 0 tests (empty)
 
+#### **Changes Since Last Analysis**:
+- **jobs.ts**: Improved from 83.01% to 84.21% statements coverage
+- **Overall**: Improved from 83.78% to 84.21% statements coverage
+- **Branch coverage**: Dropped from 76.84% to 73.83% (regression)
+
 #### **Critical Issues**:
 - **Capture page completely untested** - core user journey
 - **API client below 95% threshold** - network reliability risk
 - **Jobs utilities below threshold** - data integrity risk
+- **Branch coverage regression** - needs attention
 
 ### 4. **E2E Tests** (Playwright)
 
@@ -294,7 +300,7 @@ frontend/src/
 - error handling for malformed input
 ```
 
-#### **services/vision.py** (Currently 38% coverage)
+#### **services/vision.py** (Currently 40% coverage)
 ```python
 # Add tests for:
 - receipt image processing
@@ -344,9 +350,15 @@ frontend/src/
 
 ### **Coverage Targets**
 - **Backend Overall**: 75% coverage (30% → 75%)
-- **Frontend Overall**: 95% coverage (83.78% → 95%)
-- **Critical Services**: 85% coverage (0-38% → 85%)
+- **Frontend Overall**: 95% coverage (84.21% → 95%)
+- **Critical Services**: 85% coverage (0-40% → 85%)
 - **E2E Tests**: 20+ scenarios (0 → 20+)
+
+### **Recent Changes Summary**
+- **Backend**: Added Xero integration endpoints, but coverage unchanged at 30%
+- **Frontend**: Slight improvement in statements coverage (83.78% → 84.21%)
+- **Vision Service**: Minor coverage improvement (38% → 40%)
+- **Branch Coverage**: Regression in frontend (76.84% → 73.83%)
 
 ### **Quality Metrics**
 - **Test Execution Time**: <5 minutes for full suite
@@ -376,14 +388,16 @@ frontend/src/
 
 ## 📈 Conclusion
 
-**SparkOps has a foundation for comprehensive testing** but significant gaps exist in critical business logic. The current 30% backend coverage and 83% frontend coverage are below enterprise standards.
+**SparkOps has a foundation for comprehensive testing** but significant gaps exist in critical business logic. The current 30% backend coverage and 84.21% frontend coverage are below enterprise standards.
 
 **Immediate priorities** should be:
 1. **AI service testing** - core product functionality
-2. **Frontend core journey testing** - user experience validation
+2. **Frontend core journey testing** - user experience validation  
 3. **E2E test enablement** - end-to-end reliability
 
 **With focused effort**, the platform can achieve enterprise-grade testing standards within 6 weeks, significantly reducing production risk and ensuring reliable delivery of the voice-to-cash value proposition.
+
+**Recent Progress**: Minor improvements in frontend coverage (83.78% → 84.21%) and vision service (38% → 40%), but branch coverage has regressed. New Xero integration endpoints added but remain untested.
 
 **Recommendation**: Prioritize testing improvements in the order of business risk - AI services first, then user journey, then compliance and performance.
 

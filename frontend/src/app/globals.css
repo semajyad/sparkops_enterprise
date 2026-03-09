@@ -44,12 +44,19 @@ body {
   width: 40px !important;
   height: 40px !important;
   border-radius: 50%;
+  object-fit: cover;
   border: 2px solid white;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
   background-size: cover;
   background-position: center;
   overflow: hidden;
   background-color: transparent;
+}
+
+.map-avatar-marker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .map-avatar-fallback {

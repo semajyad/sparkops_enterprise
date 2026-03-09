@@ -22,7 +22,7 @@ type AuthMePayload = {
 };
 
 export default function ProfilePage(): React.JSX.Element {
-  const { user, session, loading: authLoading, mode, setMode } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const router = useRouter();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
   const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null; organization: string | null } | null>(null);
@@ -199,7 +199,6 @@ export default function ProfilePage(): React.JSX.Element {
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
   const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
-  const isAdminProfileMode = isOwner && mode === "ADMIN";
 
   useEffect(() => {
     setFullNameInput(displayName === "Sparky" ? "" : displayName);
@@ -215,14 +214,6 @@ export default function ProfilePage(): React.JSX.Element {
     const timer = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    if (!isOwner || mode !== "ADMIN") {
-      return;
-    }
-    router.push("/admin");
-  }, [isOwner, mode, router]);
-
 
   function onSubmitProfileUpdate(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -258,49 +249,14 @@ export default function ProfilePage(): React.JSX.Element {
   }
 
   return (
-    <main className={`min-h-screen p-4 pb-24 text-slate-100 sm:p-6 md:p-10 ${isAdminProfileMode ? "bg-slate-900" : "bg-slate-950"}`}>
+    <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section
-        className={`mx-auto w-full max-w-5xl rounded-3xl border p-6 shadow-2xl shadow-black/50 md:p-8 ${
-          isAdminProfileMode ? "border-slate-700 bg-slate-900/95" : "border-slate-800 bg-slate-900"
-        }`}
+        className="mx-auto w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50 md:p-8"
       >
         <header className="space-y-4 border-b border-slate-800 pb-5">
-          <p className="text-center text-xs uppercase tracking-[0.26em] text-amber-400">
-            {isAdminProfileMode ? "Admin Context" : "Field Context"}
-          </p>
-          <h1 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            {isAdminProfileMode ? "Admin Suite" : "My Profile"}
-          </h1>
+          <p className="text-center text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
+          <h1 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">My Profile</h1>
           <p className="text-center text-sm text-slate-300">{displayEmail}</p>
-
-          {isOwner ? (
-            <div className="flex justify-center">
-              <div className="inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
-                <button
-                  type="button"
-                  onClick={() => setMode("FIELD")}
-                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    mode === "FIELD"
-                      ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                      : "text-slate-200 hover:text-white"
-                  }`}
-                >
-                  Field
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("ADMIN")}
-                  className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    mode === "ADMIN"
-                      ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                      : "text-slate-200 hover:text-white"
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
-          ) : null}
         </header>
 
         {loading ? (
@@ -310,66 +266,65 @@ export default function ProfilePage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {!isAdminProfileMode ? (
-          <>
-            <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
-              <p className="text-lg font-semibold text-slate-100">{displayName}</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
-                <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
-              </div>
-            </div>
+        <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
+          <p className="text-lg font-semibold text-slate-100">{displayName}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <p><span className="font-semibold text-slate-100">Role:</span> {details?.role ?? "Unknown"}</p>
+            <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
+          </div>
+        </div>
 
-            <section className="mt-4 grid gap-3 sm:grid-cols-3">
-              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Mode</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">Field Operator</p>
-              </article>
-              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Ladder</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">{ladderEnabled ? "Enabled" : "Disabled"}</p>
-              </article>
-              <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Account</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">Ready</p>
-              </article>
-            </section>
+        {isOwner ? (
+          <button
+            type="button"
+            onClick={() => router.push("/admin")}
+            className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-base font-bold text-slate-950 transition hover:bg-amber-400"
+          >
+            Open Admin Suite
+          </button>
+        ) : null}
 
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => setIsEditOpen(true)}
-                className="inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
-              >
-                Edit Profile
-              </button>
-            </div>
+        <section className="mt-4 grid gap-3 sm:grid-cols-3">
+          <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Mode</p>
+            <p className="mt-1 text-sm font-semibold text-slate-100">Field Operator</p>
+          </article>
+          <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Ladder</p>
+            <p className="mt-1 text-sm font-semibold text-slate-100">{ladderEnabled ? "Enabled" : "Disabled"}</p>
+          </article>
+          <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Account</p>
+            <p className="mt-1 text-sm font-semibold text-slate-100">Ready</p>
+          </article>
+        </section>
 
-            <section className="mt-6 space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Call Handling</h2>
-              <LadderModeToggle enabled={ladderEnabled} disabled={isSavingLadder} onChange={(next) => void onLadderChange(next)} />
-            </section>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setIsEditOpen(true)}
+            className="inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
+          >
+            Edit Profile
+          </button>
+        </div>
 
-            <section className="mt-6 border-t border-slate-800 pt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session</h2>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
-                >
-                  Logout
-                </button>
-              </form>
-            </section>
-          </>
-        ) : (
-          <section className="mt-6 space-y-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Admin Suite</h2>
-            <p className="rounded-xl border border-slate-700 bg-slate-950/80 p-4 text-sm text-slate-200">
-              Loading Team tab...
-            </p>
-          </section>
-        )}
+        <section className="mt-6 space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Call Handling</h2>
+          <LadderModeToggle enabled={ladderEnabled} disabled={isSavingLadder} onChange={(next) => void onLadderChange(next)} />
+        </section>
+
+        <section className="mt-6 border-t border-slate-800 pt-6">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session</h2>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
+            >
+              Logout
+            </button>
+          </form>
+        </section>
 
         {isEditOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
