@@ -157,7 +157,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
-  const [recenterSignal, setRecenterSignal] = useState(0);
+  const recenterSignal = 0;
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
 
@@ -436,23 +436,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
     setSelectedJobId(jobId);
   }
 
-  function onLocateMe(): void {
-    if (!navigator.geolocation) {
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCurrent({ lat: position.coords.latitude, lng: position.coords.longitude });
-        setRecenterSignal((value) => value + 1);
-      },
-      () => {
-        setRecenterSignal((value) => value + 1);
-      },
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
-  }
-
   return (
     <main className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
       {isReady ? (
@@ -477,18 +460,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
         <div className="pointer-events-auto mx-auto w-fit rounded-full border border-slate-500/60 bg-slate-900/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-slate-100 shadow-lg shadow-black/40 backdrop-blur-md">
           Map Hub
         </div>
-      </section>
-
-      <section className="pointer-events-none absolute right-4 top-12 z-[110] flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onLocateMe}
-          className="pointer-events-auto inline-flex min-h-9 items-center justify-center rounded-full border border-slate-500/70 bg-slate-900/85 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-100 shadow-lg shadow-black/40 transition hover:border-amber-400"
-          aria-label="Locate me"
-          title="Locate me"
-        >
-          Locate Me
-        </button>
       </section>
   </main>
 );

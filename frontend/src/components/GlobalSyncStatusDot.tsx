@@ -3,8 +3,6 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useSync } from "@/components/SyncProvider";
-
 type GpsStatus = "searching" | "ready" | "off";
 
 type DotIndicator = {
@@ -15,27 +13,21 @@ type DotIndicator = {
 export function getDotRouteContext(pathname: string | null | undefined): {
   routePath: string;
   isMapRoute: boolean;
-  isCaptureRoute: boolean;
 } {
   const routePath = pathname ?? "";
   return {
     routePath,
     isMapRoute: routePath === "/map" || routePath.startsWith("/tracking"),
-    isCaptureRoute: routePath === "/capture" || routePath.startsWith("/capture/"),
   };
 }
 
 export function resolveDotIndicator(
   {
     isMapRoute,
-    isCaptureRoute,
     gpsStatus,
-    isOnline,
   }: {
     isMapRoute: boolean;
-    isCaptureRoute: boolean;
     gpsStatus: GpsStatus;
-    isOnline: boolean;
   }
 ): DotIndicator | null {
   if (isMapRoute) {
@@ -46,19 +38,12 @@ export function resolveDotIndicator(
     return { colorClass: "bg-amber-400", label: "GPS status: Searching or off" };
   }
 
-  if (isCaptureRoute) {
-    return isOnline
-      ? { colorClass: "bg-emerald-400", label: "Network status: Online" }
-      : { colorClass: "bg-amber-400", label: "Network status: Offline" };
-  }
-
   return null;
 }
 
 export function GlobalSyncStatusDot(): React.JSX.Element {
   const pathname = usePathname();
-  const { isMapRoute, isCaptureRoute } = getDotRouteContext(pathname);
-  const { isOnline } = useSync();
+  const { isMapRoute } = getDotRouteContext(pathname);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
 
   useEffect(() => {
@@ -76,8 +61,8 @@ export function GlobalSyncStatusDot(): React.JSX.Element {
   }, [isMapRoute]);
 
   const indicator = useMemo(
-    () => resolveDotIndicator({ isMapRoute, isCaptureRoute, gpsStatus, isOnline }),
-    [gpsStatus, isCaptureRoute, isMapRoute, isOnline]
+    () => resolveDotIndicator({ isMapRoute, gpsStatus }),
+    [gpsStatus, isMapRoute]
   );
 
   if (!indicator) {

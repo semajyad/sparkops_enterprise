@@ -36,6 +36,7 @@ function hydrateEnvFromFile(filename: string): void {
 export default async function globalSetup(): Promise<void> {
   hydrateEnvFromFile(".env.local");
   hydrateEnvFromFile(".env.production");
+  hydrateEnvFromFile(".env.test");  // Load test-specific environment variables
 
   const targetEnv = (process.env.PLAYWRIGHT_TARGET ?? "local").toLowerCase();
   const baseUrl =

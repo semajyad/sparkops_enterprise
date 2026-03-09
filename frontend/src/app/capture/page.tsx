@@ -528,7 +528,7 @@ export default function CapturePage() {
 
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
 
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-2xl shadow-black/40 backdrop-blur sm:p-6 md:p-8">
+      <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-2xl shadow-black/40 backdrop-blur sm:p-6 md:p-8">
 
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
@@ -539,6 +539,13 @@ export default function CapturePage() {
             <h1 className="text-3xl font-bold tracking-tight text-white">Field Capture</h1>
 
           </div>
+
+          <span
+            className={`absolute right-4 top-4 h-3 w-3 rounded-full ${
+              isOnline && pendingCount === 0 ? "bg-emerald-400" : "bg-amber-400"
+            }`}
+            aria-label={isOnline && pendingCount === 0 ? "Capture status: healthy" : "Capture status: pending or offline"}
+          />
 
         </header>
 

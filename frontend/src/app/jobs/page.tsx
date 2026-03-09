@@ -13,6 +13,7 @@ import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
+const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
@@ -146,14 +147,21 @@ export default function JobsPage(): React.JSX.Element {
 
   const jobs: JobListItem[] = useMemo(
     () =>
-      (cachedJobs ?? []).map((job) => ({
-        id: String(job.id ?? "").trim(),
-        status: job.status,
-        created_at: job.created_at,
-        date_scheduled: job.date_scheduled,
-        client_name: job.client_name,
-        extracted_data: job.extracted_data,
-      })),
+      (cachedJobs ?? [])
+        .filter((job) => {
+          const extractedAddress =
+            typeof job.extracted_data?.address === "string" ? job.extracted_data.address.trim() : "";
+          const normalizedId = String(job.id ?? "").trim();
+          return extractedAddress !== "Start typing an address" && normalizedId !== ROGUE_JOB_ID;
+        })
+        .map((job) => ({
+          id: String(job.id ?? "").trim(),
+          status: job.status,
+          created_at: job.created_at,
+          date_scheduled: job.date_scheduled,
+          client_name: job.client_name,
+          extracted_data: job.extracted_data,
+        })),
     [cachedJobs]
   );
 
@@ -346,9 +354,9 @@ export default function JobsPage(): React.JSX.Element {
                       setLongitude(null);
                     }}
                     onSelect={(selection) => {
-                      setLocation(selection.label);
-                      setLatitude(selection.latitude);
-                      setLongitude(selection.longitude);
+                      setLocation(selection.place_name);
+                      setLatitude(selection.lat);
+                      setLongitude(selection.lng);
                     }}
                     placeholder="Start typing an address"
                     className={MODAL_INPUT_CLASS}

@@ -274,16 +274,6 @@ export default function ProfilePage(): React.JSX.Element {
           </div>
         </div>
 
-        {isOwner ? (
-          <button
-            type="button"
-            onClick={() => router.push("/admin")}
-            className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-base font-bold text-slate-950 transition hover:bg-amber-400"
-          >
-            Open Admin Suite
-          </button>
-        ) : null}
-
         <section className="mt-4 grid gap-3 sm:grid-cols-3">
           <article className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
             <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Mode</p>
@@ -325,6 +315,18 @@ export default function ProfilePage(): React.JSX.Element {
             </button>
           </form>
         </section>
+
+        {isOwner ? (
+          <div className="mt-4 text-right">
+            <button
+              type="button"
+              onClick={() => router.push("/admin")}
+              className="text-sm text-slate-400 transition hover:text-amber-300"
+            >
+              Admin Suite
+            </button>
+          </div>
+        ) : null}
 
         {isEditOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">

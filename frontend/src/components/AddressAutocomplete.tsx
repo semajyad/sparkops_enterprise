@@ -5,9 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type AddressSuggestion = {
   id: string;
-  label: string;
-  latitude: number;
-  longitude: number;
+  text: string;
+  place_name: string;
+  address: string;
+  lat: number;
+  lng: number;
 };
 
 type MapboxFeature = {
@@ -17,6 +19,9 @@ type MapboxFeature = {
   text?: string;
   address?: string;
   center?: [number, number];
+  geometry?: {
+    coordinates?: [number, number];
+  };
   properties?: {
     address?: string;
   };
@@ -135,7 +140,7 @@ export function AddressAutocomplete({
     const controller = new AbortController();
     const fetchSuggestions = async (): Promise<void> => {
       setIsLoading(true);
-      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?autocomplete=true&limit=5&country=nz&types=address,neighborhood,locality,place&access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
+      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${MAPBOX_TOKEN}`;
       const mapboxResponse = await fetch(mapboxUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -150,22 +155,27 @@ export function AddressAutocomplete({
       const rows = Array.isArray(payload.features) ? payload.features : [];
       const mapped = rows
         .map((feature) => {
-          const longitude = typeof feature.center?.[0] === "number" ? feature.center[0] : null;
-          const latitude = typeof feature.center?.[1] === "number" ? feature.center[1] : null;
-          if (latitude === null || longitude === null) {
+          const coordinates = feature.geometry?.coordinates ?? feature.center;
+          const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
+          const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
+          if (lat === null || lng === null) {
             return null;
           }
 
-          const label = buildMapboxLabel(feature);
+          const placeName = sanitizeAddressComponent(feature.place_name);
+          const text = sanitizeAddressComponent(feature.text);
+          const label = placeName || buildMapboxLabel(feature);
           if (!label || label === "Unknown address") {
             return null;
           }
 
           return {
             id: feature.id,
-            label,
-            latitude,
-            longitude,
+            text: text || label,
+            place_name: label,
+            address: label,
+            lat,
+            lng,
           } satisfies AddressSuggestion;
         })
         .filter((row): row is AddressSuggestion => Boolean(row));
@@ -242,22 +252,27 @@ export function AddressAutocomplete({
       ) : null}
 
       {showDropdown && value.trim().length >= 3 ? (
-        <ul className="absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-1 shadow-2xl shadow-black/40">
+        <ul className="absolute z-[9999] mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-1 shadow-2xl shadow-black/40">
           {suggestions.map((suggestion) => (
             <li key={suggestion.id}>
               <button
                 type="button"
                 onClick={() => {
                   suppressFetchRef.current = true;
-                  onChange(suggestion.label);
-                  onSelect(suggestion);
+                  onChange(suggestion.place_name);
+                  onSelect({
+                    ...suggestion,
+                    address: suggestion.place_name,
+                    lat: suggestion.lat,
+                    lng: suggestion.lng,
+                  });
                   setSuggestions([]);
                   setOpen(false);
                 }}
                 className="flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-amber-500/15 hover:text-amber-100"
               >
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                <span>{suggestion.label}</span>
+                <span>{suggestion.place_name}</span>
               </button>
             </li>
           ))}

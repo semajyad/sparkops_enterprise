@@ -159,16 +159,24 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
           </Marker>
         ))}
 
-        {jobs.map((job) => (
-          <Marker
-            key={job.id}
-            position={[job.coordinate.lat, job.coordinate.lng]}
-            icon={jobIcon(job, selectedJobId === job.id)}
-            eventHandlers={{ click: () => onJobSelect(job.id) }}
-          >
-            <Tooltip direction="top" offset={[0, -8]}>{job.clientName}</Tooltip>
-          </Marker>
-        ))}
+        {jobs.map((job) => {
+          const latitude = job.coordinate?.lat;
+          const longitude = job.coordinate?.lng;
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+          }
+
+          return (
+            <Marker
+              key={job.id}
+              position={[latitude, longitude]}
+              icon={jobIcon(job, selectedJobId === job.id)}
+              eventHandlers={{ click: () => onJobSelect(job.id) }}
+            >
+              <Tooltip direction="top" offset={[0, -8]}>{job.clientName}</Tooltip>
+            </Marker>
+          );
+        })}
       </MapContainer>
     </div>
   );

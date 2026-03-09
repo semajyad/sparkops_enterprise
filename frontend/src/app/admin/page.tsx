@@ -479,7 +479,7 @@ export default function AdminPage(): React.JSX.Element {
         <header className="rounded-2xl border border-slate-700 bg-slate-900/95 p-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-amber-300">Admin Suite</p>
+              <h1 className="text-xl font-semibold text-slate-100">Admin Suite</h1>
               {isSyncing ? <p className="mt-2 text-xs text-slate-400">Syncing latest org data...</p> : null}
             </div>
           </div>
@@ -505,22 +505,6 @@ export default function AdminPage(): React.JSX.Element {
             ))}
           </nav>
         </header>
-
-        <section className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
-          <p className="text-lg font-semibold text-slate-100">Owner Workspace</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <p><span className="font-semibold text-slate-100">Role:</span> OWNER</p>
-            <p><span className="font-semibold text-slate-100">Context:</span> Office</p>
-          </div>
-        </section>
-
-        <button
-          type="button"
-          onClick={onExitToField}
-          className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-amber-500 bg-transparent px-4 py-3 text-base font-bold text-amber-300 transition hover:bg-amber-500/10 hover:text-amber-200"
-        >
-          Back to Profile
-        </button>
 
         <section className="mt-5">
           {activeSection === "team" ? (
@@ -825,6 +809,16 @@ export default function AdminPage(): React.JSX.Element {
 
           {error ? <p className="mt-4 rounded-xl border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
         </section>
+
+        <div className="mt-6 border-t border-slate-800 pt-4 text-right">
+          <button
+            type="button"
+            onClick={onExitToField}
+            className="text-sm text-slate-400 transition hover:text-amber-300"
+          >
+            Back to Profile
+          </button>
+        </div>
       </section>
 
       {toast ? (
