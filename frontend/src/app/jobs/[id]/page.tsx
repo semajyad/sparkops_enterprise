@@ -118,8 +118,8 @@ export default function JobReviewPage(): React.JSX.Element {
 
       try {
         await db.drafts.delete(job.id);
-      } catch {
-        // Best effort: local draft cache may already be gone.
+      } catch (draftDeleteError) {
+        console.warn("Draft missing, continuing...", draftDeleteError);
       }
 
       try {
@@ -229,7 +229,7 @@ export default function JobReviewPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => void deleteJob()}
-              disabled={!job || isDeleting}
+              disabled={isDeleting}
               className="inline-flex items-center gap-2 rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

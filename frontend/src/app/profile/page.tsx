@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 
 import { signOut } from "@/app/login/actions";
@@ -255,6 +256,35 @@ export default function ProfilePage(): React.JSX.Element {
             <p className="text-xs uppercase tracking-[0.26em] text-amber-400">Profile</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{displayName}</h1>
             <p className="text-sm text-slate-300">{displayEmail}</p>
+            {isOwner ? (
+              <div className="pt-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Mode</p>
+                <div className="mt-2 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+                  <button
+                    type="button"
+                    onClick={() => setMode("FIELD")}
+                    className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      mode === "FIELD"
+                        ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                        : "text-slate-200 hover:text-white"
+                    }`}
+                  >
+                    Field
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("ADMIN")}
+                    className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      mode === "ADMIN"
+                        ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
+                        : "text-slate-200 hover:text-white"
+                    }`}
+                  >
+                    Admin
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -270,46 +300,58 @@ export default function ProfilePage(): React.JSX.Element {
           <p><span className="font-semibold text-slate-100">Organization:</span> {displayOrganization}</p>
         </div>
 
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => setIsEditOpen(true)}
-            className="inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
-          >
-            Edit Profile
-          </button>
-        </div>
-
-        {isOwner ? (
-          <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">App Settings</h2>
-            <p className="mt-1 text-xs text-slate-400">Session Mode</p>
-            <div className="mt-3 inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
+        {!isOwner || mode === "FIELD" ? (
+          <>
+            <div className="mt-4">
               <button
                 type="button"
-                onClick={() => setMode("FIELD")}
-                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  mode === "FIELD"
-                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                    : "text-slate-200 hover:text-white"
-                }`}
+                onClick={() => setIsEditOpen(true)}
+                className="inline-flex min-h-11 items-center rounded-xl border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
               >
-                Field
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("ADMIN")}
-                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  mode === "ADMIN"
-                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                    : "text-slate-200 hover:text-white"
-                }`}
-              >
-                Admin
+                Edit Profile
               </button>
             </div>
+
+            <section className="mt-6 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Call Handling</h2>
+              <LadderModeToggle enabled={ladderEnabled} disabled={isSavingLadder} onChange={(next) => void onLadderChange(next)} />
+            </section>
+
+            <section className="mt-6 border-t border-slate-800 pt-6">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session</h2>
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
+                >
+                  Logout
+                </button>
+              </form>
+            </section>
+          </>
+        ) : (
+          <section className="mt-6 space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Admin Dashboard</h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                { title: "Company Details", href: "/admin", summary: "Branding, business identity, and billing details." },
+                { title: "Team List", href: "/admin", summary: "Active staff, pending invites, and role access." },
+                { title: "Fleet", href: "/admin", summary: "Vehicles, plates, and assignment readiness." },
+              ].map((item) => (
+                <article key={item.title} className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                  <h3 className="text-sm font-semibold text-slate-100">{item.title}</h3>
+                  <p className="mt-2 text-xs text-slate-400">{item.summary}</p>
+                  <Link
+                    href={item.href}
+                    className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-amber-500/60 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/25"
+                  >
+                    Open Admin
+                  </Link>
+                </article>
+              ))}
+            </div>
           </section>
-        ) : null}
+        )}
 
         {isEditOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
@@ -370,23 +412,6 @@ export default function ProfilePage(): React.JSX.Element {
             </section>
           </div>
         ) : null}
-
-        <section className="mt-6 space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Call Handling</h2>
-          <LadderModeToggle enabled={ladderEnabled} disabled={isSavingLadder} onChange={(next) => void onLadderChange(next)} />
-        </section>
-
-        <section className="mt-6 border-t border-slate-800 pt-6">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Session</h2>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-rose-500/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
-            >
-              Logout
-            </button>
-          </form>
-        </section>
 
         {message ? <p className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm text-slate-300">{message}</p> : null}
       </section>
