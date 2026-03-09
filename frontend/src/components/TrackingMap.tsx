@@ -75,12 +75,12 @@ function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinat
 
 function avatarIcon(location: StaffLocation): DivIcon {
   const avatarHtml = location.avatarUrl
-    ? `<img src="${location.avatarUrl}" alt="${location.name}" />`
+    ? `<div style="width:100%;height:100%;background-image:url('${location.avatarUrl}');background-size:cover;background-position:center;"></div>`
     : `<div class="map-avatar-fallback">${location.initials}</div>`;
 
   return L.divIcon({
-    className: "sparkops-avatar-marker-wrapper",
-    html: `<div class="sparkops-avatar-marker ${location.isStale ? "stale" : ""}">${avatarHtml}</div>`,
+    className: `map-avatar-marker ${location.isStale ? "opacity-50" : ""}`,
+    html: avatarHtml,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
   });

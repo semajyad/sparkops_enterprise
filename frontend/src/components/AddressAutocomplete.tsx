@@ -13,6 +13,7 @@ type AddressSuggestion = {
 type PhotonFeature = {
   geometry?: { coordinates?: [number, number] };
   properties?: {
+    type?: string;
     name?: string;
     house_number?: string;
     housenumber?: string;
@@ -79,33 +80,15 @@ function buildLabel(properties: PhotonFeature["properties"] | undefined): string
   const location = pickFirstString(
     sanitizeAddressComponent(properties.suburb),
     sanitizeAddressComponent(properties.neighbourhood),
-    sanitizeAddressComponent(properties.city_district),
-    sanitizeAddressComponent(properties.village),
+    sanitizeAddressComponent(properties.city),
   );
 
-  if (houseNumber && street) {
-    const streetLine = `${houseNumber} ${street}`.trim();
+  if (street) {
+    const streetLine = houseNumber ? `${houseNumber} ${street}`.trim() : street;
     return location ? `${streetLine}, ${location}` : streetLine;
   }
 
-  const orderedParts = [
-    sanitizeAddressComponent(properties.name),
-    sanitizeAddressComponent(properties.street),
-    sanitizeAddressComponent(properties.suburb),
-    sanitizeAddressComponent(properties.neighbourhood),
-    sanitizeAddressComponent(properties.city_district),
-    sanitizeAddressComponent(properties.village),
-  ];
-
-  const parts = orderedParts
-    .map((part) => (typeof part === "string" ? part.trim() : ""))
-    .filter((part) => part.length > 0);
-
-  if (parts.length === 0) {
-    return "Unknown address";
-  }
-
-  return parts.join(", ");
+  return "Unknown address";
 }
 
 export function AddressAutocomplete({
@@ -176,13 +159,13 @@ export function AddressAutocomplete({
                 return null;
               }
 
-              const isMunicipalityOnly = properties?.osm_key === "place" && properties?.osm_value === "municipality";
-              if (isMunicipalityOnly) {
+              const placeType = pickFirstString(properties?.type, properties?.osm_value).toLowerCase();
+              if (placeType === "administrative" || placeType === "municipality") {
                 return null;
               }
 
-              const houseNumber = pickFirstString(properties?.house_number, properties?.housenumber);
-              if (!houseNumber) {
+              const isMunicipalityOnly = properties?.osm_key === "place" && properties?.osm_value === "municipality";
+              if (isMunicipalityOnly) {
                 return null;
               }
 

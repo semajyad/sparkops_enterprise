@@ -40,46 +40,29 @@ body {
   z-index: 0;
 }
 
-.sparkops-avatar-marker-wrapper {
-  background: transparent;
-  border: 0;
-}
-
-.sparkops-avatar-marker {
-  display: inline-flex;
-  height: 40px;
-  width: 40px;
-  align-items: center;
-  justify-content: center;
+.map-avatar-marker {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+  background-size: cover;
+  background-position: center;
   overflow: hidden;
-  border-radius: 9999px;
-  border: 2px solid #ffffff;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  transition: transform 0.75s ease, opacity 0.35s ease;
-}
-
-.sparkops-avatar-marker img {
-  height: 100%;
-  width: 100%;
-  object-fit: cover;
+  background-color: transparent;
 }
 
 .map-avatar-fallback {
-  display: inline-flex;
-  height: 100%;
-  width: 100%;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f97316;
+  color: white;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: #0f172a;
-  color: #f8fafc;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.sparkops-avatar-marker.stale {
-  opacity: 0.5;
+  font-weight: bold;
+  border: 2px solid white;
 }
 
 .sparkops-you-marker {

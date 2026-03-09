@@ -2,7 +2,8 @@
 
 import { Loader2, Plus, Trash2, Upload } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import { inviteUser, listTeamMembers } from "@/app/profile/actions";
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -80,8 +81,21 @@ function toCachedVehicleRecord(record: VehicleRecord): CachedVehicle {
   };
 }
 
+function initialsFromName(fullName: string): string {
+  const chunks = fullName
+    .trim()
+    .split(/\s+/)
+    .filter((chunk) => chunk.length > 0)
+    .slice(0, 2);
+  if (chunks.length === 0) {
+    return "??";
+  }
+  return chunks.map((chunk) => chunk[0]?.toUpperCase() ?? "").join("");
+}
+
 export default function AdminPage(): React.JSX.Element {
-  const { loading: authLoading, role, mode, setMode, user } = useAuth();
+  const router = useRouter();
+  const { loading: authLoading, role, setMode, user } = useAuth();
   const [activeSection, setActiveSection] = useState<AdminSection>("team");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
@@ -104,12 +118,6 @@ export default function AdminPage(): React.JSX.Element {
   const [vehicleNotes, setVehicleNotes] = useState("");
 
   const isOwner = role === "OWNER";
-
-  const sectionTitle = useMemo(() => {
-    if (activeSection === "team") return "Team Management";
-    if (activeSection === "company") return "Company";
-    return "Fleet Management";
-  }, [activeSection]);
 
   const hydrateFromDexie = useCallback(async (): Promise<void> => {
     const [cachedSettings, cachedVehicles, cachedTeam] = await Promise.all([getAdminSettingsCache(), listVehiclesFromCache(), getTeamCache()]);
@@ -235,6 +243,11 @@ export default function AdminPage(): React.JSX.Element {
       setIsInviting(false);
       setIsTeamLoading(false);
     }
+  }
+
+  function onExitToField(): void {
+    setMode("FIELD");
+    router.push("/profile");
   }
 
   useEffect(() => {
@@ -424,35 +437,22 @@ export default function AdminPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl shadow-black/50">
-        <header className="sticky top-2 z-10 space-y-4 rounded-2xl border border-slate-700 bg-slate-900/95 p-4 backdrop-blur">
-          <div className="flex justify-center">
-            <div className="inline-flex rounded-full bg-slate-700 p-1 shadow-inner shadow-black/35">
-              <button
-                type="button"
-                onClick={() => setMode("FIELD")}
-                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  mode === "FIELD"
-                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                    : "text-slate-200 hover:text-white"
-                }`}
-              >
-                Field
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("ADMIN")}
-                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  mode === "ADMIN"
-                    ? "bg-white text-slate-900 shadow-sm shadow-slate-950/40"
-                    : "text-slate-200 hover:text-white"
-                }`}
-              >
-                Admin
-              </button>
+        <header className="rounded-2xl border border-slate-700 bg-slate-900/95 p-4 backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-amber-300">Admin Suite</p>
+              {isSyncing ? <p className="mt-2 text-xs text-slate-400">Syncing latest org data...</p> : null}
             </div>
+            <button
+              type="button"
+              onClick={onExitToField}
+              className="inline-flex min-h-9 items-center rounded-lg border border-slate-500 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-amber-400 hover:text-amber-100"
+            >
+              Exit to Field
+            </button>
           </div>
 
-          <nav className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 p-2">
+          <nav className="sticky top-0 z-20 -mb-px mt-4 flex gap-5 overflow-x-auto border-b border-slate-700 bg-slate-900/95">
             {([
               ["team", "Team"],
               ["fleet", "Fleet"],
@@ -462,22 +462,19 @@ export default function AdminPage(): React.JSX.Element {
                 key={key}
                 type="button"
                 onClick={() => setActiveSection(key)}
-                className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                className={`min-h-11 border-b-2 px-1 pb-2 pt-1 text-sm font-semibold transition ${
                   activeSection === key
-                    ? "border-amber-400/70 bg-amber-500/20 text-amber-100"
-                    : "border-slate-700 bg-slate-950/60 text-slate-300 hover:border-amber-500/50"
+                    ? "border-amber-400 text-amber-200"
+                    : "border-transparent text-slate-300 hover:text-amber-100"
                 }`}
               >
                 {label}
               </button>
             ))}
           </nav>
-          {isSyncing ? <p className="text-center text-xs text-slate-400">Syncing latest org data...</p> : null}
         </header>
 
         <section className="mt-5">
-          <h1 className="text-2xl font-semibold text-white">{sectionTitle}</h1>
-
           {activeSection === "team" ? (
             <div className="mt-4 space-y-4">
               <form className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/70 p-4 sm:grid-cols-2" onSubmit={(event) => void onInviteSubmit(event)}>
@@ -530,10 +527,15 @@ export default function AdminPage(): React.JSX.Element {
                   {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-3 text-sm text-slate-400">No active users yet.</p> : null}
                   <ul className="mt-3 space-y-2">
                     {activeUsers.map((member) => (
-                      <li key={member.id} className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2">
-                        <p className="text-sm font-semibold text-slate-100">{member.full_name}</p>
-                        <p className="text-xs text-slate-300">{member.email}</p>
-                        <p className="text-[11px] uppercase tracking-wide text-amber-200">{member.role}</p>
+                      <li key={member.id} className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-600 bg-slate-800 text-xs font-bold text-amber-200">
+                          {initialsFromName(member.full_name)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-100">{member.full_name}</p>
+                          <p className="text-xs text-slate-300">{member.email}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-amber-200">{member.role}</p>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -543,10 +545,15 @@ export default function AdminPage(): React.JSX.Element {
                   {!isTeamLoading && pendingInvites.length === 0 ? <p className="mt-3 text-sm text-slate-400">No pending invites.</p> : null}
                   <ul className="mt-3 space-y-2">
                     {pendingInvites.map((member) => (
-                      <li key={member.id} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                        <p className="text-sm font-semibold text-amber-100">{member.full_name}</p>
-                        <p className="text-xs text-amber-100/90">{member.email}</p>
-                        <p className="text-[11px] uppercase tracking-wide text-amber-200">Pending</p>
+                      <li key={member.id} className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-200/40 bg-amber-500/20 text-xs font-bold text-amber-100">
+                          {initialsFromName(member.full_name)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-100">{member.full_name}</p>
+                          <p className="text-xs text-amber-100/90">{member.email}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-amber-200">Pending</p>
+                        </div>
                       </li>
                     ))}
                   </ul>

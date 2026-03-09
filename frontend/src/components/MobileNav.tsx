@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, ClipboardList, Home, MapPin, Mic, UserRound } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useUserMode } from "@/lib/user-mode";
 
 function itemClass(isActive: boolean): string {
   return isActive ? "text-amber-400" : "text-slate-400";
@@ -30,8 +30,7 @@ const HIDDEN_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export function MobileNav(): React.JSX.Element {
   const pathname = usePathname();
-  const { role, mode } = useAuth();
-  const isAdminMode = role === "OWNER" && mode === "ADMIN";
+  const { isAdminMode } = useUserMode();
 
   if (pathname === "/" || HIDDEN_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return <></>;
