@@ -1,20 +1,51 @@
-import { describe, expect, it } from "@jest/globals";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import CapturePage from "@/app/capture/page";
 import { SyncContext } from "@/components/SyncProvider";
 
-describe("Capture page save/sync controls", () => {
-  function renderWithSyncState(state: {
-    isOnline: boolean;
-    isSyncing: boolean;
-    pendingCount: number;
-  }): void {
+const mockedUseAuth = jest.fn<() => unknown>();
+const mockedApiFetch = jest.fn<() => Promise<Response>>();
+const mockedSaveJobDraft = jest.fn<() => Promise<number>>();
+const mockedSyncPendingDrafts = jest.fn<() => Promise<{ synced: number; attempted: number }>>();
+
+jest.mock("@/lib/auth", () => ({
+  useAuth: mockedUseAuth,
+}));
+
+jest.mock("@/lib/api", () => ({
+  apiFetch: mockedApiFetch,
+}));
+
+jest.mock("@/lib/db", () => ({
+  saveJobDraft: mockedSaveJobDraft,
+}));
+
+jest.mock("@/lib/syncManager", () => ({
+  syncPendingDrafts: mockedSyncPendingDrafts,
+}));
+
+jest.mock("next/image", () => ({
+  __esModule: true,
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} alt={props.alt ?? ""} />,
+}));
+
+jest.mock("framer-motion", () => ({
+  motion: {
+    button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
+  },
+  useReducedMotion: () => true,
+}));
+
+describe("Capture page logic", () => {
+  const refreshCounts = jest.fn(async () => undefined);
+
+  function renderWithSyncState(state: { isOnline: boolean; isSyncing: boolean; pendingCount: number }): void {
     render(
       <SyncContext.Provider
         value={{
           ...state,
-          refreshCounts: async () => undefined,
+          refreshCounts,
           triggerSync: async () => undefined,
         }}
       >
@@ -23,16 +54,82 @@ describe("Capture page save/sync controls", () => {
     );
   }
 
-  it("shows always-visible Save / Sync action while offline", () => {
-    renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 3 });
+  beforeEach(() => {
+    jest.clearAllMocks();
 
-    expect(screen.queryByRole("button", { name: /save \/ sync now/i })).not.toBeNull();
+    Object.defineProperty(window, "alert", {
+      configurable: true,
+      value: jest.fn(),
+    });
+
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        onLine: true,
+        geolocation: {
+          watchPosition: jest.fn(() => 1),
+          clearWatch: jest.fn(),
+        },
+        mediaDevices: {},
+      },
+    });
+
+    mockedUseAuth.mockReturnValue({
+      session: { access_token: "token" },
+      user: null,
+      role: "OWNER",
+      mode: "FIELD",
+      loading: false,
+      setMode: () => undefined,
+    });
+
+    mockedSaveJobDraft.mockResolvedValue(100);
+    mockedSyncPendingDrafts.mockResolvedValue({ synced: 1, attempted: 1 });
+    mockedApiFetch.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
   });
 
-  it("shows sync action for pending drafts while online", async () => {
-    renderWithSyncState({ isOnline: true, isSyncing: true, pendingCount: 2 });
+  it("renders always-visible Save / Sync action", () => {
+    renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 0 });
+    expect(screen.getByRole("button", { name: /save \/ sync now/i })).toBeTruthy();
+  });
 
-    const syncButton = screen.getByRole("button", { name: /^sync pending drafts$/i });
-    expect(syncButton).not.toBeNull();
+  it("keeps primary action disabled when offline and there is no content", () => {
+    renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 0 });
+    const primaryAction = screen.getByRole("button", { name: /save \/ sync now/i });
+    expect(primaryAction.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("saves offline draft when voice notes are present", async () => {
+    renderWithSyncState({ isOnline: false, isSyncing: false, pendingCount: 0 });
+
+    fireEvent.change(screen.getByLabelText(/voice notes/i), {
+      target: { value: "Installed RCD and polarity checks" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save \/ sync now/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/draft saved offline and queued for sync/i)).toBeTruthy();
+    });
+
+    expect(refreshCounts).toHaveBeenCalled();
+    expect(window.alert).toHaveBeenCalledWith("Draft Saved");
+  });
+
+  it("switches to online sync mode and executes force sync", async () => {
+    renderWithSyncState({ isOnline: true, isSyncing: false, pendingCount: 2 });
+
+    expect(screen.getByRole("button", { name: /^sync pending drafts$/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^sync pending drafts$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/pending drafts sync complete/i)).toBeTruthy();
+    });
+
+    expect(window.alert).toHaveBeenCalledWith(expect.stringMatching(/^Sync Complete:/));
+  });
+
+  it("shows dedicated force-sync secondary action when online with pending drafts", () => {
+    renderWithSyncState({ isOnline: true, isSyncing: false, pendingCount: 1 });
+    expect(screen.getByRole("button", { name: /force sync pending drafts/i })).toBeTruthy();
   });
 });

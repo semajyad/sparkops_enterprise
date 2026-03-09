@@ -20,6 +20,7 @@ import { apiFetch } from "@/lib/api";
 import { saveJobDraft } from "@/lib/db";
 
 import { syncPendingDrafts } from "@/lib/syncManager";
+import { getCaptureStatusState, getPrimaryActionState, hasMeaningfulCaptureContent } from "@/app/capture/captureLogic";
 
 
 
@@ -105,7 +106,17 @@ export default function CapturePage() {
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
-  const captureStatusState = !isOnline ? "offline" : pendingCount > 0 ? "syncing" : "healthy";
+  const captureStatusState = getCaptureStatusState(isOnline, pendingCount);
+  const primaryActionState = getPrimaryActionState({
+    isOnline,
+    pendingCount,
+    isSavingDraft,
+    isSyncingNow,
+    isRecording,
+    voiceText,
+    audioBlob,
+    receiptBase64,
+  });
 
 
 
@@ -193,7 +204,7 @@ export default function CapturePage() {
 
   function hasMeaningfulContent(): boolean {
 
-    return Boolean(voiceText.trim() || audioBlob || receiptBase64);
+    return hasMeaningfulCaptureContent(voiceText, audioBlob, receiptBase64);
 
   }
 
@@ -710,11 +721,11 @@ export default function CapturePage() {
                 ? handleForceSync()
                 : Promise.resolve())
           }
-          disabled={isSavingDraft || isSyncingNow || isRecording || (!hasMeaningfulContent() && (!isOnline || pendingCount === 0))}
+          disabled={primaryActionState.disabled}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-4 text-lg font-bold text-slate-950 transition hover:bg-amber-400 active:opacity-80 disabled:opacity-50"
         >
           {isSavingDraft || isSyncingNow ? <Loader2 className="h-5 w-5 animate-spin" /> : isOnline ? <RefreshCw className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
-          {hasMeaningfulContent() ? "Save / Sync Now" : isOnline && pendingCount > 0 ? "Sync Pending Drafts" : "Save / Sync Now"}
+          {primaryActionState.label}
         </button>
 
 
