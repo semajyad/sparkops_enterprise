@@ -9,6 +9,28 @@ const mockedApiFetch = jest.fn<() => Promise<Response>>();
 const mockedSaveJobDraft = jest.fn<() => Promise<number>>();
 const mockedSyncPendingDrafts = jest.fn<() => Promise<{ synced: number; attempted: number }>>();
 
+class FakeMediaRecorder {
+  static isTypeSupported = jest.fn(() => true);
+
+  public mimeType = "audio/webm";
+  public state: "inactive" | "recording" = "inactive";
+  public ondataavailable: ((event: BlobEvent) => void) | null = null;
+  public onstop: (() => void) | null = null;
+
+  start(): void {
+    this.state = "recording";
+  }
+
+  stop(): void {
+    this.state = "inactive";
+    const fakeEvent = {
+      data: new Blob(["audio"], { type: "audio/webm" }),
+    } as BlobEvent;
+    this.ondataavailable?.(fakeEvent);
+    this.onstop?.();
+  }
+}
+
 jest.mock("@/lib/auth", () => ({
   useAuth: mockedUseAuth,
 }));
@@ -59,6 +81,14 @@ describe("Capture page logic", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    Object.defineProperty(globalThis, "URL", {
+      configurable: true,
+      value: {
+        createObjectURL: jest.fn(() => "blob:mock-audio"),
+        revokeObjectURL: jest.fn(),
+      },
+    });
+
     Object.defineProperty(window, "alert", {
       configurable: true,
       value: jest.fn(),
@@ -72,8 +102,17 @@ describe("Capture page logic", () => {
           watchPosition: jest.fn(() => 1),
           clearWatch: jest.fn(),
         },
-        mediaDevices: {},
+        mediaDevices: {
+          getUserMedia: jest.fn(async () => ({
+            getTracks: () => [{ stop: jest.fn() }],
+          })),
+        },
       },
+    });
+
+    Object.defineProperty(globalThis, "MediaRecorder", {
+      configurable: true,
+      value: FakeMediaRecorder,
     });
 
     mockedUseAuth.mockReturnValue({
@@ -134,4 +173,18 @@ describe("Capture page logic", () => {
     renderWithSyncState({ isOnline: true, isSyncing: false, pendingCount: 1 });
     expect(screen.getByRole("button", { name: /force sync pending drafts/i })).toBeTruthy();
   });
+
+  it("records then stops audio with mocked MediaRecorder", async () => {
+    renderWithSyncState({ isOnline: true, isSyncing: false, pendingCount: 0 });
+
+    fireEvent.click(screen.getByRole("button", { name: /start recording/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /stop recording/i })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /stop recording/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/audio captured/i)).toBeTruthy();
+    }, { timeout: 10_000 });
+  }, 15_000);
 });

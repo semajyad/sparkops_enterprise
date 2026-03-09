@@ -7,13 +7,59 @@ import { useSync } from "@/components/SyncProvider";
 
 type GpsStatus = "searching" | "ready" | "off";
 
+type DotIndicator = {
+  colorClass: string;
+  label: string;
+};
+
+export function getDotRouteContext(pathname: string | null | undefined): {
+  routePath: string;
+  isMapRoute: boolean;
+  isCaptureRoute: boolean;
+} {
+  const routePath = pathname ?? "";
+  return {
+    routePath,
+    isMapRoute: routePath === "/map" || routePath.startsWith("/tracking"),
+    isCaptureRoute: routePath === "/capture" || routePath.startsWith("/capture/"),
+  };
+}
+
+export function resolveDotIndicator(
+  {
+    isMapRoute,
+    isCaptureRoute,
+    gpsStatus,
+    isOnline,
+  }: {
+    isMapRoute: boolean;
+    isCaptureRoute: boolean;
+    gpsStatus: GpsStatus;
+    isOnline: boolean;
+  }
+): DotIndicator | null {
+  if (isMapRoute) {
+    if (gpsStatus === "ready") {
+      return { colorClass: "bg-emerald-400", label: "GPS status: Location found" };
+    }
+
+    return { colorClass: "bg-amber-400", label: "GPS status: Searching or off" };
+  }
+
+  if (isCaptureRoute) {
+    return isOnline
+      ? { colorClass: "bg-emerald-400", label: "Network status: Online" }
+      : { colorClass: "bg-amber-400", label: "Network status: Offline" };
+  }
+
+  return null;
+}
+
 export function GlobalSyncStatusDot(): React.JSX.Element {
   const pathname = usePathname();
+  const { isMapRoute, isCaptureRoute } = getDotRouteContext(pathname);
   const { isOnline } = useSync();
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
-
-  const isMapRoute = pathname === "/map" || pathname.startsWith("/tracking");
-  const isCaptureRoute = pathname === "/capture" || pathname.startsWith("/capture/");
 
   useEffect(() => {
     if (!isMapRoute || !navigator.geolocation) {
@@ -29,23 +75,10 @@ export function GlobalSyncStatusDot(): React.JSX.Element {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isMapRoute]);
 
-  const indicator = useMemo(() => {
-    if (isMapRoute) {
-      if (gpsStatus === "ready") {
-        return { colorClass: "bg-emerald-400", label: "GPS status: Location found" };
-      }
-
-      return { colorClass: "bg-amber-400", label: "GPS status: Searching or off" };
-    }
-
-    if (isCaptureRoute) {
-      return isOnline
-        ? { colorClass: "bg-emerald-400", label: "Network status: Online" }
-        : { colorClass: "bg-amber-400", label: "Network status: Offline" };
-    }
-
-    return null;
-  }, [gpsStatus, isCaptureRoute, isMapRoute, isOnline]);
+  const indicator = useMemo(
+    () => resolveDotIndicator({ isMapRoute, isCaptureRoute, gpsStatus, isOnline }),
+    [gpsStatus, isCaptureRoute, isMapRoute, isOnline]
+  );
 
   if (!indicator) {
     return <></>;
