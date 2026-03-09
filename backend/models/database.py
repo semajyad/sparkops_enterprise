@@ -106,6 +106,7 @@ class JobDraft(SQLModel, table=True):
     raw_transcript: str = Field(sa_column=Column(Text, nullable=False))
     extracted_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="DRAFT", max_length=32)
+    required_trade: str = Field(default="ELECTRICAL", max_length=32)
     date_scheduled: datetime | None = Field(default=None, nullable=True)
     client_email: str | None = Field(default=None, max_length=255)
     compliance_status: str = Field(default="UNKNOWN", max_length=32)
@@ -158,6 +159,7 @@ class OrganizationSettings(SQLModel, table=True):
     website_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
+    default_trade: str = Field(default="ELECTRICAL", max_length=32)
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
     bank_account_name: str | None = Field(default=None, max_length=255)
     bank_account_number: str | None = Field(default=None, max_length=128)
@@ -323,6 +325,7 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ALTER TABLE IF EXISTS public.job_drafts
                     ADD COLUMN IF NOT EXISTS user_id UUID,
                     ADD COLUMN IF NOT EXISTS organization_id UUID,
+                    ADD COLUMN IF NOT EXISTS required_trade VARCHAR(32) NOT NULL DEFAULT 'ELECTRICAL',
                     ADD COLUMN IF NOT EXISTS date_scheduled TIMESTAMPTZ,
                     ADD COLUMN IF NOT EXISTS client_email VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS compliance_status VARCHAR(32),
@@ -340,12 +343,22 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS website_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS business_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS gst_number VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS default_trade VARCHAR(32) NOT NULL DEFAULT 'ELECTRICAL',
                     ADD COLUMN IF NOT EXISTS terms_and_conditions VARCHAR(5000),
                     ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(6,4) NOT NULL DEFAULT 0.1500,
                     ADD COLUMN IF NOT EXISTS standard_markup NUMERIC(6,4) NOT NULL DEFAULT 0.2000,
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    ALTER TABLE IF EXISTS public.profiles
+                    ADD COLUMN IF NOT EXISTS trade VARCHAR(32)
                     """
                 )
             )

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { formatJobDate, JobListItem, isValidJobUuid, normalizeJobStatus } from "@/lib/jobs";
+import { formatJobDate, JobListItem, isValidJobUuid, normalizeJobStatus, normalizeRequiredTrade } from "@/lib/jobs";
 
 function statusBadgeClass(status: string): string {
   const normalized = normalizeJobStatus(status);
@@ -40,6 +40,9 @@ export function JobsList({ jobs }: JobsListProps): React.JSX.Element {
               <div>
                 <p className="text-sm text-gray-500">{formatJobDate(job.date_scheduled || job.created_at)}</p>
                 <p className="mt-1 text-lg font-semibold text-gray-900">{job.client_name || "Unknown Client"}</p>
+                <p className="mt-1 inline-flex rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">
+                  {normalizeRequiredTrade(job.extracted_data?.required_trade)}
+                </p>
               </div>
               <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
                 {normalizeJobStatus(job.status)}

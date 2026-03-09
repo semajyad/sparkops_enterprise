@@ -173,6 +173,21 @@ function LoginPageContent(): React.JSX.Element {
                 />
               </div>
 
+              <div>
+                <label htmlFor="signup-trade" className="mb-2 block text-sm font-medium text-gray-700">
+                  Trade
+                </label>
+                <select
+                  id="signup-trade"
+                  name="trade"
+                  defaultValue="ELECTRICAL"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                >
+                  <option value="ELECTRICAL">Electrician</option>
+                  <option value="PLUMBING">Plumbing</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 className="min-h-11 w-full rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-all hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"

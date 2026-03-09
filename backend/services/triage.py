@@ -58,18 +58,28 @@ class ComplianceSummary:
 class ComplianceAgent:
     """Draft compliance evidence summary from transcript content."""
 
-    REQUIRED_TESTS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-        ("earth_loop", "Earth Loop", ("earth loop", "loop impedance", "zei", "zs")),
-        ("polarity", "Polarity", ("polarity", "polarity test")),
-        ("insulation", "Insulation Resistance", ("insulation resistance", "megger", "ir test")),
-        ("rcd", "RCD Test", ("rcd", "trip time", "residual current")),
-    )
+    REQUIRED_TESTS: dict[str, tuple[tuple[str, str, tuple[str, ...]], ...]] = {
+        "ELECTRICAL": (
+            ("earth_loop", "Earth Loop", ("earth loop", "loop impedance", "zei", "zs")),
+            ("polarity", "Polarity", ("polarity", "polarity test")),
+            ("insulation", "Insulation Resistance", ("insulation resistance", "megger", "ir test")),
+            ("rcd", "RCD Test", ("rcd", "trip time", "residual current")),
+        ),
+        "PLUMBING": (
+            ("gas_pressure", "Gas Pressure", ("gas pressure", "gas tightness", "pressure test")),
+            ("water_flow", "Water Flow", ("water flow", "flow rate", "lpm")),
+            ("backflow", "Backflow Prevention", ("backflow", "rpz", "backflow device")),
+            ("rcd", "RCD Test", ("rcd", "trip time", "residual current")),
+        ),
+    }
 
-    def summarize(self, transcript: str) -> ComplianceSummary:
+    def summarize(self, transcript: str, required_trade: str = "ELECTRICAL") -> ComplianceSummary:
         text = transcript.lower()
         checks: list[ComplianceCheck] = []
+        normalized_trade = required_trade.strip().upper() if isinstance(required_trade, str) else "ELECTRICAL"
+        required_tests = self.REQUIRED_TESTS.get(normalized_trade) or self.REQUIRED_TESTS["ELECTRICAL"]
 
-        for key, label, keywords in self.REQUIRED_TESTS:
+        for key, label, keywords in required_tests:
             present = any(keyword in text for keyword in keywords)
             checks.append(ComplianceCheck(key=key, label=label, present=present))
 
@@ -275,9 +285,17 @@ class TriageService:
             "earth loop": "Earth Loop",
             "earth_loop": "Earth Loop",
             "polarity": "Polarity",
-            "rcd": "RCD",
+            "rcd": "RCD Test",
+            "rcd test": "RCD Test",
             "insulation resistance": "Insulation Resistance",
             "insulation_resistance": "Insulation Resistance",
+            "gas pressure": "Gas Pressure",
+            "gas_pressure": "Gas Pressure",
+            "water flow": "Water Flow",
+            "water_flow": "Water Flow",
+            "backflow prevention": "Backflow Prevention",
+            "backflow_prevention": "Backflow Prevention",
+            "backflow": "Backflow Prevention",
         }
 
         normalized_tests: list[dict[str, Any]] = []
@@ -313,12 +331,16 @@ class TriageService:
             "safety_tests": normalized_tests,
         }
 
-    def analyze_transcript(self, text: str) -> dict[str, Any]:
+    def analyze_transcript(self, text: str, required_trade: str = "ELECTRICAL") -> dict[str, Any]:
         """Extract structured job draft data from transcript using GPT-5."""
 
         transcript = text.strip()
         if not transcript:
             raise ValueError("Transcript text is required for triage analysis.")
+
+        normalized_trade = required_trade.strip().upper() if isinstance(required_trade, str) else "ELECTRICAL"
+        if normalized_trade not in {"ELECTRICAL", "PLUMBING", "ANY"}:
+            normalized_trade = "ELECTRICAL"
 
         client = self._get_openai_client()
         response = client.responses.create(
@@ -330,11 +352,16 @@ class TriageService:
                         {
                             "type": "input_text",
                             "text": (
-                                "You are a NZ electrical compliance extractor. Extract JSON with keys: client, "
+                                "You are a NZ trade compliance extractor for electricians and plumbers. "
+                                "Extract JSON with keys: client, "
                                 "address, scope, line_items, safety_tests. line_items entries must include qty, "
-                                "description, type=MATERIAL/LABOR. safety_tests entries must include type (Earth Loop, "
-                                "Polarity, RCD, Insulation Resistance), and either numeric value + unit (e.g. Ohms/ms) "
-                                "or pass/fail result. Return valid JSON only."
+                                "description, type=MATERIAL/LABOR. safety_tests entries must include trade-aware types "
+                                "for electrical/plumbing contexts (Earth Loop, Polarity, RCD Test, Insulation Resistance, "
+                                "Gas Pressure, Water Flow, Backflow Prevention), and either numeric value + unit "
+                                "(e.g. Ohms/ms/kPa/LPM) or pass/fail result. Respect required trade context: "
+                                f"{normalized_trade}. Recognize common NZ terms: electrical (TPS cable, switchboard, "
+                                "earth loop, polarity, insulation resistance, RCD) and plumbing (15mm copper, gas bayonet, "
+                                "backflow device, RPZ, flow rate, pressure test, cylinder, tempering valve). Return valid JSON only."
                             ),
                         }
                     ],

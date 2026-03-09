@@ -245,3 +245,144 @@ def test_pdf_generators_return_pdf_bytes() -> None:
     assert invoice_pdf.startswith(b"%PDF")
     assert cert_pdf_empty.startswith(b"%PDF")
     assert cert_pdf_with_rows.startswith(b"%PDF")
+
+
+def test_compliance_agent_summarize_electrical_trade() -> None:
+    """Test compliance summary for electrical trade with all required tests."""
+    from services.triage import ComplianceAgent
+    
+    agent = ComplianceAgent()
+    transcript = "Performed earth loop test with 0.32 ohms, polarity test passed, insulation resistance was 500M ohms, and RCD trip time was 12ms"
+    
+    result = agent.summarize(transcript, "ELECTRICAL")
+    
+    assert result.status == "COMPLETE"
+    assert len(result.missing_items) == 0
+    assert "mandatory tests" in result.notes.lower()
+    
+    # Check all electrical tests are present
+    test_keys = {check.key for check in result.checks}
+    expected_keys = {"earth_loop", "polarity", "insulation", "rcd"}
+    assert test_keys == expected_keys
+
+
+def test_compliance_agent_summarize_plumbing_trade() -> None:
+    """Test compliance summary for plumbing trade with gas and water tests."""
+    from services.triage import ComplianceAgent
+    
+    agent = ComplianceAgent()
+    transcript = "Gas pressure test passed at 2.5kPa, water flow rate was 15L/min, backflow prevention device installed"
+    
+    result = agent.summarize(transcript, "PLUMBING")
+    
+    assert result.status == "COMPLETE"
+    assert len(result.missing_items) == 0
+    
+    # Check plumbing-specific tests
+    test_keys = {check.key for check in result.checks}
+    expected_keys = {"gas_pressure", "water_flow", "backflow"}
+    assert expected_keys.issubset(test_keys)
+
+
+def test_compliance_agent_summarize_missing_tests() -> None:
+    """Test compliance summary with missing mandatory tests."""
+    from services.triage import ComplianceAgent
+    
+    agent = ComplianceAgent()
+    transcript = "Only performed earth loop test"
+    
+    result = agent.summarize(transcript, "ELECTRICAL")
+    
+    assert result.status == "ACTION_REQUIRED"
+    assert len(result.missing_items) == 3  # polarity, insulation, rcd
+    assert "missing mandatory safety evidence" in result.notes.lower()
+
+
+def test_compliance_agent_summarize_empty_transcript() -> None:
+    """Test compliance summary with no transcript."""
+    from services.triage import ComplianceAgent
+    
+    agent = ComplianceAgent()
+    result = agent.summarize("", "ELECTRICAL")
+    
+    assert result.status == "COMPLETE"  # No transcript means no tests required yet
+    assert "No transcript captured yet" in result.notes
+
+
+def test_compliance_agent_normalizes_trade() -> None:
+    """Test trade normalization handles various input formats."""
+    from services.triage import ComplianceAgent
+    
+    agent = ComplianceAgent()
+    
+    # Test various trade formats
+    test_cases = [
+        ("electrical", "ELECTRICAL"),
+        ("ELECTRICAL", "ELECTRICAL"),
+        ("plumbing", "PLUMBING"),
+        ("PLUMBING", "PLUMBING"),
+        ("Electrical", "ELECTRICAL"),
+        ("  electrical  ", "ELECTRICAL"),
+        ("unknown", "ELECTRICAL"),  # Falls back to electrical
+    ]
+    
+    for input_trade, expected_trade in test_cases:
+        transcript = "earth loop test passed"
+        result = agent.summarize(transcript, input_trade)
+        # Should not raise error and should use expected tests
+        assert isinstance(result.checks, list)
+
+
+def test_voice_message_dataclass() -> None:
+    """Test VoiceMessage dataclass creation and attributes."""
+    from services.triage import VoiceMessage
+    
+    message = VoiceMessage(
+        id="test-id",
+        call_sid="call-123",
+        recording_sid="rec-456",
+        from_number="+64211234567",
+        urgency="HIGH",
+        summary="Emergency call",
+        transcript="Power outage reported",
+        created_at="2026-03-10T11:30:00Z"
+    )
+    
+    assert message.id == "test-id"
+    assert message.urgency == "HIGH"
+    assert message.from_number == "+64211234567"
+
+
+def test_compliance_check_dataclass() -> None:
+    """Test ComplianceCheck dataclass."""
+    from services.triage import ComplianceCheck
+    
+    check = ComplianceCheck(
+        key="earth_loop",
+        label="Earth Loop",
+        present=True
+    )
+    
+    assert check.key == "earth_loop"
+    assert check.present is True
+
+
+def test_compliance_summary_dataclass() -> None:
+    """Test ComplianceSummary dataclass."""
+    from services.triage import ComplianceSummary, ComplianceCheck
+    
+    checks = [
+        ComplianceCheck(key="earth_loop", label="Earth Loop", present=True),
+        ComplianceCheck(key="polarity", label="Polarity", present=False)
+    ]
+    
+    summary = ComplianceSummary(
+        checks=checks,
+        missing_items=["Polarity"],
+        status="ACTION_REQUIRED",
+        notes="Missing polarity test"
+    )
+    
+    assert len(summary.checks) == 2
+    assert summary.missing_items == ["Polarity"]
+    assert summary.status == "ACTION_REQUIRED"

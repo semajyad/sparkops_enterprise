@@ -17,6 +17,8 @@ type AuthMePayload = {
   id: string;
   organization_id: string;
   role: string;
+  trade?: string;
+  organization_default_trade?: string;
   email?: string | null;
   full_name?: string | null;
 };
@@ -142,6 +144,13 @@ export default function ProfilePage(): React.JSX.Element {
   }, [authLoading, session?.access_token]);
 
   useEffect(() => {
+    const resolvedTrade: "ELECTRICAL" | "PLUMBING" | null = details
+      ? (String(details.trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL")
+      : null;
+    const resolvedOrganizationDefaultTrade: "ELECTRICAL" | "PLUMBING" | null = details
+      ? (String(details.organization_default_trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL")
+      : null;
+
     const cachedPayload = {
       full_name: details?.full_name || sessionIdentity?.full_name || user?.user_metadata?.full_name || null,
       email: details?.email || sessionIdentity?.email || user?.email || null,
@@ -151,6 +160,8 @@ export default function ProfilePage(): React.JSX.Element {
         null,
       organization_id: details?.organization_id ?? null,
       role: details?.role ?? null,
+      trade: resolvedTrade,
+      organization_default_trade: resolvedOrganizationDefaultTrade,
     };
 
     if (!cachedPayload.full_name && !cachedPayload.email && !cachedPayload.organization && !cachedPayload.organization_id && !cachedPayload.role) {
@@ -271,6 +282,8 @@ export default function ProfilePage(): React.JSX.Element {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <p><span className="font-semibold text-gray-900">Role:</span> {details?.role ?? "Unknown"}</p>
             <p><span className="font-semibold text-gray-900">Organization:</span> {displayOrganization}</p>
+            <p><span className="font-semibold text-gray-900">Trade:</span> {details?.trade ?? "ELECTRICAL"}</p>
+            <p><span className="font-semibold text-gray-900">Org Default Trade:</span> {details?.organization_default_trade ?? "ELECTRICAL"}</p>
           </div>
         </div>
 

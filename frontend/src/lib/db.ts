@@ -128,6 +128,8 @@ export interface CachedProfileState {
   organization: string | null;
   organization_id: string | null;
   role: string | null;
+  trade: "ELECTRICAL" | "PLUMBING" | null;
+  organization_default_trade: "ELECTRICAL" | "PLUMBING" | null;
   updated_at: number;
 }
 
@@ -137,6 +139,7 @@ export interface CachedAdminState {
   website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
+  default_trade: "ELECTRICAL" | "PLUMBING";
   tax_rate: number | null;
   standard_markup: number | null;
   terms_and_conditions: string | null;
@@ -182,6 +185,7 @@ export interface CachedJobDetail {
     longitude?: number | string;
     location?: string;
     scheduled_date?: string | null;
+    required_trade?: string;
     job_title?: string;
   };
   status: string;
@@ -209,6 +213,7 @@ export type CachedTeamMember = {
   email: string;
   full_name: string;
   role: "OWNER" | "EMPLOYEE";
+  trade: "ELECTRICAL" | "PLUMBING";
   status: "ACTIVE" | "PENDING";
   invited_at: string | null;
   last_sign_in_at: string | null;

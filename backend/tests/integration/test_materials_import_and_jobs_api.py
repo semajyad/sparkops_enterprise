@@ -273,6 +273,26 @@ def test_complete_job_auto_sends_certificate_and_persists_url(sqlite_engine, mon
                 result="PASS",
             )
         )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=owner_id,
+                test_type="Insulation Resistance",
+                value_text="1.20",
+                unit="MOhm",
+                result="PASS",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=owner_id,
+                test_type="RCD Test",
+                result="PASS",
+            )
+        )
         session.commit()
 
     fake_pdf_module = types.ModuleType("services.pdf")
@@ -350,6 +370,26 @@ def test_complete_job_prompts_for_email_when_missing(sqlite_engine) -> None:
                 organization_id=organization_id,
                 user_id=employee_id,
                 test_type="Polarity",
+                result="PASS",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=employee_id,
+                test_type="Insulation Resistance",
+                value_text="1.00",
+                unit="MOhm",
+                result="PASS",
+            )
+        )
+        session.add(
+            SafetyTest(
+                job_id=draft_id,
+                organization_id=organization_id,
+                user_id=employee_id,
+                test_type="RCD Test",
                 result="PASS",
             )
         )

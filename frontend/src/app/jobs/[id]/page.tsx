@@ -39,7 +39,16 @@ const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
 function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
   const normalized = message.toLowerCase();
   const matches = CHECKLIST_CATALOG.filter((item) => {
-    if (item.key === "safety") return normalized.includes("earth loop") || normalized.includes("polarity") || normalized.includes("safety");
+    if (item.key === "safety") {
+      return (
+        normalized.includes("earth loop") ||
+        normalized.includes("polarity") ||
+        normalized.includes("gas pressure") ||
+        normalized.includes("water flow") ||
+        normalized.includes("backflow") ||
+        normalized.includes("safety")
+      );
+    }
     if (item.key === "photos") return normalized.includes("photo");
     if (item.key === "voice") return normalized.includes("voice");
     return false;

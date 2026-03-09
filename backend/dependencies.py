@@ -28,6 +28,8 @@ class AuthenticatedUser:
     id: UUID
     organization_id: UUID
     role: str
+    trade: str = "ELECTRICAL"
+    organization_default_trade: str = "ELECTRICAL"
     email: str | None = None
     full_name: str | None = None
 
@@ -43,6 +45,22 @@ class SupabaseJwtClaims(BaseModel):
     email: str | None = None
     full_name: str | None = None
     user_metadata: dict[str, object] | None = None
+
+
+def _normalize_trade(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().upper()
+    if normalized in {"ELECTRICAL", "PLUMBING"}:
+        return normalized
+    return None
+
+
+def _claim_trade(claims: SupabaseJwtClaims) -> str | None:
+    metadata = claims.user_metadata if isinstance(claims.user_metadata, dict) else None
+    if not metadata:
+        return None
+    return _normalize_trade(metadata.get("trade"))
 
 
 def _claim_full_name(claims: SupabaseJwtClaims) -> str | None:
@@ -146,6 +164,28 @@ def _provision_fallback_profile(session: Session, user_id: UUID, claims: Supabas
     return organization_id, "OWNER", full_name
 
 
+def _resolve_org_default_trade(session: Session, organization_id: UUID) -> str:
+    try:
+        row = session.exec(
+            text(
+                """
+                SELECT default_trade
+                FROM public.organization_settings
+                WHERE organization_id = :organization_id
+                LIMIT 1
+                """
+            ),
+            params={"organization_id": str(organization_id)},
+        ).first()
+    except Exception:
+        return "ELECTRICAL"
+
+    if row is None:
+        return "ELECTRICAL"
+
+    return _normalize_trade(row[0]) or "ELECTRICAL"
+
+
 def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> AuthenticatedUser:
     """Resolve authenticated user from Supabase bearer token and profile mapping."""
 
@@ -157,27 +197,49 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
 
     with Session(engine) as session:
         try:
-            row = session.exec(
-                text(
-                    """
-                    SELECT organization_id, role, full_name
-                    FROM public.profiles
-                    WHERE id = :user_id
-                    LIMIT 1
-                    """
-                ),
-                params={"user_id": str(user_id)},
-            ).first()
+            profile_trade: str | None = None
+            try:
+                row = session.exec(
+                    text(
+                        """
+                        SELECT organization_id, role, full_name, trade
+                        FROM public.profiles
+                        WHERE id = :user_id
+                        LIMIT 1
+                        """
+                    ),
+                    params={"user_id": str(user_id)},
+                ).first()
+            except Exception:
+                row = session.exec(
+                    text(
+                        """
+                        SELECT organization_id, role, full_name
+                        FROM public.profiles
+                        WHERE id = :user_id
+                        LIMIT 1
+                        """
+                    ),
+                    params={"user_id": str(user_id)},
+                ).first()
 
             if row is None:
                 logger.warning("Profile not found for user_id=%s; provisioning fallback profile", user_id)
                 organization_id, role_normalized, full_name = _provision_fallback_profile(session, user_id, claims)
             else:
-                organization_id_raw, role, full_name = row
+                if len(row) >= 4:
+                    organization_id_raw, role, full_name, profile_trade_raw = row
+                    profile_trade = _normalize_trade(profile_trade_raw)
+                else:
+                    organization_id_raw, role, full_name = row
                 organization_id = UUID(str(organization_id_raw))
                 role_normalized = str(role or "").upper()
                 if not isinstance(full_name, str) or not full_name.strip():
                     full_name = _claim_full_name(claims)
+
+            organization_default_trade = _resolve_org_default_trade(session, organization_id)
+            claim_trade = _claim_trade(claims)
+            effective_trade = profile_trade or claim_trade or organization_default_trade
         except HTTPException:
             session.rollback()
             raise
@@ -204,6 +266,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         id=user_id,
         organization_id=organization_id,
         role=role_normalized,
+        trade=effective_trade,
+        organization_default_trade=organization_default_trade,
         email=claims.email.strip() if isinstance(claims.email, str) and claims.email.strip() else None,
         full_name=str(full_name).strip() if full_name is not None else None,
     )

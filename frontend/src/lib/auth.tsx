@@ -10,6 +10,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8
 
 type AppRole = "OWNER" | "EMPLOYEE" | null;
 type AppMode = "ADMIN" | "FIELD";
+type AppTrade = "ELECTRICAL" | "PLUMBING";
 
 const MODE_STORAGE_KEY = "sparkops_owner_mode";
 const ROLE_STORAGE_KEY = "sparkops_user_role";
@@ -18,6 +19,8 @@ type AuthContextValue = {
   session: Session | null;
   user: User | null;
   role: AppRole;
+  trade: AppTrade;
+  organizationDefaultTrade: AppTrade;
   mode: AppMode;
   setMode: (next: AppMode) => void;
   loading: boolean;
@@ -27,6 +30,8 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
   role: null,
+  trade: "ELECTRICAL",
+  organizationDefaultTrade: "ELECTRICAL",
   mode: "FIELD",
   setMode: () => undefined,
   loading: true,
@@ -51,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
     return storedRole === "OWNER" || storedRole === "EMPLOYEE" ? storedRole : null;
   });
+  const [trade, setTrade] = useState<AppTrade>("ELECTRICAL");
+  const [organizationDefaultTrade, setOrganizationDefaultTrade] = useState<AppTrade>("ELECTRICAL");
   const [mode, setModeState] = useState<AppMode>(() => {
     if (typeof window === "undefined") {
       return "FIELD";
@@ -112,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession?.user ?? null);
       if (!nextSession) {
         setRole(null);
+        setTrade("ELECTRICAL");
+        setOrganizationDefaultTrade("ELECTRICAL");
         if (typeof window !== "undefined") {
           window.localStorage.removeItem(ROLE_STORAGE_KEY);
         }
@@ -162,8 +171,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const payload = await parseApiJson<{ role?: string }>(response);
+        const payload = await parseApiJson<{ role?: string; trade?: string; organization_default_trade?: string }>(response);
         const normalized = (payload.role ?? "").toUpperCase();
+        const normalizedTrade = (payload.trade ?? "").toUpperCase();
+        const normalizedOrgTrade = (payload.organization_default_trade ?? "").toUpperCase();
+
+        const tradeValue: AppTrade = normalizedTrade === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
+        const orgTradeValue: AppTrade = normalizedOrgTrade === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
+        setTrade(tradeValue);
+        setOrganizationDefaultTrade(orgTradeValue);
+
         if (normalized === "OWNER" || normalized === "EMPLOYEE") {
           setRole(normalized);
           if (typeof window !== "undefined") {
@@ -171,12 +188,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setRole(null);
+          setTrade("ELECTRICAL");
+          setOrganizationDefaultTrade("ELECTRICAL");
           if (typeof window !== "undefined") {
             window.localStorage.removeItem(ROLE_STORAGE_KEY);
           }
         }
       } catch {
         setRole(null);
+        setTrade("ELECTRICAL");
+        setOrganizationDefaultTrade("ELECTRICAL");
         if (typeof window !== "undefined") {
           window.localStorage.removeItem(ROLE_STORAGE_KEY);
         }
@@ -192,6 +213,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         user,
         role,
+        trade,
+        organizationDefaultTrade,
         mode: effectiveMode,
         setMode,
         loading,

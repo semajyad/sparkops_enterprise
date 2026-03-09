@@ -86,7 +86,7 @@ def test_ingest_audio_creates_job_draft_with_mocked_triage(monkeypatch: pytest.M
 
         "analyze_transcript",
 
-        lambda _text: {
+        lambda _text, _trade="ELECTRICAL": {
 
             "client": "Smith Residence",
 
@@ -223,7 +223,7 @@ def test_ingest_persists_safety_tests_with_gps_and_green_shield(monkeypatch: pyt
 
         "analyze_transcript",
 
-        lambda _text: {
+        lambda _text, _trade="ELECTRICAL": {
 
             "client": "Smith Residence",
 
@@ -238,6 +238,8 @@ def test_ingest_persists_safety_tests_with_gps_and_green_shield(monkeypatch: pyt
                 {"type": "Earth Loop", "value": "0.45", "unit": "Ohms", "result": None},
 
                 {"type": "Polarity", "result": "PASS"},
+
+                {"type": "Insulation Resistance", "value": "1.2", "unit": "MOhm", "result": "PASS"},
 
                 {"type": "RCD", "result": "PASS"},
 
@@ -267,9 +269,11 @@ def test_ingest_persists_safety_tests_with_gps_and_green_shield(monkeypatch: pyt
     assert details.status_code == 200
     details_payload = details.json()
     tests = details_payload["extracted_data"]["safety_tests"]
-    assert len(tests) == 3
+    assert len(tests) == 4
     assert any(test["type"] == "Earth Loop" and test["gps_lat"] == -36.8485 and test["gps_lng"] == 174.7633 for test in tests)
     assert any(test["type"] == "Polarity" and test["result"] == "PASS" for test in tests)
+    assert any(test["type"] == "Insulation Resistance" and test["result"] == "PASS" for test in tests)
+    assert any(test["type"] == "RCD Test" and test["result"] == "PASS" for test in tests)
 
 
 

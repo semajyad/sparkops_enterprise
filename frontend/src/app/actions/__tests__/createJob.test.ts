@@ -29,6 +29,7 @@ describe("createJob", () => {
       latitude: -36.8485,
       longitude: 174.7633,
       assigned_to_user_id: "user-1",
+      required_trade: "ELECTRICAL",
       scheduled_date: "2026-03-10T09:00:00.000Z",
     });
 
@@ -43,6 +44,7 @@ describe("createJob", () => {
         latitude: -36.8485,
         longitude: 174.7633,
         assigned_to_user_id: "user-1",
+        required_trade: "ELECTRICAL",
         scheduled_date: "2026-03-10T09:00:00.000Z",
         status: "SYNCING",
       },
@@ -64,6 +66,7 @@ describe("createJob", () => {
         latitude: null,
         longitude: null,
         assigned_to_user_id: null,
+        required_trade: "PLUMBING",
         scheduled_date: null,
       }),
     ).rejects.toThrow("Supabase jobs create failed: schema mismatch");

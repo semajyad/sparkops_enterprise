@@ -143,6 +143,7 @@ export async function queueJobCreate(payload: {
   latitude?: number;
   longitude?: number;
   assigned_to_user_id?: string;
+  required_trade?: "ELECTRICAL" | "PLUMBING" | "ANY";
   scheduled_date: string | null;
 }): Promise<number> {
   return enqueueSyncAction({

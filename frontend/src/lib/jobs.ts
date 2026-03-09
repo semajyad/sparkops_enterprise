@@ -24,6 +24,7 @@ export type JobListItem = {
     address?: string;
     assigned_to_user_id?: string;
     assigned_to_name?: string;
+    required_trade?: string;
     avatar_url?: string | null;
     scheduled_date?: string | null;
     latitude?: number | string;
@@ -39,6 +40,14 @@ export type PulseMetrics = {
 };
 
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function normalizeRequiredTrade(value: unknown): "ELECTRICAL" | "PLUMBING" | "ANY" {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "PLUMBING" || normalized === "ANY") {
+    return normalized;
+  }
+  return "ELECTRICAL";
+}
 
 export function isMissingJobId(value: unknown): boolean {
   if (typeof value !== "string") {

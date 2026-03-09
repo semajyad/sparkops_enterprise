@@ -11,6 +11,7 @@ export type CreateJobInput = {
   latitude: number | null;
   longitude: number | null;
   assigned_to_user_id: string | null;
+  required_trade: "ELECTRICAL" | "PLUMBING" | "ANY";
   scheduled_date: string | null;
 };
 
@@ -26,6 +27,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       latitude: input.latitude,
       longitude: input.longitude,
       assigned_to_user_id: input.assigned_to_user_id,
+      required_trade: input.required_trade,
       scheduled_date: input.scheduled_date,
       status: "SYNCING",
     },

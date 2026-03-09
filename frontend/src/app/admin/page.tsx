@@ -28,6 +28,7 @@ type AdminSettings = {
   website_url: string | null;
   business_name: string | null;
   gst_number: string | null;
+  default_trade: "ELECTRICAL" | "PLUMBING";
   tax_rate: number | null;
   standard_markup: number | null;
   terms_and_conditions: string | null;
@@ -40,6 +41,7 @@ type TeamMember = {
   email: string;
   full_name: string;
   role: "OWNER" | "EMPLOYEE";
+  trade: "ELECTRICAL" | "PLUMBING";
   status: "ACTIVE" | "PENDING";
   invited_at: string | null;
   last_sign_in_at: string | null;
@@ -62,6 +64,7 @@ const EMPTY_SETTINGS: AdminSettings = {
   website_url: null,
   business_name: null,
   gst_number: null,
+  default_trade: "ELECTRICAL",
   tax_rate: 15,
   standard_markup: null,
   terms_and_conditions: null,
@@ -119,6 +122,7 @@ export default function AdminPage(): React.JSX.Element {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFullName, setInviteFullName] = useState("");
   const [inviteRole, setInviteRole] = useState<"SPARKY" | "OWNER">("SPARKY");
+  const [inviteTrade, setInviteTrade] = useState<"ELECTRICAL" | "PLUMBING">("ELECTRICAL");
   const [vehicleName, setVehicleName] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleNotes, setVehicleNotes] = useState("");
@@ -142,6 +146,7 @@ export default function AdminPage(): React.JSX.Element {
         website_url: cachedSettings.website_url ?? null,
         business_name: cachedSettings.business_name,
         gst_number: cachedSettings.gst_number,
+        default_trade: cachedSettings.default_trade,
         tax_rate: cachedSettings.tax_rate,
         standard_markup: cachedSettings.standard_markup,
         terms_and_conditions: cachedSettings.terms_and_conditions,
@@ -188,6 +193,7 @@ export default function AdminPage(): React.JSX.Element {
           website_url: settingsPayload.website_url,
           business_name: settingsPayload.business_name,
           gst_number: settingsPayload.gst_number,
+          default_trade: String((settingsPayload as { default_trade?: string }).default_trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
           tax_rate: typeof settingsPayload.tax_rate === "number" ? settingsPayload.tax_rate * 100 : 15,
           standard_markup: typeof settingsPayload.standard_markup === "number" ? settingsPayload.standard_markup : null,
           terms_and_conditions: settingsPayload.terms_and_conditions,
@@ -234,6 +240,7 @@ export default function AdminPage(): React.JSX.Element {
       formData.set("email", inviteEmail);
       formData.set("full_name", inviteFullName);
       formData.set("role", inviteRole);
+      formData.set("trade", inviteTrade);
 
       const result = await inviteUser(formData);
       setTeamMessage(result.message);
@@ -413,6 +420,7 @@ export default function AdminPage(): React.JSX.Element {
       website_url: toNullable(toInput(settings.website_url)),
       business_name: toNullable(toInput(settings.business_name)),
       gst_number: toNullable(toInput(settings.gst_number)),
+      default_trade: settings.default_trade,
       tax_rate: settings.tax_rate,
       standard_markup: settings.standard_markup,
       terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
@@ -443,6 +451,7 @@ export default function AdminPage(): React.JSX.Element {
         website_url: payload.website_url,
         business_name: payload.business_name,
         gst_number: payload.gst_number,
+        default_trade: String((payload as { default_trade?: string }).default_trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
         tax_rate: typeof payload.tax_rate === "number" ? payload.tax_rate * 100 : 15,
         standard_markup: typeof payload.standard_markup === "number" ? payload.standard_markup : null,
         terms_and_conditions: payload.terms_and_conditions,
@@ -706,6 +715,17 @@ export default function AdminPage(): React.JSX.Element {
                     <option value="OWNER">Owner</option>
                   </select>
                 </label>
+                <label className="text-sm text-gray-700">
+                  Team Member Trade
+                  <select
+                    value={inviteTrade}
+                    onChange={(event) => setInviteTrade(event.target.value === "PLUMBING" ? "PLUMBING" : "ELECTRICAL")}
+                    className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+                  >
+                    <option value="ELECTRICAL">Electrical</option>
+                    <option value="PLUMBING">Plumbing</option>
+                  </select>
+                </label>
                 <button
                   type="submit"
                   disabled={isInviting}
@@ -731,6 +751,7 @@ export default function AdminPage(): React.JSX.Element {
                           <p className="text-sm font-semibold text-gray-900">{member.full_name}</p>
                           <p className="text-xs text-gray-600">{member.email}</p>
                           <p className="text-[11px] uppercase tracking-wide text-orange-600">{member.role}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-orange-600">{member.trade}</p>
                         </div>
                       </li>
                     ))}
@@ -839,6 +860,22 @@ export default function AdminPage(): React.JSX.Element {
                   className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
                   placeholder="15"
                 />
+              </label>
+              <label className="block text-sm text-gray-700">
+                Organization Default Trade
+                <select
+                  value={settings.default_trade}
+                  onChange={(event) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      default_trade: event.target.value === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
+                    }))
+                  }
+                  className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+                >
+                  <option value="ELECTRICAL">Electrical</option>
+                  <option value="PLUMBING">Plumbing</option>
+                </select>
               </label>
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-sm font-semibold text-gray-900">Xero Integration</p>

@@ -503,6 +503,10 @@ class AuthMeResponse(BaseModel):
 
     role: str
 
+    trade: str
+
+    organization_default_trade: str
+
     email: str | None = None
 
     full_name: str | None = None
@@ -523,6 +527,7 @@ class ManualJobCreateRequest(BaseModel):
     longitude: float | None = None
     client_generated_id: UUID | None = None
     assigned_to_user_id: UUID | None = None
+    required_trade: str | None = Field(default=None, max_length=32)
     scheduled_date: str | None = Field(default=None, max_length=64)
     client_email: str | None = Field(default=None, max_length=255)
 
@@ -572,6 +577,7 @@ class OrganizationSettingsResponse(BaseModel):
     website_url: str | None = None
     business_name: str | None = None
     gst_number: str | None = None
+    default_trade: str = "ELECTRICAL"
     tax_rate: Decimal | None = None
     standard_markup: Decimal | None = None
     terms_and_conditions: str | None = None
@@ -587,6 +593,7 @@ class OrganizationSettingsUpsertRequest(BaseModel):
     website_url: str | None = Field(default=None, max_length=1000)
     business_name: str | None = Field(default=None, max_length=255)
     gst_number: str | None = Field(default=None, max_length=64)
+    default_trade: str | None = Field(default=None, max_length=32)
     tax_rate: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("1"))
     standard_markup: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("5"))
     terms_and_conditions: str | None = Field(default=None, max_length=5000)
@@ -999,11 +1006,26 @@ def _normalize_safety_tests(extracted_data: dict[str, Any], gps_lat: Decimal | N
     if not isinstance(tests_raw, list):
         return []
 
+    canonical_types = {
+        "earth loop": "Earth Loop",
+        "polarity": "Polarity",
+        "insulation": "Insulation Resistance",
+        "insulation resistance": "Insulation Resistance",
+        "ir test": "Insulation Resistance",
+        "rcd": "RCD Test",
+        "rcd test": "RCD Test",
+        "gas pressure": "Gas Pressure",
+        "water flow": "Water Flow",
+        "backflow": "Backflow Prevention",
+        "backflow prevention": "Backflow Prevention",
+    }
+
     normalized: list[dict[str, Any]] = []
     for row in tests_raw:
         if not isinstance(row, dict):
             continue
-        test_type = str(row.get("type", "")).strip()
+        raw_test_type = str(row.get("type", "")).strip()
+        test_type = canonical_types.get(raw_test_type.lower(), raw_test_type)
         if not test_type:
             continue
         normalized.append(
@@ -1019,21 +1041,42 @@ def _normalize_safety_tests(extracted_data: dict[str, Any], gps_lat: Decimal | N
     return normalized
 
 
-def _compute_guardrail_status(raw_transcript: str, tests: list[dict[str, Any]]) -> tuple[str, list[str], str]:
-    text = (raw_transcript or "").lower()
-    mentions_keyword = ("socket" in text) or ("light" in text)
+def _normalize_trade(value: str | None, *, default: str = "ELECTRICAL") -> str:
+    candidate = (value or "").strip().upper()
+    if candidate in {"ELECTRICAL", "PLUMBING", "ANY"}:
+        return candidate
+    return default
 
-    has_earth_loop = any(str(test.get("test_type", "")).lower() == "earth loop" for test in tests)
-    has_polarity = any(str(test.get("test_type", "")).lower() == "polarity" for test in tests)
 
-    missing: list[str] = []
-    if mentions_keyword and not has_earth_loop:
-        missing.append("Earth Loop")
-    if mentions_keyword and not has_polarity:
-        missing.append("Polarity")
+def _required_tests_for_trade(trade: str) -> tuple[str, ...]:
+    if trade == "PLUMBING":
+        return ("Gas Pressure", "Water Flow", "Backflow Prevention", "RCD Test")
+    if trade == "ANY":
+        return (
+            "Earth Loop",
+            "Polarity",
+            "Insulation Resistance",
+            "Gas Pressure",
+            "Water Flow",
+            "Backflow Prevention",
+            "RCD Test",
+        )
+    return ("Earth Loop", "Polarity", "Insulation Resistance", "RCD Test")
 
-    if not mentions_keyword:
-        return "NOT_REQUIRED", [], "Job scope does not require traffic-light guardrail checks."
+
+def _compute_guardrail_status(
+    raw_transcript: str,
+    tests: list[dict[str, Any]],
+    required_trade: str,
+) -> tuple[str, list[str], str]:
+    normalized_trade = _normalize_trade(required_trade)
+    required_tests = _required_tests_for_trade(normalized_trade)
+    present = {str(test.get("test_type", "")).strip().lower() for test in tests if isinstance(test, dict)}
+    missing = [label for label in required_tests if label.lower() not in present]
+
+    if not raw_transcript.strip() and not tests:
+        return "NOT_REQUIRED", [], "No transcript captured yet. Record required safety evidence before closure."
+
     if missing:
         return "RED_SHIELD", missing, "Mandatory safety tests are missing for compliant closure."
     return "GREEN_SHIELD", [], "Job is compliant to close with mandatory safety tests present."
@@ -1218,9 +1261,11 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
 
         transcript = voice_notes if voice_notes else transcribe_audio(audio_base64)
 
-        extracted_data = triage_service.analyze_transcript(transcript)
+        extracted_data = triage_service.analyze_transcript(transcript, current_user.trade)
+        required_trade = _normalize_trade(current_user.trade)
+        extracted_data["required_trade"] = required_trade
         safety_tests = _normalize_safety_tests(extracted_data, payload.gps_lat, payload.gps_lng)
-        compliance_status, missing_items, compliance_note = _compute_guardrail_status(transcript, safety_tests)
+        compliance_status, missing_items, compliance_note = _compute_guardrail_status(transcript, safety_tests, required_trade)
         extracted_data["compliance_summary"] = {
             "status": compliance_status,
             "missing_items": missing_items,
@@ -1242,6 +1287,7 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
                 raw_transcript=transcript,
 
                 extracted_data=extracted_data,
+                required_trade=required_trade,
 
                 compliance_status=compliance_status,
 
@@ -1434,6 +1480,8 @@ def _build_auth_me_response(current_user: AuthenticatedUser) -> AuthMeResponse:
         id=current_user.id,
         organization_id=current_user.organization_id,
         role=current_user.role,
+        trade=current_user.trade,
+        organization_default_trade=current_user.organization_default_trade,
         email=current_user.email,
         full_name=current_user.full_name,
     )
@@ -1467,91 +1515,21 @@ def _to_invite_response(record: Invite) -> InviteResponse:
     )
 
 
-def _to_org_settings_response(record: OrganizationSettings) -> OrganizationSettingsResponse:
+def _to_org_settings_response(settings: OrganizationSettings) -> OrganizationSettingsResponse:
     return OrganizationSettingsResponse(
-        organization_id=record.organization_id,
-        logo_url=record.logo_url,
-        website_url=record.website_url,
-        business_name=record.business_name,
-        gst_number=record.gst_number,
-        tax_rate=record.tax_rate,
-        standard_markup=record.standard_markup,
-        terms_and_conditions=record.terms_and_conditions,
-        bank_account_name=record.bank_account_name,
-        bank_account_number=record.bank_account_number,
-        updated_at=record.updated_at,
+        organization_id=settings.organization_id,
+        logo_url=settings.logo_url,
+        website_url=settings.website_url,
+        business_name=settings.business_name,
+        gst_number=settings.gst_number,
+        default_trade=_normalize_trade(settings.default_trade),
+        tax_rate=settings.tax_rate,
+        standard_markup=settings.standard_markup,
+        terms_and_conditions=settings.terms_and_conditions,
+        bank_account_name=settings.bank_account_name,
+        bank_account_number=settings.bank_account_number,
+        updated_at=settings.updated_at,
     )
-
-
-def _to_vehicle_response(record: Vehicle) -> VehicleResponse:
-    return VehicleResponse(
-        id=record.id,
-        organization_id=record.organization_id,
-        name=record.name,
-        plate=record.plate,
-        notes=record.notes,
-        created_at=record.created_at,
-        updated_at=record.updated_at,
-    )
-
-
-@app.get("/api/v1/invites", response_model=list[InviteResponse])
-@app.get("/api/invites", response_model=list[InviteResponse])
-def list_pending_invites(current_user: AuthenticatedUser = Depends(require_owner)) -> list[InviteResponse]:
-    """List pending invites for the authenticated owner's organization."""
-
-    with Session(ENGINE) as session:
-        invites = session.exec(
-            select(Invite)
-            .where(Invite.organization_id == current_user.organization_id)
-            .where(Invite.status == "PENDING")
-            .order_by(Invite.created_at.desc())
-        ).all()
-        return [_to_invite_response(invite) for invite in invites]
-
-
-@app.post("/api/v1/invites", response_model=InviteResponse)
-@app.post("/api/invites", response_model=InviteResponse)
-def create_invite(
-    payload: InviteCreateRequest,
-    current_user: AuthenticatedUser = Depends(require_owner),
-) -> InviteResponse:
-    """Create (or update) a pending invite record in the invites table."""
-
-    email = payload.email.strip().lower()
-    full_name = payload.full_name.strip()
-    normalized_role = "OWNER" if payload.role.strip().upper() == "OWNER" else "TRADESMAN"
-
-    with Session(ENGINE) as session:
-        existing = session.exec(
-            select(Invite)
-            .where(Invite.organization_id == current_user.organization_id)
-            .where(Invite.email == email)
-            .where(Invite.status == "PENDING")
-            .limit(1)
-        ).first()
-
-        if existing:
-            existing.full_name = full_name
-            existing.role = normalized_role
-            existing.invited_by_user_id = current_user.id
-            session.add(existing)
-            session.commit()
-            session.refresh(existing)
-            return _to_invite_response(existing)
-
-        invite = Invite(
-            organization_id=current_user.organization_id,
-            invited_by_user_id=current_user.id,
-            email=email,
-            full_name=full_name,
-            role=normalized_role,
-            status="PENDING",
-        )
-        session.add(invite)
-        session.commit()
-        session.refresh(invite)
-        return _to_invite_response(invite)
 
 
 @app.get("/api/v1/admin/settings", response_model=OrganizationSettingsResponse)
@@ -1563,6 +1541,7 @@ def get_organization_settings(current_user: AuthenticatedUser = Depends(require_
         settings = session.get(OrganizationSettings, current_user.organization_id)
         if settings is None:
             settings = OrganizationSettings(organization_id=current_user.organization_id)
+            settings.default_trade = _normalize_trade(current_user.organization_default_trade)
             session.add(settings)
             session.commit()
             session.refresh(settings)
@@ -1582,27 +1561,50 @@ def upsert_organization_settings(
         if settings is None:
             settings = OrganizationSettings(organization_id=current_user.organization_id)
 
-        settings.logo_url = payload.logo_url.strip() if isinstance(payload.logo_url, str) and payload.logo_url.strip() else None
-        settings.website_url = payload.website_url.strip() if isinstance(payload.website_url, str) and payload.website_url.strip() else None
-        settings.business_name = payload.business_name.strip() if isinstance(payload.business_name, str) and payload.business_name.strip() else None
-        settings.gst_number = payload.gst_number.strip() if isinstance(payload.gst_number, str) and payload.gst_number.strip() else None
+        settings.logo_url = payload.logo_url
+        settings.website_url = payload.website_url
+        settings.business_name = payload.business_name
+        settings.gst_number = payload.gst_number
+        settings.default_trade = _normalize_trade(payload.default_trade, default=settings.default_trade)
+
         if payload.tax_rate is not None:
             settings.tax_rate = payload.tax_rate
         if payload.standard_markup is not None:
             settings.standard_markup = payload.standard_markup
+
         settings.terms_and_conditions = (
             payload.terms_and_conditions.strip()
             if isinstance(payload.terms_and_conditions, str) and payload.terms_and_conditions.strip()
             else None
         )
-        settings.bank_account_name = payload.bank_account_name.strip() if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip() else None
-        settings.bank_account_number = payload.bank_account_number.strip() if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip() else None
+        settings.bank_account_name = (
+            payload.bank_account_name.strip()
+            if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip()
+            else None
+        )
+        settings.bank_account_number = (
+            payload.bank_account_number.strip()
+            if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip()
+            else None
+        )
         settings.updated_at = datetime.now(timezone.utc)
 
         session.add(settings)
         session.commit()
         session.refresh(settings)
         return _to_org_settings_response(settings)
+
+
+def _to_vehicle_response(vehicle: Vehicle) -> VehicleResponse:
+    return VehicleResponse(
+        id=vehicle.id,
+        organization_id=vehicle.organization_id,
+        name=vehicle.name,
+        plate=vehicle.plate,
+        notes=vehicle.notes,
+        created_at=vehicle.created_at,
+        updated_at=vehicle.updated_at,
+    )
 
 
 @app.get("/api/v1/admin/vehicles", response_model=list[VehicleResponse])
@@ -2038,12 +2040,14 @@ def create_job_draft(
 
     assigned_user_id = current_user.id
     assigned_user_name = current_user.full_name or current_user.email or "Assigned User"
+    assigned_user_trade = current_user.trade
+    required_trade = _normalize_trade(payload.required_trade, default=current_user.trade)
     if current_user.role == "OWNER" and payload.assigned_to_user_id is not None:
         with Session(ENGINE) as session:
             assignee_row = session.exec(
                 text(
                     """
-                    SELECT id, full_name
+                    SELECT id, full_name, trade
                     FROM public.profiles
                     WHERE id = :user_id AND organization_id = :organization_id
                     LIMIT 1
@@ -2056,9 +2060,16 @@ def create_job_draft(
             ).first()
         if assignee_row is None:
             raise HTTPException(status_code=400, detail="Assigned user must belong to your organization.")
-        assignee_id, assignee_full_name = assignee_row
+        assignee_id, assignee_full_name, assignee_trade_raw = assignee_row
         assigned_user_id = UUID(str(assignee_id))
         assigned_user_name = str(assignee_full_name or "").strip() or assigned_user_name
+        assigned_user_trade = _normalize_trade(assignee_trade_raw, default=current_user.organization_default_trade)
+
+    if required_trade != "ANY" and assigned_user_trade != required_trade:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Assigned user trade ({assigned_user_trade}) does not match required trade ({required_trade}).",
+        )
 
     client_name = payload.client_name.strip()
     title = payload.title.strip()
@@ -2085,11 +2096,12 @@ def create_job_draft(
         "longitude": longitude,
         "assigned_to_user_id": str(assigned_user_id),
         "assigned_to_name": assigned_user_name,
+        "required_trade": required_trade,
         "scheduled_date": scheduled_at.isoformat() if scheduled_at else None,
         "line_items": [],
         "safety_tests": [],
     }
-    compliance_status, missing_items, compliance_note = _compute_guardrail_status(f"Manual job: {title}", [])
+    compliance_status, missing_items, compliance_note = _compute_guardrail_status(f"Manual job: {title}", [], required_trade)
     extracted_data["compliance_summary"] = {
         "status": compliance_status,
         "missing_items": missing_items,
@@ -2103,6 +2115,7 @@ def create_job_draft(
             "raw_transcript": f"Manual job: {title}",
             "extracted_data": extracted_data,
             "status": "DRAFT",
+            "required_trade": required_trade,
             "date_scheduled": scheduled_at,
             "client_email": payload.client_email.strip().lower() if isinstance(payload.client_email, str) and payload.client_email.strip() else None,
             "compliance_status": compliance_status,
@@ -2151,6 +2164,8 @@ def list_job_drafts(current_user: AuthenticatedUser = Depends(get_current_user))
         for draft in drafts:
 
             extracted_data = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+            if "required_trade" not in extracted_data:
+                extracted_data["required_trade"] = _normalize_trade(draft.required_trade)
 
             client_name = str(extracted_data.get("client") or "Unknown Client").strip() or "Unknown Client"
 
@@ -2198,6 +2213,7 @@ def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_cu
         ]
         extracted_data = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
         extracted_data["safety_tests"] = safety_payload
+        extracted_data.setdefault("required_trade", _normalize_trade(draft.required_trade))
 
         return JobDraftResponse(
             id=draft.id,
@@ -2268,7 +2284,11 @@ def complete_job_draft(
             }
             for row in safety_rows
         ]
-        compliance_status, missing_items, compliance_note = _compute_guardrail_status(draft.raw_transcript, tests)
+        compliance_status, missing_items, compliance_note = _compute_guardrail_status(
+            draft.raw_transcript,
+            tests,
+            _normalize_trade(draft.required_trade),
+        )
         if compliance_status != "GREEN_SHIELD":
             raise HTTPException(
                 status_code=400,

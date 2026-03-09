@@ -78,7 +78,10 @@ export async function signup(formData: FormData) {
       password: formData.get("password") as string,
       fullName: (formData.get("full_name") as string | null)?.trim() ?? "",
       organization: (formData.get("organization") as string | null)?.trim() ?? "",
+      trade: String(formData.get("trade") ?? "ELECTRICAL").trim().toUpperCase(),
     };
+
+    const normalizedTrade = data.trade === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
 
     if (!data.organization) {
       redirect("/login?error=Organization%20is%20required&mode=signup");
@@ -93,6 +96,7 @@ export async function signup(formData: FormData) {
       data: {
         full_name: data.fullName,
         organization: data.organization,
+        trade: normalizedTrade,
       },
       emailRedirectTo: origin,
     },

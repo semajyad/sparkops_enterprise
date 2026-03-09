@@ -41,6 +41,8 @@ export async function GET(request: Request) {
   const fullName = typeof fullNameRaw === "string" && fullNameRaw.trim() ? fullNameRaw.trim() : null;
   const organizationRaw = resolvedUser.user_metadata?.organization;
   const organization = typeof organizationRaw === "string" && organizationRaw.trim() ? organizationRaw.trim() : null;
+  const tradeRaw = resolvedUser.user_metadata?.trade;
+  const trade = typeof tradeRaw === "string" && tradeRaw.trim().toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
 
   return NextResponse.json({
     user: {
@@ -48,6 +50,7 @@ export async function GET(request: Request) {
       email: resolvedUser.email ?? null,
       full_name: fullName,
       organization,
+      trade,
     },
   });
 }

@@ -19,6 +19,7 @@ type TeamMember = {
   email: string;
   full_name: string;
   role: "OWNER" | "EMPLOYEE";
+  trade: "ELECTRICAL" | "PLUMBING";
   status: "ACTIVE" | "PENDING";
   invited_at: string | null;
   last_sign_in_at: string | null;
@@ -50,6 +51,7 @@ type ProfileRow = {
   role: string;
   organization_id: string | null;
   full_name?: string | null;
+  trade?: string | null;
 };
 
 async function getOwnerProfileContext(): Promise<
@@ -124,6 +126,7 @@ async function fetchPendingInvites(accessToken: string | null): Promise<TeamMemb
     email: invite.email,
     full_name: invite.full_name,
     role: String(invite.role).toUpperCase() === "OWNER" ? "OWNER" : "EMPLOYEE",
+    trade: "ELECTRICAL",
     status: "PENDING",
     invited_at: invite.created_at,
     last_sign_in_at: null,
@@ -141,7 +144,7 @@ export async function listTeamMembers(): Promise<TeamMembersResult> {
     supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 500 }),
     supabaseAdmin
       .from("profiles")
-      .select("id, role, organization_id, full_name")
+      .select("id, role, organization_id, full_name, trade")
       .eq("organization_id", context.organizationId),
     fetchPendingInvites(context.accessToken),
   ]);
@@ -154,11 +157,12 @@ export async function listTeamMembers(): Promise<TeamMembersResult> {
     return { success: false, message: profilesError.message || "Unable to load organization profiles.", activeUsers: [], pendingInvites: [] };
   }
 
-  const profileById = new Map<string, { role: "OWNER" | "EMPLOYEE"; full_name: string | null }>();
+  const profileById = new Map<string, { role: "OWNER" | "EMPLOYEE"; full_name: string | null; trade: "ELECTRICAL" | "PLUMBING" }>();
   for (const profile of (profiles ?? []) as ProfileRow[]) {
     profileById.set(profile.id, {
       role: String(profile.role ?? "").toUpperCase() === "OWNER" ? "OWNER" : "EMPLOYEE",
       full_name: profile.full_name ?? null,
+      trade: String(profile.trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
     });
   }
 
@@ -179,6 +183,7 @@ export async function listTeamMembers(): Promise<TeamMembersResult> {
       email: authUser.email ?? "",
       full_name: fullName,
       role: teamProfile.role,
+      trade: teamProfile.trade,
       status: invitedAt && !lastSignInAt ? "PENDING" : "ACTIVE",
       invited_at: invitedAt,
       last_sign_in_at: lastSignInAt,
@@ -205,6 +210,8 @@ export async function inviteUser(formData: FormData): Promise<InviteUserResult> 
   const fullName = String(formData.get("full_name") ?? "").trim();
   const roleInput = String(formData.get("role") ?? "SPARKY").trim().toUpperCase() as InviteRole;
   const normalizedRole: "OWNER" | "EMPLOYEE" = roleInput === "OWNER" ? "OWNER" : "EMPLOYEE";
+  const tradeInput = String(formData.get("trade") ?? "ELECTRICAL").trim().toUpperCase();
+  const normalizedTrade: "ELECTRICAL" | "PLUMBING" = tradeInput === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
 
   if (!email || !email.includes("@")) {
     return { success: false, message: "A valid invite email is required." };
@@ -222,6 +229,7 @@ export async function inviteUser(formData: FormData): Promise<InviteUserResult> 
       full_name: fullName,
       organization_id: context.organizationId,
       role: normalizedRole,
+      trade: normalizedTrade,
     },
     redirectTo: inviteRedirectTo,
   });
@@ -235,6 +243,7 @@ export async function inviteUser(formData: FormData): Promise<InviteUserResult> 
     email,
     full_name: fullName,
     role: normalizedRole,
+    trade: normalizedTrade,
     organization_id: context.organizationId,
   };
   const profilesTable = supabaseAdmin.from("profiles") as unknown as {
