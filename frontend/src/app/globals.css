@@ -65,6 +65,79 @@ body {
   border: 2px solid white;
 }
 
+.map-job-marker-wrapper {
+  background: transparent;
+  border: 0;
+}
+
+.map-job-marker {
+  position: relative;
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.35);
+  overflow: visible;
+}
+
+.map-job-marker--done {
+  background: #16a34a;
+}
+
+.map-job-marker--active {
+  background: #f59e0b;
+}
+
+.map-job-marker--pending {
+  background: #6b7280;
+}
+
+.map-job-marker--selected {
+  transform: scale(1.05);
+}
+
+.map-job-avatar,
+.map-job-avatar-fallback {
+  height: 100%;
+  width: 100%;
+  border-radius: 9999px;
+}
+
+.map-job-avatar {
+  background-size: cover;
+  background-position: center;
+}
+
+.map-job-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.map-job-time-pill {
+  position: absolute;
+  right: -30px;
+  top: -8px;
+  display: inline-flex;
+  min-width: 48px;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.95);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
 .sparkops-you-marker {
   position: relative;
   display: inline-flex;

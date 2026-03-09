@@ -6,8 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useSync } from "@/components/SyncProvider";
 import { getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
-import { formatJobDate, JobListItem } from "@/lib/jobs";
+import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/TrackingMap";
 
@@ -129,8 +130,28 @@ function isStale(updatedAt: string): boolean {
   return Date.now() - timestamp > STALE_THRESHOLD_MS;
 }
 
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimePill(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) {
+    return "--:--";
+  }
+  return parsed.toLocaleTimeString("en-NZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 export default function TrackingIndexPage(): React.JSX.Element {
   const { mode, role, user } = useAuth();
+  const { isOnline, pendingCount } = useSync();
   const isAdminMode = role === "OWNER" && mode === "ADMIN";
   const geolocationUnavailable = typeof window !== "undefined" && !navigator.geolocation;
   const [current, setCurrent] = useState<Coordinate>(DEFAULT_CURRENT);
@@ -140,8 +161,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [isOnline, setIsOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
-  const [hasGpsSignal, setHasGpsSignal] = useState(false);
   const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
 
@@ -188,23 +207,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
     updateTheme();
     media.addEventListener("change", updateTheme);
     return () => media.removeEventListener("change", updateTheme);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const onOnline = () => setIsOnline(true);
-    const onOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
   }, []);
 
   useEffect(() => {
@@ -293,7 +295,15 @@ export default function TrackingIndexPage(): React.JSX.Element {
           return;
         }
         setCurrent(cached.current);
-        setJobs(cached.jobs);
+        setJobs(
+          cached.jobs.map((job) => ({
+            ...job,
+            timePill: "--:--",
+            avatarUrl: null,
+            initials: buildInitials(job.clientName || "Spark"),
+            markerState: "pending" as const,
+          })),
+        );
         setIsReady(true);
       } catch {
         // best-effort cache hydration
@@ -308,9 +318,27 @@ export default function TrackingIndexPage(): React.JSX.Element {
         }
 
         const payload = await parseApiJson<JobListItem[]>(response);
-        const mappedJobs = (Array.isArray(payload) ? payload : [])
-          .filter((job) => String(job.status ?? "").toUpperCase() !== "DONE")
-          .map((job) => {
+        const todayKey = toLocalDateKey(new Date());
+        const todaysJobs = (Array.isArray(payload) ? payload : [])
+          .filter((job) => {
+            const scheduled = typeof job.date_scheduled === "string" ? job.date_scheduled : null;
+            if (!scheduled) {
+              return false;
+            }
+            const parsed = new Date(scheduled);
+            if (Number.isNaN(parsed.getTime())) {
+              return false;
+            }
+            return toLocalDateKey(parsed) === todayKey;
+          })
+          .sort((a, b) => {
+            const aTime = Date.parse(a.date_scheduled ?? "");
+            const bTime = Date.parse(b.date_scheduled ?? "");
+            return aTime - bTime;
+          });
+
+        let hasActiveAssigned = false;
+        const mappedJobs = todaysJobs.reduce<MapJob[]>((accumulator, job) => {
             const rawLatitude = parseCoordinate(job.extracted_data?.latitude);
             const rawLongitude = parseCoordinate(job.extracted_data?.longitude);
             const fallbackCoords = parseCoordsFromLocation(job.extracted_data?.location || job.extracted_data?.address);
@@ -321,7 +349,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
                 : fallbackCoords;
 
             if (!coordinate) {
-              return null;
+              return accumulator;
             }
 
             const addressOrLocation =
@@ -329,17 +357,29 @@ export default function TrackingIndexPage(): React.JSX.Element {
               job.extracted_data?.location ||
               `${coordinate.lat},${coordinate.lng}`;
             const formattedAddress = normalizeAddressLabel(addressOrLocation);
+            const normalizedStatus = normalizeJobStatus(job.status);
+            const markerState: MapJob["markerState"] =
+              normalizedStatus === "DONE"
+                ? "done"
+                : !hasActiveAssigned
+                  ? (hasActiveAssigned = true, "active")
+                  : "pending";
+            const fallbackName = String(job.extracted_data?.assigned_to_name || job.client_name || "Spark").trim();
 
-            return {
+            accumulator.push({
               id: job.id,
               clientName: job.client_name || "Unknown Client",
               timeLabel: `Scheduled ${formatJobDate(job.date_scheduled || job.created_at)}`,
+              timePill: formatTimePill(job.date_scheduled || job.created_at),
               addressLabel: formattedAddress,
               coordinate,
               navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formattedAddress)}`,
-            } satisfies MapJob;
-          })
-          .filter((job): job is MapJob => Boolean(job));
+              avatarUrl: null,
+              initials: buildInitials(fallbackName),
+              markerState,
+            });
+            return accumulator;
+          }, []);
 
         setJobs(mappedJobs);
       } catch {
@@ -372,12 +412,10 @@ export default function TrackingIndexPage(): React.JSX.Element {
       (position) => {
         const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrent(nextCurrent);
-        setHasGpsSignal(true);
         setIsReady(true);
         void upsertBeacon(nextCurrent);
       },
       () => {
-        setHasGpsSignal(false);
         setIsReady(true);
       },
       {
@@ -412,11 +450,9 @@ export default function TrackingIndexPage(): React.JSX.Element {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setCurrent({ lat: position.coords.latitude, lng: position.coords.longitude });
-        setHasGpsSignal(true);
         setRecenterSignal((value) => value + 1);
       },
       () => {
-        setHasGpsSignal(false);
         setRecenterSignal((value) => value + 1);
       },
       { enableHighAccuracy: true, timeout: 10_000 },
@@ -451,12 +487,14 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
       <section className="pointer-events-none absolute right-4 top-4 z-[110] flex items-center gap-2">
         <span
-          className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
-            isOnline && hasGpsSignal ? "border-emerald-400/80" : "border-amber-400/80"
+          className={`pointer-events-auto fixed right-[12px] top-[12px] z-[9999] inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
+            !isOnline ? "border-rose-500/80" : pendingCount > 0 ? "border-amber-400/80" : "border-emerald-400/80"
           }`}
-          title={isOnline && hasGpsSignal ? "GPS and network online" : "GPS or network unavailable"}
+          title={!isOnline ? "Offline" : pendingCount > 0 ? "Syncing pending changes" : "All changes synced"}
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${isOnline && hasGpsSignal ? "bg-emerald-400" : "bg-amber-400"}`} />
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${!isOnline ? "bg-rose-500" : pendingCount > 0 ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`}
+          />
         </span>
         <button
           type="button"

@@ -13,7 +13,9 @@ import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const STALE_CACHE_MS = 5 * 60 * 1000;
-const MODAL_INPUT_CLASS = "mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-slate-950 px-3 text-slate-100 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+const MODAL_INPUT_CLASS =
+  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user } = useAuth();
@@ -309,8 +311,8 @@ export default function JobsPage(): React.JSX.Element {
             </div>
 
             <form className="flex h-full flex-col" onSubmit={onCreateManualJob}>
-              <div className="grid overflow-y-auto px-5 py-4 pb-24">
-                <label className="mb-4 text-sm text-slate-200">
+              <div className="grid gap-5 overflow-y-auto px-5 py-4 pb-24">
+                <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
                     type="text"
@@ -322,7 +324,7 @@ export default function JobsPage(): React.JSX.Element {
                   />
                 </label>
 
-                <label className="mb-4 text-sm text-slate-200">
+                <label className={MODAL_LABEL_CLASS}>
                   Job Title / Description
                   <input
                     type="text"
@@ -334,7 +336,7 @@ export default function JobsPage(): React.JSX.Element {
                   />
                 </label>
 
-                <label className="mb-4 text-sm text-slate-200">
+                <label className={MODAL_LABEL_CLASS}>
                   Address
                   <AddressAutocomplete
                     id="job-address"
@@ -358,7 +360,7 @@ export default function JobsPage(): React.JSX.Element {
                 <input type="hidden" name="longitude" value={longitude ?? ""} />
 
                 {isOwner ? (
-                  <label className="mb-4 text-sm text-slate-200">
+                  <label className={MODAL_LABEL_CLASS}>
                     Assign To
                     <select
                       value={assignedToUserId}
@@ -377,7 +379,7 @@ export default function JobsPage(): React.JSX.Element {
                   </label>
                 ) : null}
 
-                <label className="mb-4 text-sm text-slate-200">
+                <label className={MODAL_LABEL_CLASS}>
                   Scheduled Date & Time
                   <input
                     type="datetime-local"

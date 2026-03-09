@@ -2,7 +2,7 @@
 
 import L, { DivIcon } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
-import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
 export type Coordinate = {
   lat: number;
@@ -13,9 +13,13 @@ export type MapJob = {
   id: string;
   clientName: string;
   timeLabel: string;
+  timePill: string;
   addressLabel: string;
   coordinate: Coordinate;
   navigateUrl: string;
+  avatarUrl: string | null;
+  initials: string;
+  markerState: "done" | "active" | "pending";
 };
 
 export type StaffLocation = {
@@ -86,6 +90,26 @@ function avatarIcon(location: StaffLocation): DivIcon {
   });
 }
 
+function jobIcon(job: MapJob, selected: boolean): DivIcon {
+  const stateClass =
+    job.markerState === "done"
+      ? "map-job-marker--done"
+      : job.markerState === "active"
+        ? "map-job-marker--active"
+        : "map-job-marker--pending";
+
+  const avatarHtml = job.avatarUrl
+    ? `<div class="map-job-avatar" style="background-image:url('${job.avatarUrl}');"></div>`
+    : `<div class="map-job-avatar-fallback">${job.initials}</div>`;
+
+  return L.divIcon({
+    className: "map-job-marker-wrapper",
+    html: `<div class="map-job-marker ${stateClass} ${selected ? "map-job-marker--selected" : ""}">${avatarHtml}<span class="map-job-time-pill">${job.timePill}</span></div>`,
+    iconSize: [72, 46],
+    iconAnchor: [24, 40],
+  });
+}
+
 function youIcon(): DivIcon {
   return L.divIcon({
     className: "sparkops-you-marker-wrapper",
@@ -136,19 +160,14 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
         ))}
 
         {jobs.map((job) => (
-          <CircleMarker
+          <Marker
             key={job.id}
-            center={[job.coordinate.lat, job.coordinate.lng]}
-            radius={selectedJobId === job.id ? 10 : 8}
-            pathOptions={{
-              color: selectedJobId === job.id ? "#fb7185" : "#f59e0b",
-              fillColor: selectedJobId === job.id ? "#fb7185" : "#f59e0b",
-              fillOpacity: 0.9,
-            }}
+            position={[job.coordinate.lat, job.coordinate.lng]}
+            icon={jobIcon(job, selectedJobId === job.id)}
             eventHandlers={{ click: () => onJobSelect(job.id) }}
           >
             <Tooltip direction="top" offset={[0, -8]}>{job.clientName}</Tooltip>
-          </CircleMarker>
+          </Marker>
         ))}
       </MapContainer>
     </div>

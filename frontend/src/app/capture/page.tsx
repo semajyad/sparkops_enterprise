@@ -65,7 +65,7 @@ function fileToBase64(file: Blob): Promise<string> {
 
 export default function CapturePage() {
 
-  const { isOnline, isSyncing, pendingCount, refreshCounts } = useSync();
+  const { isOnline, pendingCount, refreshCounts } = useSync();
 
   const { session } = useAuth();
 
@@ -105,7 +105,7 @@ export default function CapturePage() {
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
-  const captureStatusHealthy = isOnline && !isSyncing && pendingCount === 0;
+  const captureStatusState = !isOnline ? "offline" : pendingCount > 0 ? "syncing" : "healthy";
 
 
 
@@ -518,14 +518,32 @@ export default function CapturePage() {
 
     <main className="min-h-screen bg-slate-950 p-4 pb-24 text-slate-100 sm:p-6 md:p-10">
 
-      <section className="pointer-events-none fixed right-4 top-[max(env(safe-area-inset-top),12px)] z-[110]">
+      <section className="pointer-events-none fixed right-[12px] top-[12px] z-[9999]">
         <span
           className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border bg-slate-900/80 shadow-lg shadow-black/40 ${
-            captureStatusHealthy ? "border-emerald-400/80" : "border-amber-400/80"
+            captureStatusState === "offline"
+              ? "border-rose-500/80"
+              : captureStatusState === "syncing"
+                ? "border-amber-400/80"
+                : "border-emerald-400/80"
           }`}
-          title={captureStatusHealthy ? "Sync and network healthy" : "Sync pending or network unavailable"}
+          title={
+            captureStatusState === "offline"
+              ? "Offline"
+              : captureStatusState === "syncing"
+                ? "Syncing pending changes"
+                : "All changes synced"
+          }
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${captureStatusHealthy ? "bg-emerald-400" : "bg-amber-400"}`} />
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              captureStatusState === "offline"
+                ? "bg-rose-500"
+                : captureStatusState === "syncing"
+                  ? "animate-pulse bg-amber-400"
+                  : "bg-emerald-400"
+            }`}
+          />
         </span>
       </section>
 
