@@ -14,8 +14,8 @@
 
 ### Quality Standards
 - **Quality Gates**: See `.windsurf/rules/quality-gates.md` for coverage and testing requirements
+- **Testing Requirements**: See `.windsurf/rules/testing-requirements.md` for comprehensive testing strategy
 - **Learning System**: See `.windsurf/rules/learning-system.md` for knowledge capture protocol
-- **Additional Rules**: Testing requirements, Railway deployment rules
 
 ### 🛠️ Skills (Automatic Invocation)
 - **Railway Deployment**: `@railway-deployment` - Complete deployment process with safety checks
@@ -27,6 +27,8 @@
 ### Knowledge Base
 - **Past Learnings**: See `.windsurf/learnings/agent-learnings.md` for all patterns, pitfalls, and fixes
 - **Sprint Tracking**: See `.windsurf/sprint-tracking.md` for current sprint number and git commit format
+- **Test Coverage Plan**: See `TEST_COVERAGE_IMPROVEMENT_PLAN.md` for comprehensive coverage strategy
+- **Coverage Analysis**: See `TEST_COVERAGE_ANALYSIS.md` for current coverage status and gaps
 - **Search First**: Always check learnings before starting new work
 
 ---
@@ -49,6 +51,8 @@ Skills automatically invoke based on task context:
 - Deployment tasks → @railway-deployment
 - Testing analysis → @test-coverage  
 - Quality verification → @quality-verification
+- E2E testing → @e2e-testing
+- Workflow monitoring → @workflow-monitor
 ```
 
 ### 4. Add New Learnings
@@ -95,9 +99,11 @@ Follow learning system rule for proper formatting
 - **WORM Pattern**: Write-Once-Read-Many for compliance documents
 
 ### Development Standards
-- **Test Coverage**: Backend >85%, Frontend >90%
+- **Test Coverage**: Backend >85%, Frontend >90% (See quality-gates.md for details)
 - **E2E Golden Paths**: Login → Capture → Sync must pass
 - **Mock-First**: No real external API calls in unit tests
+- **Coverage Analysis**: Use @test-coverage skill for detailed analysis
+- **Quality Verification**: Use @quality-verification skill for Definition of Done
 - **Offline-First**: Every data-entry feature needs offline/sync testing
 
 ### Architecture
