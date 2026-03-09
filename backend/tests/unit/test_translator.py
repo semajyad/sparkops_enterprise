@@ -27,9 +27,11 @@ def test_translator_maps_embedded_known_slang_without_api_call() -> None:
 def test_translator_handles_empty_input() -> None:
     """Return empty list for empty or whitespace-only input."""
 
-    translator = KiwiTranslator(api_key=None)
-    assert translator.translate_notes("") == []
-    assert translator.translate_notes("   ") == []
+    translator = KiwiTranslator(api_key="fake-key")  # Need API key to avoid early error
+    with patch.object(translator, '_translate_with_reasoning_model') as mock_translate:
+        mock_translate.return_value = ""  # Empty response from AI
+        assert translator.translate_notes("") == []
+        assert translator.translate_notes("   ") == []
 
 
 def test_translator_handles_unknown_slang_with_api_key() -> None:

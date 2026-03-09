@@ -70,3 +70,157 @@ def test_get_default_markup_reads_persisted_setting() -> None:
 
     markup = get_default_markup(engine)
     assert markup == Decimal("0.35")
+
+
+def test_get_default_markup_negative_returns_default() -> None:
+    """Test that negative markup returns DEFAULT_MARKUP."""
+    engine = create_engine("sqlite://", echo=False)
+    create_db_and_tables(engine)
+
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        session.add(UserSettings(id=1, default_markup=Decimal("-0.10")))
+        session.commit()
+
+    markup = get_default_markup(engine)
+    assert markup == Decimal("0.20")  # DEFAULT_MARKUP
+
+
+def test_parse_decimal_various_inputs() -> None:
+    """Test _parse_decimal with various input types and edge cases."""
+    from services.invoice import _parse_decimal
+    
+    # Test None input
+    result = _parse_decimal(None)
+    assert result == Decimal("0.00")
+    
+    # Test custom default
+    result = _parse_decimal(None, Decimal("5.00"))
+    assert result == Decimal("5.00")
+    
+    # Test empty string
+    result = _parse_decimal("")
+    assert result == Decimal("0.00")
+    
+    # Test whitespace only
+    result = _parse_decimal("   ")
+    assert result == Decimal("0.00")
+    
+    # Test valid decimal strings
+    result = _parse_decimal("123.45")
+    assert result == Decimal("123.45")
+    
+    # Test with dollar sign and commas
+    result = _parse_decimal("$1,234.56")
+    assert result == Decimal("1234.56")
+    
+    # Test invalid input (exception case)
+    result = _parse_decimal(object())
+    assert result == Decimal("0.00")
+
+
+def test_calculate_job_draft_totals_comprehensive() -> None:
+    """Test calculate_job_draft_invoice_summary with various edge cases."""
+    from services.invoice import calculate_job_draft_invoice_summary
+    
+    # Test with non-dict extracted_data
+    result = calculate_job_draft_invoice_summary(
+        extracted_data="invalid",
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("0.00")
+    assert result.markup_amount == Decimal("0.00")
+    assert result.gst == Decimal("0.00")
+    
+    # Test with missing line_items
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={},
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("0.00")
+    
+    # Test with invalid line_items type
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={"line_items": "invalid"},
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("0.00")
+    
+    # Test with non-dict line items
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={"line_items": ["invalid"]},
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("0.00")
+    
+    # Test with zero/negative quantity
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={
+            "line_items": [{
+                "type": "LABOR",
+                "qty": "0",  # Should become 1.00
+                "line_total": "100.00"
+            }]
+        },
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("100.00")
+
+
+def test_apply_markup_function() -> None:
+    """Test _apply_markup function with various inputs."""
+    from services.invoice import _apply_markup
+    
+    # Test basic markup calculation
+    result = _apply_markup(Decimal("100.00"), Decimal("0.20"))
+    assert result == Decimal("120.00")
+    
+    # Test zero markup
+    result = _apply_markup(Decimal("100.00"), Decimal("0.00"))
+    assert result == Decimal("100.00")
+    
+    # Test with different precision
+    result = _apply_markup(Decimal("99.99"), Decimal("0.15"))
+    assert result == Decimal("114.99")
+
+
+def test_calculate_job_draft_edge_cases() -> None:
+    """Test remaining edge cases in calculate_job_draft_invoice_summary."""
+    from services.invoice import calculate_job_draft_invoice_summary
+    
+    # Test line_total <= 0 with unit_price <= 0 and LABOR type
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={
+            "line_items": [{
+                "type": "LABOR",
+                "qty": "2",
+                "unit_price": "0",  # Should use default_labor_rate
+                "line_total": "0"   # Should trigger calculation
+            }]
+        },
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    # Should use default labor rate for unit_price
+    assert result.subtotal == Decimal("170.00")  # 2 * 85.00
+    
+    # Test MATERIAL vs Labor type handling
+    result = calculate_job_draft_invoice_summary(
+        extracted_data={
+            "line_items": [{
+                "type": "MATERIAL",
+                "qty": "1",
+                "unit_price": "50.00",
+                "line_total": "50.00"
+            }]
+        },
+        markup_percentage=Decimal("0.20"),
+        default_labor_rate=Decimal("85.00")
+    )
+    assert result.subtotal == Decimal("60.00")  # 50.00 + 20% markup = 60.00

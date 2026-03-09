@@ -3,10 +3,22 @@
 > **Effective Date**: 2026-03-10  
 > **Review Frequency**: Weekly  
 > **Enforcement**: Strict - No exceptions without written approval
+> **Status**: ACTIVELY ENFORCED via test-coverage-guardian skill
 
 ---
 
-## 📊 Coverage Requirements
+## 🚨 IMMEDIATE STOP WORK CONDITIONS
+
+**STOP ALL DEVELOPMENT** if any of these occur:
+1. Coverage drops below any minimum threshold
+2. Unit tests make real external API calls
+3. Any test suite exceeds timeout limits
+4. E2E golden paths fail
+5. Missing mocks for external dependencies
+
+---
+
+## 📊 Coverage Requirements (NON-NEGOTIABLE)
 
 ### Backend Services (MANDATORY)
 - **Minimum Coverage**: **> 85%** statements, branches, functions, lines
@@ -47,7 +59,7 @@
 
 ---
 
-## 🔄 Mock-First Law (MANDATORY)
+## 🔄 Mock-First Law (ZERO TOLERANCE)
 
 ### External APIs (NEVER in Unit Tests)
 - **OpenAI**: Voice processing, text analysis
@@ -130,13 +142,13 @@ frontend/src/
 
 ## 📈 Quality Metrics
 
-### Coverage Targets
+### Coverage Targets (CURRENT STATUS)
 | Metric | Backend | Frontend | Status |
 |--------|---------|----------|---------|
-| Statements | >85% | >90% | ✅ Enforced |
-| Branches | >85% | >90% | ✅ Enforced |
-| Functions | >85% | >90% | ✅ Enforced |
-| Lines | >85% | >90% | ✅ Enforced |
+| Statements | >85% | >90% | ✅ ENFORCED |
+| Branches | >85% | >90% | ✅ ENFORCED |
+| Functions | >85% | >90% | ✅ ENFORCED |
+| Lines | >85% | >90% | ✅ ENFORCED |
 
 ### Performance Targets
 | Metric | Target | Measurement |
@@ -157,10 +169,11 @@ frontend/src/
 4. **Test Timeouts**: Must fix before proceeding
 
 ### Resolution Process
-1. **Identify Root Cause**: Use diagnostic tools
-2. **Implement Fix**: Follow established patterns
-3. **Verify Resolution**: Re-run full test suite
-4. **Document Learning**: Add to agent-learnings.md
+1. **STOP WORK**: Immediately halt development
+2. **Identify Root Cause**: Use diagnostic tools
+3. **Implement Fix**: Follow established patterns
+4. **Verify Resolution**: Re-run full test suite
+5. **Document Learning**: Add to agent-learnings.md
 
 ---
 
@@ -207,5 +220,21 @@ frontend/src/
 
 ---
 
+## 🛠️ AUTOMATED ENFORCEMENT
+
+### Available Skills
+- **@test-coverage-guardian**: Automated coverage monitoring and recovery
+- **@quality-verification**: Comprehensive quality gate validation
+- **@e2e-testing**: E2E golden path execution and verification
+
+### Trigger Conditions
+- File modifications in critical services
+- Coverage drops below thresholds
+- Test failures in CI/CD
+- Performance regression detected
+
+---
+
 *Last Updated: 2026-03-10*  
-*Next Review: 2026-03-17*
+*Next Review: 2026-03-17*  
+*Enforcement: ACTIVE via test-coverage-guardian skill*

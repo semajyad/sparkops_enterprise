@@ -1,60 +1,50 @@
 # Page snapshot
 
 ```yaml
-- generic [active] [ref=e1]:
-  - main [ref=e2]:
-    - generic [ref=e4]:
-      - generic [ref=e5]:
-        - generic [ref=e6]:
-          - paragraph [ref=e7]: Capture Console
-          - heading "Field Capture" [level=1] [ref=e8]
-        - 'generic "Capture status: pending or offline" [ref=e9]'
-      - generic [ref=e10]:
-        - paragraph [ref=e11]: Voice First
-        - paragraph [ref=e12]: Tap the mic and speak your job notes naturally.
-        - button "Start recording" [ref=e14]:
-          - generic [ref=e15]: Start recording
-          - img [ref=e17]
-        - paragraph [ref=e20]: Ready. Tap to start
-      - generic [ref=e21]:
-        - paragraph [ref=e22]: Quick Attach
-        - generic [ref=e23]:
-          - button "Photo" [ref=e24]:
-            - img [ref=e25]
-            - generic [ref=e28]: Photo
-          - button "Invoice" [ref=e29]:
-            - img [ref=e30]
-            - generic [ref=e34]: Invoice
-          - button "Timer" [ref=e35]:
-            - img [ref=e36]
-            - generic [ref=e39]: Timer
-        - paragraph [ref=e40]: "Timer: 0m 0s"
-      - generic [ref=e41]: Voice Notes (Text)
-      - textbox "Voice Notes (Text)" [ref=e42]:
-        - /placeholder: "Optional: add extra notes after voice capture"
-    - button "Save / Sync Now" [disabled] [ref=e45]:
-      - img [ref=e46]
-      - text: Save / Sync Now
-  - navigation [ref=e49]:
-    - link "Home" [ref=e50] [cursor=pointer]:
-      - /url: /home
-      - img [ref=e51]
-      - text: Home
-    - link "Jobs" [ref=e54] [cursor=pointer]:
-      - /url: /jobs
-      - img [ref=e55]
-      - text: Jobs
-    - link "Capture" [ref=e58] [cursor=pointer]:
-      - /url: /capture
-      - img [ref=e59]
-      - text: Capture
-    - link "Map" [ref=e62] [cursor=pointer]:
-      - /url: /map
-      - img [ref=e63]
-      - text: Map
-    - link "Profile" [ref=e66] [cursor=pointer]:
-      - /url: /profile
-      - img [ref=e67]
-      - text: Profile
-  - alert [ref=e70]
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "SparkOps secure audio lock" [ref=e6]:
+        - img [ref=e7]
+      - img [ref=e9]
+      - heading "SPARKOPS SECURE ACCESS" [level=1] [ref=e12]
+      - paragraph [ref=e13]: Welcome
+      - paragraph [ref=e14]: Sign in or create your SparkOps account.
+    - generic [ref=e15]:
+      - button "Login" [ref=e16]
+      - button "Sign Up" [ref=e17]
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Email
+        - textbox "Email" [ref=e21]:
+          - /placeholder: you@example.com
+          - text: jimmybobday@gmail.com
+      - generic [ref=e22]:
+        - generic [ref=e23]: Password
+        - textbox "Password" [ref=e24]:
+          - /placeholder: ••••••••
+          - text: Samdoggy1!
+      - button "Sign In to SparkOps" [active] [ref=e25]
+    - generic [ref=e26]:
+      - paragraph [ref=e27]: "Status: Connected"
+      - generic [ref=e28]:
+        - link "Back to home" [ref=e29] [cursor=pointer]:
+          - /url: /
+        - text: •
+        - link "Create account" [ref=e30] [cursor=pointer]:
+          - /url: /signup
+  - generic [ref=e35] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e36]:
+      - img [ref=e37]
+    - generic [ref=e40]:
+      - button "Open issues overlay" [ref=e41]:
+        - generic [ref=e42]:
+          - generic [ref=e43]: "1"
+          - generic [ref=e44]: "2"
+        - generic [ref=e45]:
+          - text: Issue
+          - generic [ref=e46]: s
+      - button "Collapse issues badge" [ref=e47]:
+        - img [ref=e48]
+  - alert [ref=e50]
 ```

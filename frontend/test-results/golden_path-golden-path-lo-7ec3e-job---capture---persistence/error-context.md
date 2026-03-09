@@ -1,91 +1,50 @@
 # Page snapshot
 
 ```yaml
-- generic [active] [ref=e1]:
-  - main [ref=e2]:
-    - generic [ref=e3]:
-      - paragraph [ref=e4]: Job Manager
-      - heading "All Job Drafts" [level=1] [ref=e5]
-      - generic [ref=e6]:
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "SparkOps secure audio lock" [ref=e6]:
         - img [ref=e7]
-        - textbox [ref=e10]:
-          - /placeholder: Search by client or date (e.g. Mar 8)
-      - paragraph [ref=e11]: "Supabase jobs create failed: Could not find the table 'public.jobs' in the schema cache"
-      - paragraph [ref=e12]: No jobs found for your search.
-      - list
-    - button "Create new job" [ref=e13]:
-      - img [ref=e14]
-    - generic [ref=e16]:
-      - generic [ref=e17]:
-        - heading "New Job" [level=2] [ref=e18]
-        - button "Close new job form" [ref=e19]:
-          - img [ref=e20]
-      - generic [ref=e23]:
-        - generic [ref=e24]:
-          - text: Client Name
-          - textbox "Client Name" [ref=e25]:
-            - /placeholder: ACME Properties
-            - text: Golden Path Client
-        - generic [ref=e26]:
-          - text: Job Title / Description
-          - textbox "Job Title / Description" [ref=e27]:
-            - /placeholder: Switchboard inspection and repairs
-            - text: Switchboard Repair
-        - generic [ref=e28]:
-          - text: Address
-          - generic [ref=e29]:
-            - textbox "Address 21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand 21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand 21 Churchill Road, Judea, Tauranga 3110, New Zealand 21 Churchill Street, Whakatāne 3120, New Zealand 21 Churchill Street, Waipukurau 4200, New Zealand" [ref=e30]:
-              - /placeholder: Start typing an address
-              - text: 21 Churchill Road
-            - list [ref=e31]:
-              - listitem [ref=e32]:
-                - button "21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand" [ref=e33]:
-                  - img [ref=e34]
-                  - generic [ref=e37]: 21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand
-              - listitem [ref=e38]:
-                - button "21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand" [ref=e39]:
-                  - img [ref=e40]
-                  - generic [ref=e43]: 21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand
-              - listitem [ref=e44]:
-                - button "21 Churchill Road, Judea, Tauranga 3110, New Zealand" [ref=e45]:
-                  - img [ref=e46]
-                  - generic [ref=e49]: 21 Churchill Road, Judea, Tauranga 3110, New Zealand
-              - listitem [ref=e50]:
-                - button "21 Churchill Street, Whakatāne 3120, New Zealand" [ref=e51]:
-                  - img [ref=e52]
-                  - generic [ref=e55]: 21 Churchill Street, Whakatāne 3120, New Zealand
-              - listitem [ref=e56]:
-                - button "21 Churchill Street, Waipukurau 4200, New Zealand" [ref=e57]:
-                  - img [ref=e58]
-                  - generic [ref=e61]: 21 Churchill Street, Waipukurau 4200, New Zealand
-        - generic [ref=e62]:
-          - text: Assign To
-          - combobox "Assign To" [ref=e63]:
-            - option "Me" [selected]
-        - generic [ref=e64]:
-          - text: Scheduled Date & Time
-          - textbox "Scheduled Date & Time" [ref=e65]
-        - button "Create Draft" [ref=e66]
-  - navigation [ref=e67]:
-    - link "Home" [ref=e68] [cursor=pointer]:
-      - /url: /home
-      - img [ref=e69]
-      - text: Home
-    - link "Jobs" [ref=e72] [cursor=pointer]:
-      - /url: /jobs
-      - img [ref=e73]
-      - text: Jobs
-    - link "Capture" [ref=e76] [cursor=pointer]:
-      - /url: /capture
-      - img [ref=e77]
-      - text: Capture
-    - link "Map" [ref=e80] [cursor=pointer]:
-      - /url: /map
-      - img [ref=e81]
-      - text: Map
-    - link "Admin" [ref=e84] [cursor=pointer]:
-      - /url: /admin
-      - img [ref=e85]
-      - text: Admin
-  - alert [ref=e89]
+      - img [ref=e9]
+      - heading "SPARKOPS SECURE ACCESS" [level=1] [ref=e12]
+      - paragraph [ref=e13]: Welcome
+      - paragraph [ref=e14]: Sign in or create your SparkOps account.
+    - generic [ref=e15]:
+      - button "Login" [ref=e16]
+      - button "Sign Up" [ref=e17]
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Email
+        - textbox "Email" [ref=e21]:
+          - /placeholder: you@example.com
+          - text: jimmybobday@gmail.com
+      - generic [ref=e22]:
+        - generic [ref=e23]: Password
+        - textbox "Password" [ref=e24]:
+          - /placeholder: ••••••••
+          - text: Samdoggy1!
+      - button "Sign In to SparkOps" [active] [ref=e25]
+    - generic [ref=e26]:
+      - paragraph [ref=e27]: "Status: Connected"
+      - generic [ref=e28]:
+        - link "Back to home" [ref=e29] [cursor=pointer]:
+          - /url: /
+        - text: •
+        - link "Create account" [ref=e30] [cursor=pointer]:
+          - /url: /signup
+  - generic [ref=e35] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e36]:
+      - img [ref=e37]
+    - generic [ref=e40]:
+      - button "Open issues overlay" [ref=e41]:
+        - generic [ref=e42]:
+          - generic [ref=e43]: "1"
+          - generic [ref=e44]: "2"
+        - generic [ref=e45]:
+          - text: Issue
+          - generic [ref=e46]: s
+      - button "Collapse issues badge" [ref=e47]:
+        - img [ref=e48]
+  - alert [ref=e50]
 ```
