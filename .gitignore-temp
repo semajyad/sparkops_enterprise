@@ -1,4 +1,0 @@
-# Temporary exclude files being worked on by another agent
-frontend/src/components/JobsList.tsx
-frontend/src/components/VoiceVisualizer.tsx
-frontend/src/lib/haptics.ts
