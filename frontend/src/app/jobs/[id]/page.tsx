@@ -98,7 +98,7 @@ export default function JobReviewPage(): React.JSX.Element {
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `sparkops-invoice-${job.id}.pdf`;
+      link.download = `tradeops-invoice-${job.id}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();

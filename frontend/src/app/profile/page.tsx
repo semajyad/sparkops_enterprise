@@ -169,7 +169,7 @@ export default function ProfilePage(): React.JSX.Element {
     }
 
     void setProfileCache(cachedPayload);
-  }, [details?.email, details?.full_name, details?.organization_id, details?.role, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
+  }, [details, sessionIdentity?.email, sessionIdentity?.full_name, sessionIdentity?.organization, user?.email, user?.user_metadata?.full_name, user?.user_metadata?.organization]);
 
   async function onLadderChange(next: boolean): Promise<void> {
     const previous = ladderEnabled;
@@ -205,14 +205,14 @@ export default function ProfilePage(): React.JSX.Element {
     details?.email ||
     sessionIdentity?.email ||
     user?.email ||
-    "Sparky";
+    "TradeOps User";
   const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
   const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
 
   useEffect(() => {
-    setFullNameInput(displayName === "Sparky" ? "" : displayName);
+    setFullNameInput(displayName === "TradeOps User" ? "" : displayName);
     setEmailInput(displayEmail === "Unknown" ? "" : displayEmail);
     setOrganizationInput(displayOrganization === "Unknown" ? "" : displayOrganization);
   }, [displayName, displayEmail, displayOrganization]);

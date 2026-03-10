@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SparkOps Basement Interface",
+  title: "TradeOps Field Interface",
   description: "Offline-first voice and receipt capture for NZ electricians.",
   manifest: "/manifest.json",
   other: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SparkOps",
+    title: "TradeOps",
   },
   formatDetection: {
     telephone: false,

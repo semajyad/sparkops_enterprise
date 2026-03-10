@@ -143,71 +143,80 @@ export function AddressAutocomplete({
     const controller = new AbortController();
     const fetchSuggestions = async (): Promise<void> => {
       setIsLoading(true);
-      const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
-      console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
-        query,
-        url: mapboxUrl,
-      });
-      const mapboxResponse = await fetch(mapboxUrl, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-
-      if (!mapboxResponse.ok) {
-        throw new Error(`Address lookup failed (${mapboxResponse.status})`);
-      }
-
-      const payload = (await mapboxResponse.json()) as MapboxResponse;
-      console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
-      const rows = Array.isArray(payload.features) ? payload.features : [];
-      if (rows.length === 0) {
-        console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
+      try {
+        const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
+        console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
           query,
           url: mapboxUrl,
         });
-      }
-      const mapped = rows
-        .map((feature) => {
-          const coordinates = feature.geometry?.coordinates ?? feature.center;
-          const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
-          const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
-          if (lat === null || lng === null) {
-            return null;
-          }
+        const mapboxResponse = await fetch(mapboxUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
 
-          const placeName = sanitizeAddressComponent(feature.place_name);
-          const text = sanitizeAddressComponent(feature.text);
-          const label = placeName || buildMapboxLabel(feature);
-          if (!label || label === "Unknown address") {
-            return null;
-          }
+        if (!mapboxResponse.ok) {
+          throw new Error(`Address lookup failed (${mapboxResponse.status})`);
+        }
 
-          return {
-            id: feature.id,
-            text: text || label,
-            place_name: label,
-            address: label,
-            lat,
-            lng,
-          } satisfies AddressSuggestion;
-        })
-        .filter((row): row is AddressSuggestion => Boolean(row));
+        const payload = (await mapboxResponse.json()) as MapboxResponse;
+        console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
+        if (!payload || !Array.isArray(payload.features)) {
+          setSuggestions([]);
+          setOpen(false);
+          return;
+        }
+        const rows = payload.features;
+        if (rows.length === 0) {
+          console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
+            query,
+            url: mapboxUrl,
+          });
+        }
 
-      setSuggestions(mapped);
-      setOpen(mapped.length > 0);
-    };
+        const mapped = rows
+          .map((feature) => {
+            const coordinates = feature.geometry?.coordinates ?? feature.center;
+            const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
+            const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
+            if (lat === null || lng === null) {
+              return null;
+            }
 
-    void fetchSuggestions()
-      .catch(() => {
+            const placeName = sanitizeAddressComponent(feature.place_name);
+            const text = sanitizeAddressComponent(feature.text);
+            const label = placeName || buildMapboxLabel(feature);
+            if (!label || label === "Unknown address") {
+              return null;
+            }
+
+            return {
+              id: feature.id,
+              text: text || label,
+              place_name: label,
+              address: label,
+              lat,
+              lng,
+            } satisfies AddressSuggestion;
+          })
+          .filter((row): row is AddressSuggestion => Boolean(row));
+
+        setSuggestions(mapped);
+        setOpen(mapped.length > 0);
+      } catch {
         setSuggestions([]);
         setOpen(false);
-      })
-      .finally(() => {
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    const debounceTimer = window.setTimeout(() => {
+      void fetchSuggestions();
+    }, 300);
 
     return () => {
+      window.clearTimeout(debounceTimer);
       controller.abort();
     };
   }, [value]);

@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // For development: auto-login with mock token
-    const mockToken = localStorage.getItem("sparkops_mock_token");
+    const mockToken = localStorage.getItem("tradeops_mock_token");
     
     if (mockToken) {
       // Validate token with backend
@@ -54,12 +54,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession({ access_token: mockToken });
           setRole("OWNER");
         } else {
-          localStorage.removeItem("sparkops_mock_token");
+          localStorage.removeItem("tradeops_mock_token");
         }
         setLoading(false);
       })
       .catch(() => {
-        localStorage.removeItem("sparkops_mock_token");
+        localStorage.removeItem("tradeops_mock_token");
         setLoading(false);
       });
     } else {
@@ -73,13 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // For development: accept any email/password and create mock session
     const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwib3JnYW5pemF0aW9uX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwicm9sZSI6Ik9XTkVSIiwiZXhwIjoxNzcyOTUxNjUyLCJpYXQiOjE3NzI4NjUyNTIsImlzcyI6InNwYXJrb3BzIn0.2mVcRc8u7I_CF_l3drWnrkbhGA3zPP0ZXwl0ALpx32Y";
     
-    localStorage.setItem("sparkops_mock_token", mockToken);
+    localStorage.setItem("tradeops_mock_token", mockToken);
     setSession({ access_token: mockToken });
     setRole("OWNER");
   };
 
   const logout = () => {
-    localStorage.removeItem("sparkops_mock_token");
+    localStorage.removeItem("tradeops_mock_token");
     setSession(null);
     setRole(null);
   };

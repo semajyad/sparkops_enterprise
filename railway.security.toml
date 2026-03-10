@@ -1,0 +1,88 @@
+# Railway Deployment Security Configuration
+# Enhanced security settings for Railway deployment
+
+[service.sparkops_staging_backend]
+root = "backend"
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
+watchPatterns = ["backend/**"]
+
+# Security Environment Variables
+[service.sparkops_staging_backend.env]
+# Database Security
+DATABASE_URL = "${DATABASE_URL}"
+SECRET_KEY = "${SECRET_KEY}"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = "30"
+
+# API Security
+CORS_ORIGINS = "https://sparkopsstagingfrontend-staging.up.railway.app"
+ALLOWED_HOSTS = "sparkopsstagingbackend-staging.up.railway.app"
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE = "60"
+RATE_LIMIT_BURST = "10"
+
+# Session Security
+SESSION_COOKIE_SECURE = "true"
+SESSION_COOKIE_HTTPONLY = "true"
+SESSION_COOKIE_SAMESITE = "strict"
+
+# Security Headers
+SECURITY_SSL_REDIRECT = "true"
+SECURITY_HSTS_SECONDS = "31536000"
+SECURITY_HSTS_INCLUDE_SUBDOMAINS = "true"
+SECURITY_HSTS_PRELOAD = "true"
+
+# Content Security Policy
+CSP_DEFAULT_SRC = "'self'"
+CSP_SCRIPT_SRC = "'self' 'unsafe-inline'"
+CSP_STYLE_SRC = "'self' 'unsafe-inline'"
+CSP_IMG_SRC = "'self' data: https:"
+CSP_CONNECT_SRC = "'self' https://api.openai.com https://api.mapbox.com"
+
+# Logging and Monitoring
+LOG_LEVEL = "INFO"
+SECURITY_LOG_LEVEL = "WARNING"
+AUDIT_LOG_ENABLED = "true"
+
+# External Service Security
+OPENAI_API_KEY = "${OPENAI_API_KEY}"
+MAPBOX_TOKEN = "${MAPBOX_TOKEN}"
+XERO_CLIENT_ID = "${XERO_CLIENT_ID}"
+XERO_CLIENT_SECRET = "${XERO_CLIENT_SECRET}"
+XERO_REDIRECT_URI = "https://sparkopsstagingbackend-staging.up.railway.app/api/integrations/xero/callback"
+
+# Supabase Security
+SUPABASE_URL = "${SUPABASE_URL}"
+SUPABASE_ANON_KEY = "${SUPABASE_ANON_KEY}"
+SUPABASE_SERVICE_ROLE_KEY = "${SUPABASE_SERVICE_ROLE_KEY}"
+
+[service.sparkops_staging_frontend]
+root = "frontend"
+builder = "nixpacks"
+watchPatterns = ["frontend/**"]
+
+# Frontend Security Environment Variables
+[service.sparkops_staging_frontend.env]
+# API Configuration
+NEXT_PUBLIC_API_BASE_URL = "https://sparkopsstagingbackend-staging.up.railway.app"
+NEXT_PUBLIC_SUPABASE_URL = "${SUPABASE_URL}"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "${SUPABASE_ANON_KEY}"
+
+# Map Security
+NEXT_PUBLIC_MAPBOX_TOKEN = "${MAPBOX_TOKEN}"
+
+# Feature Flags
+NEXT_PUBLIC_ENABLE_ANALYTICS = "false"
+NEXT_PUBLIC_ENABLE_ERROR_REPORTING = "true"
+
+# Security Headers
+NEXT_PUBLIC_SECURITY_HEADERS = "true"
+
+# Build Security
+NODE_ENV = "production"
+NEXT_TELEMETRY_DISABLED = "1"
+
+# Deployment Security
+VERCEL_ANALYTICS_ID = "${VERCEL_ANALYTICS_ID}"

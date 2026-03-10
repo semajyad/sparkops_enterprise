@@ -253,7 +253,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
           }
 
           const profile = profileById.get(row.user_id);
-          const fallbackName = row.user_id === user?.id ? "You" : `Sparky ${row.user_id.slice(0, 6)}`;
+          const fallbackName = row.user_id === user?.id ? "You" : `TradeOps ${row.user_id.slice(0, 6)}`;
           const resolvedName = profile?.full_name?.trim() || fallbackName;
 
           return {

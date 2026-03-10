@@ -1,4 +1,4 @@
-﻿"""SparkOps Sprint 1 API entrypoint.
+﻿"""TradeOps Sprint 1 API entrypoint.
 
 
 
@@ -115,7 +115,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
 
-    title="SparkOps Data Factory API",
+    title="TradeOps Data Factory API",
 
     description="Voice-to-cash ingestion engine for NZ electricians.",
 
@@ -1214,7 +1214,7 @@ def root() -> HealthResponse:
 
 
 
-    return HealthResponse(status="healthy", service="sparkops-data-factory", version="1.0.0")
+    return HealthResponse(status="healthy", service="tradeops-data-factory", version="1.0.0")
 
 
 
@@ -1266,8 +1266,8 @@ def ingest(payload: IngestRequest, current_user: AuthenticatedUser = Depends(get
 
         transcript = voice_notes if voice_notes else transcribe_audio(audio_base64)
 
-        extracted_data = triage_service.analyze_transcript(transcript, current_user.trade)
-        required_trade = _normalize_trade(current_user.trade)
+        required_trade = _normalize_trade(current_user.organization_default_trade)
+        extracted_data = triage_service.analyze_transcript(transcript, required_trade)
         extracted_data["required_trade"] = required_trade
         safety_tests = _normalize_safety_tests(extracted_data, payload.gps_lat, payload.gps_lng)
         compliance_status, missing_items, compliance_note = _compute_guardrail_status(transcript, safety_tests, required_trade)
@@ -1702,7 +1702,7 @@ def _xero_env_value(name: str) -> str:
 
 
 def _xero_state_secret() -> str:
-    return os.getenv("XERO_STATE_SECRET", os.getenv("SECRET_KEY", "sparkops-xero-state-secret"))
+    return os.getenv("XERO_STATE_SECRET", os.getenv("SECRET_KEY", "tradeops-xero-state-secret"))
 
 
 def _build_xero_state(organization_id: UUID) -> str:
@@ -1802,7 +1802,7 @@ def _decimal_or_default(value: Any, fallback: Decimal = Decimal("0")) -> Decimal
 
 def _build_xero_invoice_payload(job: JobDraft) -> dict[str, Any]:
     extracted = job.extracted_data if isinstance(job.extracted_data, dict) else {}
-    contact_name = str(extracted.get("client") or "SparkOps Client").strip() or "SparkOps Client"
+    contact_name = str(extracted.get("client") or "TradeOps Client").strip() or "TradeOps Client"
     job_title = str(extracted.get("job_title") or "Electrical Services").strip() or "Electrical Services"
     line_items_raw = extracted.get("line_items") if isinstance(extracted.get("line_items"), list) else []
 
@@ -2046,7 +2046,7 @@ def create_job_draft(
     assigned_user_id = current_user.id
     assigned_user_name = current_user.full_name or current_user.email or "Assigned User"
     assigned_user_trade = current_user.trade
-    required_trade = _normalize_trade(payload.required_trade, default=current_user.trade)
+    required_trade = _normalize_trade(current_user.organization_default_trade)
     if current_user.role == "OWNER" and payload.assigned_to_user_id is not None:
         with Session(ENGINE) as session:
             assignee_row = session.exec(
@@ -2303,7 +2303,7 @@ def complete_job_draft(
         from services.pdf import generate_certificate_pdf
 
         certificate_bytes = generate_certificate_pdf(draft, tests)
-        filename = f"sparkops-certificate-{draft.id}.pdf"
+        filename = f"tradeops-certificate-{draft.id}.pdf"
         extracted = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
         address = str(extracted.get("address") or extracted.get("location") or "Job Site")
         client_name = str(extracted.get("client") or "Client")
@@ -2369,7 +2369,7 @@ def download_job_certificate_pdf(job_id: UUID, current_user: AuthenticatedUser =
     from services.pdf import generate_certificate_pdf
 
     pdf_bytes = generate_certificate_pdf(draft, safety_payload)
-    filename = f"sparkops-certificate-{job_id}.pdf"
+    filename = f"tradeops-certificate-{job_id}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -2392,7 +2392,7 @@ def download_job_invoice_pdf(job_id: UUID, current_user: AuthenticatedUser = Dep
     from services.pdf import generate_invoice_pdf
 
     pdf_bytes = generate_invoice_pdf(draft, ENGINE)
-    filename = f"sparkops-invoice-{job_id}.pdf"
+    filename = f"tradeops-invoice-{job_id}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -2403,7 +2403,7 @@ def download_job_invoice_pdf(job_id: UUID, current_user: AuthenticatedUser = Dep
 @app.get("/health", response_model=HealthResponse)
 def health_check() -> HealthResponse:
     """Return health status for monitoring."""
-    return HealthResponse(status="healthy", service="sparkops-data-factory", version="1.0.0")
+    return HealthResponse(status="healthy", service="tradeops-data-factory", version="1.0.0")
 
 
 if __name__ == "__main__":

@@ -154,7 +154,7 @@ describe("syncManager", () => {
 
     await scheduleBackgroundSync();
 
-    expect(register).toHaveBeenCalledWith("sparkops-sync");
+    expect(register).toHaveBeenCalledWith("tradeops-sync");
   });
 
   it("exits without error when sync API is unavailable", async () => {

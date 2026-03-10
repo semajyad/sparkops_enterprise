@@ -64,6 +64,6 @@ export async function scheduleBackgroundSync(): Promise<void> {
   if ("sync" in registration) {
     await (registration as ServiceWorkerRegistration & {
       sync: { register: (tag: string) => Promise<void> };
-    }).sync.register("sparkops-sync");
+    }).sync.register("tradeops-sync");
   }
 }

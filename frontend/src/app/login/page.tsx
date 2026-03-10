@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { AudioLines, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -26,19 +26,19 @@ function LoginPageContent(): React.JSX.Element {
           <div className="text-center mb-8">
             <motion.button
               type="button"
-              aria-label="SparkOps secure audio lock"
-              className="mx-auto mb-4 inline-flex min-h-14 min-w-14 items-center justify-center rounded-full border border-orange-300 bg-orange-50 text-orange-600"
+              aria-label="TradeOps secure access"
+              className="mx-auto mb-4 inline-flex min-h-14 min-w-14 items-center justify-center rounded-2xl border border-orange-300 bg-orange-50 text-orange-700"
               animate={reduceMotion ? undefined : { scale: [1, 1.07, 1] }}
               transition={reduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
-              <AudioLines className="h-6 w-6" />
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border-2 border-current font-black leading-none">TO</span>
             </motion.button>
             <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-gray-100">
               <LogIn className="h-8 w-8 text-orange-600" />
             </div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900">SPARKOPS SECURE ACCESS</h1>
+            <h1 className="mb-2 text-2xl font-bold text-gray-900">TRADEOPS SECURE ACCESS</h1>
             <p className="text-gray-700">Welcome</p>
-            <p className="mt-1 text-sm text-gray-500">Sign in or create your SparkOps account.</p>
+            <p className="mt-1 text-sm text-gray-500">Sign in or create your TradeOps account.</p>
           </div>
 
           {/* Mode Toggle */}
@@ -112,7 +112,7 @@ function LoginPageContent(): React.JSX.Element {
                 type="submit"
                 className="min-h-11 w-full rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-all hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Sign In to SparkOps
+                Sign In to TradeOps
               </button>
             </form>
           ) : (
@@ -155,7 +155,7 @@ function LoginPageContent(): React.JSX.Element {
                   type="text"
                   required
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                  placeholder="Spark Electrical Ltd"
+                  placeholder="TradeOps Services Ltd"
                 />
               </div>
 

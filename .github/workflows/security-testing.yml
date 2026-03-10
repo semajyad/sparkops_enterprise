@@ -1,0 +1,207 @@
+# GitHub Actions Workflow for Security Testing
+# Runs comprehensive security tests on every push and PR
+
+name: 🔒 Security Testing
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  schedule:
+    # Run security tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-tests:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: [3.11]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install bandit safety pytest pytest-json-report
+    
+    - name: Create security reports directory
+      run: mkdir -p security_reports
+    
+    - name: Run Bandit Security Scan
+      run: |
+        bandit -r . -f json -o security_reports/bandit_results.json -f html -o security_reports/bandit_report.html
+        echo "Bandit scan completed"
+    
+    - name: Run Safety Dependency Check
+      run: |
+        safety check --json --output security_reports/safety_results.json || true
+        echo "Dependency check completed"
+    
+    - name: Run Python Security Tests
+      run: |
+        python -m pytest tests/security/ -v --json-report --json-report-file=security_reports/security_tests.json || true
+        echo "Security tests completed"
+    
+    - name: Run Comprehensive Security Tests
+      run: |
+        python tests/security/run_security_tests.py --output-dir security_reports || true
+        echo "Comprehensive security tests completed"
+    
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports-${{ github.run_number }}
+        path: security_reports/
+        retention-days: 30
+    
+    - name: Security Scan Summary
+      run: |
+        echo "## 🔒 Security Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f security_reports/bandit_results.json ]; then
+          HIGH=$(python -c "import json; data=json.load(open('security_reports/bandit_results.json')); print(len([r for r in data['results'] if r['issue_severity']=='HIGH'])))")
+          MEDIUM=$(python -c "import json; data=json.load(open('security_reports/bandit_results.json')); print(len([r for r in data['results'] if r['issue_severity']=='MEDIUM']))")
+          LOW=$(python -c "import json; data=json.load(open('security_reports/bandit_results.json')); print(len([r for r in data['results'] if r['issue_severity']=='LOW']))")
+          echo "### 🛡️ Bandit Static Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟢 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f security_reports/security_tests.json ]; then
+          TOTAL=$(python -c "import json; data=json.load(open('security_reports/security_tests.json')); print(data['summary']['total'])" 2>/dev/null || echo "0")
+          PASSED=$(python -c "import json; data=json.load(open('security_reports/security_tests.json')); print(data['summary']['passed'])" 2>/dev/null || echo "0")
+          FAILED=$(python -c "import json; data=json.load(open('security_reports/security_tests.json')); print(data['summary']['failed'])" 2>/dev/null || echo "0")
+          echo "### 🧪 Security Unit Tests" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "📊 **Detailed reports available in the artifacts section**" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Check for High Severity Issues
+      run: |
+        if [ -f security_reports/bandit_results.json ]; then
+          HIGH_COUNT=$(python -c "import json; data=json.load(open('security_reports/bandit_results.json')); print(len([r for r in data['results'] if r['issue_severity']=='HIGH']))")
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "❌ High severity security issues found: $HIGH_COUNT"
+            echo "Please review the Bandit report and address these issues."
+            exit 1
+          else
+            echo "✅ No high severity security issues found"
+          fi
+        fi
+    
+    - name: Comment PR with Security Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          let comment = '## 🔒 Security Test Results\n\n';
+          
+          if (fs.existsSync('security_reports/bandit_results.json')) {
+            const banditData = JSON.parse(fs.readFileSync('security_reports/bandit_results.json', 'utf8'));
+            const high = banditData.results.filter(r => r.issue_severity === 'HIGH').length;
+            const medium = banditData.results.filter(r => r.issue_severity === 'MEDIUM').length;
+            const low = banditData.results.filter(r => r.issue_severity === 'LOW').length;
+            
+            comment += '### 🛡️ Bandit Static Analysis\n';
+            comment += '| Severity | Count |\n';
+            comment += '|----------|-------|\n';
+            comment += `| 🔴 High | ${high} |\n`;
+            comment += `| 🟡 Medium | ${medium} |\n`;
+            comment += `| 🟢 Low | ${low} |\n\n`;
+          }
+          
+          if (fs.existsSync('security_reports/security_tests.json')) {
+            const testData = JSON.parse(fs.readFileSync('security_reports/security_tests.json', 'utf8'));
+            const total = testData.summary?.total || 0;
+            const passed = testData.summary?.passed || 0;
+            const failed = testData.summary?.failed || 0;
+            
+            comment += '### 🧪 Security Unit Tests\n';
+            comment += '| Metric | Count |\n';
+            comment += '|--------|-------|\n';
+            comment += `| Total Tests | ${total} |\n`;
+            comment += `| ✅ Passed | ${passed} |\n`;
+            comment += `| ❌ Failed | ${failed} |\n\n`;
+          }
+          
+          comment += '📊 **Detailed reports are available in the workflow artifacts**\n';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: security-tests
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run TruffleHog Secrets Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+    
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        languages: python
+    
+    - name: Run OWASP ZAP Baseline Scan
+      uses: zaproxy/action-baseline@v0.7.0
+      with:
+        target: 'http://localhost:8000'
+        rules_file_name: '.zap/rules.tsv'
+        cmd_options: '-a'
+    
+    - name: Upload Scan Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: advanced-security-scan-${{ github.run_number }}
+        path: |
+          trufflehog_reports/
+          codeql_reports/
+          zap_reports/
+        retention-days: 30

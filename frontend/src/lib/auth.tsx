@@ -12,8 +12,8 @@ type AppRole = "OWNER" | "EMPLOYEE" | null;
 type AppMode = "ADMIN" | "FIELD";
 type AppTrade = "ELECTRICAL" | "PLUMBING";
 
-const MODE_STORAGE_KEY = "sparkops_owner_mode";
-const ROLE_STORAGE_KEY = "sparkops_user_role";
+const MODE_STORAGE_KEY = "tradeops_owner_mode";
+const ROLE_STORAGE_KEY = "tradeops_user_role";
 
 type AuthContextValue = {
   session: Session | null;

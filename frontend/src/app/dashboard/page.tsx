@@ -10,7 +10,7 @@ import { AuthSessionExpiredError } from "@/lib/api";
 import { clearAuthState, useAuth } from "@/lib/auth";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { db } from "@/lib/db";
-import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus, normalizeRequiredTrade } from "@/lib/jobs";
+import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { backgroundSync } from "@/lib/syncService";
 
 function initialsFromName(name: string): string {
@@ -37,13 +37,12 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function DashboardPage(): React.JSX.Element {
-  const { user, session, role, mode, trade } = useAuth();
+  const { user, session, role, mode } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
-  const [tradeFilter, setTradeFilter] = useState<"ALL" | "ELECTRICAL" | "PLUMBING" | "ANY">("ALL");
   const metadataName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
   const { isInstallAvailable, promptInstall } = usePWAInstall();
   const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
@@ -62,28 +61,10 @@ export default function DashboardPage(): React.JSX.Element {
   );
 
   const displayName = metadataName || profileName;
-  const visibleJobs = useMemo(() => {
-    if (tradeFilter === "ALL") {
-      return jobs;
-    }
-    return jobs.filter((job) => normalizeRequiredTrade(job.extracted_data?.required_trade) === tradeFilter);
-  }, [jobs, tradeFilter]);
-  const pulse = useMemo(() => computePulseMetrics(visibleJobs), [visibleJobs]);
+  const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
   const recentActivity = useMemo(() => {
-    if (role !== "OWNER") {
-      return visibleJobs.slice(0, 5);
-    }
-
-    return [...visibleJobs]
-      .sort((left, right) => {
-        const leftTrade = normalizeRequiredTrade(left.extracted_data?.required_trade);
-        const rightTrade = normalizeRequiredTrade(right.extracted_data?.required_trade);
-        const leftScore = leftTrade === trade ? 0 : 1;
-        const rightScore = rightTrade === trade ? 0 : 1;
-        return leftScore - rightScore;
-      })
-      .slice(0, 5);
-  }, [role, trade, visibleJobs]);
+    return jobs.slice(0, 5);
+  }, [jobs]);
   const ownerFieldFocus = role === "OWNER" && mode === "FIELD";
 
   useEffect(() => {
@@ -150,7 +131,7 @@ export default function DashboardPage(): React.JSX.Element {
             onClick={() => void promptInstall()}
             className="mt-3 inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 text-left text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
           >
-            <span>Install SparkOps for standalone app access.</span>
+            <span>Install TradeOps for standalone app access.</span>
             <span className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-white">Install App</span>
           </button>
         ) : null}
@@ -159,22 +140,6 @@ export default function DashboardPage(): React.JSX.Element {
           {displayName ? `Welcome ${displayName}` : "Welcome"}
         </h1>
         <p className="mt-2 text-sm text-gray-500">Your business pulse right now.</p>
-
-        {role === "OWNER" ? (
-          <label className="mt-4 block max-w-xs text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
-            Trade View
-            <select
-              value={tradeFilter}
-              onChange={(event) => setTradeFilter(event.target.value as "ALL" | "ELECTRICAL" | "PLUMBING" | "ANY")}
-              className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-orange-600 focus:outline-none"
-            >
-              <option value="ALL">All Trades</option>
-              <option value="ELECTRICAL">Electrical</option>
-              <option value="PLUMBING">Plumbing</option>
-              <option value="ANY">Any</option>
-            </select>
-          </label>
-        ) : null}
 
         {!displayName ? (
           <p className="mt-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-700">
@@ -204,14 +169,10 @@ export default function DashboardPage(): React.JSX.Element {
           <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>
         ) : null}
 
-        {!loading && visibleJobs.length === 0 ? (
+        {!loading && jobs.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6">
             <h2 className="text-xl font-semibold text-gray-900">{displayName ? `Welcome ${displayName}` : "Welcome"}</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              {tradeFilter === "ALL"
-                ? "You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline."
-                : `No ${tradeFilter.toLowerCase()} jobs found for this view.`}
-            </p>
+            <p className="mt-2 text-sm text-gray-600">You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline.</p>
             <Link
               href="/capture"
               className="mt-5 inline-flex items-center rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-700"
@@ -221,7 +182,7 @@ export default function DashboardPage(): React.JSX.Element {
           </section>
         ) : null}
 
-        {visibleJobs.length > 0 ? (
+        {jobs.length > 0 ? (
           <>
             {!ownerFieldFocus ? (
               <section className="mt-6 grid gap-4 sm:grid-cols-3">

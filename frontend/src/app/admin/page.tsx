@@ -57,7 +57,14 @@ type VehicleRecord = {
 
 type AdminSection = "profile" | "team" | "company" | "fleet";
 
-const OWNER_TAB_STORAGE_KEY = "sparkops_owner_admin_tab";
+const OWNER_TAB_STORAGE_KEY = "tradeops_owner_admin_tab";
+
+const ADMIN_VIEW_OPTIONS: Array<{ value: AdminSection; label: string }> = [
+  { value: "profile", label: "My Profile" },
+  { value: "team", label: "Team Management" },
+  { value: "fleet", label: "Fleet Management" },
+  { value: "company", label: "Company Settings" },
+];
 
 const EMPTY_SETTINGS: AdminSettings = {
   logo_url: null,
@@ -603,27 +610,20 @@ export default function AdminPage(): React.JSX.Element {
             </div>
           </div>
 
-          <nav className="sticky top-0 z-20 -mb-px mt-4 flex gap-5 overflow-x-auto border-b border-gray-200 bg-white [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {([
-              ["profile", "Profile"],
-              ["team", "Team"],
-              ["fleet", "Fleet"],
-              ["company", "Company"],
-            ] as Array<[AdminSection, string]>).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveSection(key)}
-                className={`min-h-11 border-b-2 px-1 pb-2 pt-1 text-sm font-semibold transition ${
-                  activeSection === key
-                    ? "border-orange-600 text-orange-600"
-                    : "border-transparent text-gray-500 hover:text-orange-600"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          <label className="mt-4 block max-w-md text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
+            Admin View
+            <select
+              value={activeSection}
+              onChange={(event) => setActiveSection(event.target.value as AdminSection)}
+              className="mt-2 min-h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 focus:border-orange-600 focus:outline-none"
+            >
+              {ADMIN_VIEW_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </header>
 
         <section className="mt-5">
@@ -691,7 +691,7 @@ export default function AdminPage(): React.JSX.Element {
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
                     className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                    placeholder="tech@sparkops.co.nz"
+                    placeholder="tech@tradeops.co.nz"
                   />
                 </label>
                 <label className="text-sm text-gray-700">
@@ -814,7 +814,7 @@ export default function AdminPage(): React.JSX.Element {
                   value={toInput(settings.website_url)}
                   onChange={(event) => setSettings((prev) => ({ ...prev, website_url: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                  placeholder="https://sparkops.co.nz"
+                  placeholder="https://tradeops.co.nz"
                 />
               </label>
 
@@ -830,7 +830,7 @@ export default function AdminPage(): React.JSX.Element {
                   value={toInput(settings.business_name)}
                   onChange={(event) => setSettings((prev) => ({ ...prev, business_name: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                  placeholder="SparkOps Electrical"
+                  placeholder="TradeOps Electrical"
                 />
               </label>
               <label className="block text-sm text-gray-700">
@@ -905,7 +905,7 @@ export default function AdminPage(): React.JSX.Element {
                   value={toInput(settings.bank_account_name)}
                   onChange={(event) => setSettings((prev) => ({ ...prev, bank_account_name: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                  placeholder="SparkOps Ltd"
+                  placeholder="TradeOps Ltd"
                 />
               </label>
               <label className="block text-sm text-gray-700">

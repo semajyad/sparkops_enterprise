@@ -1,6 +1,7 @@
 "use client";
 
 import L, { DivIcon } from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
@@ -125,8 +126,8 @@ function jobIcon(job: MapJob, selected: boolean): DivIcon {
 
 function youIcon(): DivIcon {
   return L.divIcon({
-    className: "sparkops-you-marker-wrapper",
-    html: '<div class="sparkops-you-marker"><span class="sparkops-you-core"></span></div>',
+    className: "tradeops-you-marker-wrapper",
+    html: '<div class="tradeops-you-marker"><span class="tradeops-you-core"></span></div>',
     iconSize: [26, 26],
     iconAnchor: [13, 13],
   });
@@ -157,8 +158,8 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
   );
 
   return (
-    <div className="tracking-map-shell absolute left-0 top-0 z-0 h-screen w-screen overflow-hidden">
-      <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom>
+    <div className="tracking-map-shell relative z-0 h-full w-full overflow-hidden">
+      <MapContainer center={center} zoom={14} className="h-full w-full" style={{ height: "100%", width: "100%" }} scrollWheelZoom>
         <TileLayer
           attribution={tileAttribution}
           url={tileUrl}

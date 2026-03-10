@@ -23,12 +23,12 @@ export default function Home(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900 sm:px-6 md:px-10 md:py-14">
       <section className="mx-auto w-full max-w-6xl rounded-3xl border border-gray-200 bg-white p-8 shadow-sm md:p-12">
-        <p className="text-xs uppercase tracking-[0.28em] text-orange-600">SparkOps Platform</p>
+        <p className="text-xs uppercase tracking-[0.28em] text-orange-600">TradeOps Platform</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight text-gray-900 md:text-6xl">
-          The Operating System for Kiwi Sparkies.
+          The Operating System for Kiwi Trade Teams.
         </h1>
         <p className="mt-4 max-w-2xl text-base text-gray-600 md:text-lg">
-          Capture site truth once. Let SparkOps handle invoices, compliance, and proof-of-work trails while your team stays on the tools.
+          Capture site truth once. Let TradeOps handle invoices, compliance, and proof-of-work trails while your team stays on the tools.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">

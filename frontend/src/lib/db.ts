@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Dexie-backed IndexedDB storage layer for offline SparkOps local-first data.
+ * Dexie-backed IndexedDB storage layer for offline TradeOps local-first data.
  */
 
 import Dexie, { type Table } from "dexie";
@@ -241,11 +241,11 @@ export interface SyncQueueItem {
   last_error?: string;
 }
 
-const DB_NAME = "sparkops-offline-db";
+const DB_NAME = "tradeops-offline-db";
 const STALE_CACHE_MS = 5 * 60 * 1000;
-const LAST_JOB_SYNC_KEY = "sparkops:last-job-sync";
+const LAST_JOB_SYNC_KEY = "tradeops:last-job-sync";
 
-class SparkOpsDexie extends Dexie {
+class TradeOpsDexie extends Dexie {
   jobDrafts!: Table<JobDraft, number>;
   jobs!: Table<CachedJob, string>;
   job_details!: Table<CachedJobDetail, string>;
@@ -310,7 +310,7 @@ class SparkOpsDexie extends Dexie {
   }
 }
 
-export const db = new SparkOpsDexie();
+export const db = new TradeOpsDexie();
 
 function now(): number {
   return Date.now();

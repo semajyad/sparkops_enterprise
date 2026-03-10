@@ -9,7 +9,6 @@ import {
   computePulseMetrics,
   formatJobDate,
   type JobListItem,
-  type JobLineItem,
 } from '../jobs';
 
 describe('Jobs Branch Coverage Tests', () => {

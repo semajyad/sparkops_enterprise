@@ -55,7 +55,7 @@ export default function TrackingPage({ params }: { params: { id: string } }): Re
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-3xl rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-xs uppercase tracking-[0.26em] text-orange-600">SparkOps Client Tracking</p>
+        <p className="text-xs uppercase tracking-[0.26em] text-orange-600">TradeOps Client Tracking</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Your electrician is on the way</h1>
         <p className="mt-2 text-sm text-gray-600">Live arrival updates from Driving Mode dispatch.</p>
 

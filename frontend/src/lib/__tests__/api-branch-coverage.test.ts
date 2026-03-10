@@ -22,7 +22,7 @@ global.Response = class Response {
   async text() {
     return this.body;
   }
-} as any;
+} as unknown as typeof Response;
 
 // Mock Headers object for testing
 global.Headers = class Headers {
@@ -39,7 +39,7 @@ global.Headers = class Headers {
   set(name: string, value: string) {
     this.init[name] = value;
   }
-} as any;
+} as unknown as typeof Headers;
 
 // Mock the Supabase client
 const mockSupabase = {

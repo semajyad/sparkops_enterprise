@@ -2,49 +2,36 @@
 
 ```yaml
 - generic [ref=e1]:
-  - generic [ref=e4]:
-    - generic [ref=e5]:
-      - button "SparkOps secure audio lock" [ref=e6]:
-        - img [ref=e7]
-      - img [ref=e9]
-      - heading "SPARKOPS SECURE ACCESS" [level=1] [ref=e12]
-      - paragraph [ref=e13]: Welcome
-      - paragraph [ref=e14]: Sign in or create your SparkOps account.
-    - generic [ref=e15]:
-      - button "Login" [ref=e16]
-      - button "Sign Up" [ref=e17]
-    - generic [ref=e18]:
-      - generic [ref=e19]:
-        - generic [ref=e20]: Email
-        - textbox "Email" [ref=e21]:
+  - alert [ref=e2]
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - button "TradeOps secure access" [ref=e7]:
+        - generic [ref=e8]: TO
+      - img [ref=e10]
+      - heading "TRADEOPS SECURE ACCESS" [level=1] [ref=e13]
+      - paragraph [ref=e14]: Welcome
+      - paragraph [ref=e15]: Sign in or create your TradeOps account.
+    - generic [ref=e16]:
+      - button "Login" [ref=e17]
+      - button "Sign Up" [ref=e18]
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: Email
+        - textbox "Email" [ref=e22]:
           - /placeholder: you@example.com
           - text: jimmybobday@gmail.com
-      - generic [ref=e22]:
-        - generic [ref=e23]: Password
-        - textbox "Password" [ref=e24]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: Password
+        - textbox "Password" [active] [ref=e25]:
           - /placeholder: ••••••••
           - text: Samdoggy1!
-      - button "Sign In to SparkOps" [active] [ref=e25]
-    - generic [ref=e26]:
-      - paragraph [ref=e27]: "Status: Connected"
-      - generic [ref=e28]:
-        - link "Back to home" [ref=e29] [cursor=pointer]:
+      - button "Sign In to TradeOps" [ref=e26]
+    - generic [ref=e27]:
+      - paragraph [ref=e28]: "Status: Connected"
+      - generic [ref=e29]:
+        - link "Back to home" [ref=e30] [cursor=pointer]:
           - /url: /
         - text: •
-        - link "Create account" [ref=e30] [cursor=pointer]:
+        - link "Create account" [ref=e31] [cursor=pointer]:
           - /url: /signup
-  - generic [ref=e35] [cursor=pointer]:
-    - button "Open Next.js Dev Tools" [ref=e36]:
-      - img [ref=e37]
-    - generic [ref=e40]:
-      - button "Open issues overlay" [ref=e41]:
-        - generic [ref=e42]:
-          - generic [ref=e43]: "1"
-          - generic [ref=e44]: "2"
-        - generic [ref=e45]:
-          - text: Issue
-          - generic [ref=e46]: s
-      - button "Collapse issues badge" [ref=e47]:
-        - img [ref=e48]
-  - alert [ref=e50]
 ```

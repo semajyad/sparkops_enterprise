@@ -10,7 +10,7 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
-import { JobListItem, isMissingJobId, normalizeRequiredTrade } from "@/lib/jobs";
+import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
@@ -19,7 +19,7 @@ const MODAL_INPUT_CLASS =
 const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
 
 export default function JobsPage(): React.JSX.Element {
-  const { role, user, trade } = useAuth();
+  const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,16 +33,10 @@ export default function JobsPage(): React.JSX.Element {
   const [scheduledDate, setScheduledDate] = useState("");
   const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
-  const [requiredTrade, setRequiredTrade] = useState<"ELECTRICAL" | "PLUMBING" | "ANY">("ELECTRICAL");
-  const [tradeFilter, setTradeFilter] = useState<"ALL" | "ELECTRICAL" | "PLUMBING" | "ANY">("ALL");
   const [toast, setToast] = useState<string | null>(null);
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
-
-  useEffect(() => {
-    setRequiredTrade(normalizeRequiredTrade(trade));
-  }, [trade]);
 
   useEffect(() => {
     console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
@@ -200,7 +194,7 @@ export default function JobsPage(): React.JSX.Element {
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         assigned_to_user_id: isOwner ? assignedToUserId || user?.id : user?.id,
-        required_trade: requiredTrade,
+        required_trade: organizationDefaultTrade,
         scheduled_date: scheduledIso,
       };
 
@@ -245,7 +239,6 @@ export default function JobsPage(): React.JSX.Element {
       setLatitude(null);
       setLongitude(null);
       setAssignedToUserId(user?.id ?? "");
-      setRequiredTrade(normalizeRequiredTrade(trade));
       setScheduledDate("");
       setIsCreateOpen(false);
     } catch (createError) {
@@ -265,12 +258,7 @@ export default function JobsPage(): React.JSX.Element {
       }
       dedupedById.set(job.id, job);
     }
-    const safeJobs = Array.from(dedupedById.values()).filter((job) => {
-      if (tradeFilter === "ALL") {
-        return true;
-      }
-      return normalizeRequiredTrade(job.extracted_data?.required_trade) === tradeFilter;
-    });
+    const safeJobs = Array.from(dedupedById.values());
     if (!term) {
       return safeJobs;
     }
@@ -279,7 +267,7 @@ export default function JobsPage(): React.JSX.Element {
       const dateText = job.created_at.toLowerCase();
       return job.client_name.toLowerCase().includes(term) || dateText.includes(term);
     });
-  }, [jobs, search, tradeFilter]);
+  }, [jobs, search]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
@@ -296,20 +284,6 @@ export default function JobsPage(): React.JSX.Element {
             placeholder="Search by client or date (e.g. Mar 8)"
             className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
-        </label>
-
-        <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
-          Trade Filter
-          <select
-            value={tradeFilter}
-            onChange={(event) => setTradeFilter(event.target.value as "ALL" | "ELECTRICAL" | "PLUMBING" | "ANY")}
-            className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-orange-600 focus:outline-none"
-          >
-            <option value="ALL">All Trades</option>
-            <option value="ELECTRICAL">Electrical</option>
-            <option value="PLUMBING">Plumbing</option>
-            <option value="ANY">Any</option>
-          </select>
         </label>
 
         {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
@@ -398,21 +372,6 @@ export default function JobsPage(): React.JSX.Element {
                 {isOwner ? (
                   <>
                     <label className={MODAL_LABEL_CLASS}>
-                      Required Trade
-                      <select
-                        value={requiredTrade}
-                        onChange={(event) => setRequiredTrade(normalizeRequiredTrade(event.target.value))}
-                        className={MODAL_INPUT_CLASS}
-                      >
-                        <option value={trade === "PLUMBING" ? "PLUMBING" : "ELECTRICAL"}>
-                          {trade === "PLUMBING" ? "Plumbing" : "Electrical"} (My Trade)
-                        </option>
-                        {trade === "PLUMBING" ? <option value="ELECTRICAL">Electrical</option> : <option value="PLUMBING">Plumbing</option>}
-                        <option value="ANY">Any (must satisfy NZ legal checks for captured trade tests)</option>
-                      </select>
-                    </label>
-
-                    <label className={MODAL_LABEL_CLASS}>
                       Assign To
                       <select
                         value={assignedToUserId}
@@ -422,7 +381,7 @@ export default function JobsPage(): React.JSX.Element {
                         <option value={user?.id ?? ""}>Me</option>
                         {teamMembers
                           .filter((member) => member.id !== user?.id)
-                          .filter((member) => requiredTrade === "ANY" || member.trade === requiredTrade)
+                          .filter((member) => member.trade === organizationDefaultTrade)
                           .map((member) => (
                             <option key={member.id} value={member.id}>
                               {member.full_name} ({member.email}) · {member.trade}
