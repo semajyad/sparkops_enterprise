@@ -364,7 +364,7 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-visible rounded-xl border border-gray-200 bg-white shadow-lg">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
               <button
