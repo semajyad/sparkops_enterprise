@@ -36,11 +36,7 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
-  if (!token) {
-    throw new Error("NEXT_PUBLIC_MAPBOX_TOKEN environment variable is required");
-  }
-  return token;
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
 }
 
 type AddressAutocompleteProps = {
