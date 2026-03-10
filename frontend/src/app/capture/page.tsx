@@ -99,6 +99,7 @@ export default function CapturePage() {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const recordingStreamRef = useRef<MediaStream | null>(null);
@@ -333,30 +334,22 @@ export default function CapturePage() {
 
 
 
-  async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "file"): Promise<void> {
-
+  async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "screenshot" | "file"): Promise<void> {
     const file = event.target.files?.[0];
-
     if (!file) {
-
       return;
-
     }
 
-
-
     const base64 = await fileToBase64(file);
-
     setReceiptBase64(base64);
 
-    if (kind === "photo") {
+    if (kind === "photo" || kind === "screenshot") {
       setReceiptPreview(`data:${file.type || "image/jpeg"};base64,${base64}`);
-      setStatusMessage("Photo attached and preview ready.");
+      setStatusMessage(`${kind === "photo" ? "Photo" : "Screenshot"} attached and preview ready.`);
     } else {
       setReceiptPreview("");
       setStatusMessage(`File attached: ${file.name}`);
     }
-
   }
 
   function toggleTimer(): void {
@@ -628,7 +621,7 @@ export default function CapturePage() {
 
             <button
               type="button"
-              onClick={() => photoInputRef.current?.click()}
+              onClick={() => screenshotInputRef.current?.click()}
               className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700 transition hover:border-orange-500"
             >
               <Camera className="h-4 w-4 text-orange-600" />
@@ -655,10 +648,18 @@ export default function CapturePage() {
           />
 
           <input
+            ref={screenshotInputRef}
+            className="hidden"
+            type="file"
+            accept="image/*"
+            onChange={(event) => void handleAttachmentFile(event, "screenshot")}
+          />
+
+          <input
             ref={fileInputRef}
             className="hidden"
             type="file"
-            accept=".pdf,.doc,.docx,image/*"
+            accept=".pdf,.doc,.docx"
             onChange={(event) => void handleAttachmentFile(event, "file")}
           />
 
