@@ -2,7 +2,7 @@
 
 
 
-import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
+import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Timer, Upload } from "lucide-react";
 import Image from "next/image";
 
 import { motion, useReducedMotion } from "framer-motion";
@@ -93,6 +93,8 @@ export default function CapturePage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [jobHours, setJobHours] = useState<number>(0);
+  const [jobMinutes, setJobMinutes] = useState<number>(0);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
@@ -614,7 +616,16 @@ export default function CapturePage() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-4 pb-[max(env(safe-area-inset-bottom),1.75rem)]">
           <p className="text-sm font-semibold text-gray-900">Attach Invoice</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700 transition hover:border-orange-500"
+            >
+              <Camera className="h-4 w-4 text-orange-600" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide">Photo</span>
+            </button>
+
             <button
               type="button"
               onClick={() => photoInputRef.current?.click()}
@@ -656,6 +667,43 @@ export default function CapturePage() {
               <Image src={receiptPreview} alt="Attachment preview" width={640} height={288} className="h-36 w-full object-cover" />
             </div>
           ) : null}
+        </section>
+
+        {/* Job Length Section */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-4">
+          <p className="text-sm font-semibold text-gray-900">Job Length</p>
+          <p className="mt-1 text-xs text-gray-500">Select labour time for invoice calculation</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Hours</label>
+              <select
+                value={jobHours}
+                onChange={(e) => setJobHours(Number(e.target.value))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+              >
+                {Array.from({ length: 13 }, (_, i) => (
+                  <option key={i} value={i}>{i}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Minutes</label>
+              <select
+                value={jobMinutes}
+                onChange={(e) => setJobMinutes(Number(e.target.value))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+              >
+                {Array.from({ length: 60 }, (_, i) => (
+                  <option key={i} value={i}>{i}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {(jobHours > 0 || jobMinutes > 0) && (
+            <p className="mt-2 text-xs text-orange-600 font-medium">
+              Total time: {jobHours}h {jobMinutes}m
+            </p>
+          )}
         </section>
 
         <label className="text-sm font-semibold text-gray-900" htmlFor="voiceText">
