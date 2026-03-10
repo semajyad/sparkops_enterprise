@@ -610,12 +610,11 @@ export default function AdminPage(): React.JSX.Element {
             </div>
           </div>
 
-          <label className="mt-4 block max-w-md text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
-            Admin View
+          <label className="mt-4 block max-w-md">
             <select
               value={activeSection}
               onChange={(event) => setActiveSection(event.target.value as AdminSection)}
-              className="mt-2 min-h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 focus:border-orange-600 focus:outline-none"
+              className="min-h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 focus:border-orange-600 focus:outline-none"
             >
               {ADMIN_VIEW_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
