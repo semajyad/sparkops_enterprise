@@ -3,6 +3,14 @@
 import { Loader2, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+function debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
+  let timeoutId: NodeJS.Timeout;
+  return ((...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  }) as T;
+}
+
 type AddressSuggestion = {
   id: string;
   text: string;
@@ -36,7 +44,11 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
+  console.log("[AddressAutocomplete] getMapboxToken() called, token exists:", !!token, "token length:", token.length);
+  // Also log the raw env var for debugging
+  console.log("[AddressAutocomplete] Raw NEXT_PUBLIC_MAPBOX_TOKEN:", process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
+  return token;
 }
 
 type AddressAutocompleteProps = {
@@ -117,105 +129,120 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const suppressFetchRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (suppressFetchRef.current) {
-      suppressFetchRef.current = false;
-      return;
-    }
+  console.log("[AddressAutocomplete] Component mounted with props:", { id, value, placeholder });
 
-    const query = value.trim();
-    if (query.length < 3) {
-      return;
-    }
-
-    const mapboxToken = getMapboxToken().trim();
-    if (!mapboxToken) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const fetchSuggestions = async (): Promise<void> => {
-      setIsLoading(true);
-      try {
-        const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
-        console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
-          query,
-          url: mapboxUrl,
-        });
-        const mapboxResponse = await fetch(mapboxUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-
-        if (!mapboxResponse.ok) {
-          throw new Error(`Address lookup failed (${mapboxResponse.status})`);
-        }
-
-        const payload = (await mapboxResponse.json()) as MapboxResponse;
-        console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
-        if (!payload || !Array.isArray(payload.features)) {
-          setSuggestions([]);
-          setOpen(false);
+  const debouncedFetch = useMemo(
+    () =>
+      debounce((value: string) => {
+        console.log("[AddressAutocomplete] debouncedFetch called with value:", value);
+        if (suppressFetchRef.current) {
+          console.log("[AddressAutocomplete] Fetch suppressed");
+          suppressFetchRef.current = false;
           return;
         }
-        const rows = payload.features;
-        if (rows.length === 0) {
-          console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
-            query,
-            url: mapboxUrl,
-          });
+
+        const query = value.trim();
+        if (query.length < 3) {
+          console.log("[AddressAutocomplete] Query too short:", query.length);
+          return;
         }
 
-        const mapped = rows
-          .map((feature) => {
-            const coordinates = feature.geometry?.coordinates ?? feature.center;
-            const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
-            const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
-            if (lat === null || lng === null) {
-              return null;
+        const mapboxToken = getMapboxToken().trim();
+        console.log("[AddressAutocomplete] Query:", query, "Token exists:", !!mapboxToken, "Token length:", mapboxToken.length);
+        if (!mapboxToken) {
+          console.log("[AddressAutocomplete] No Mapbox token available, skipping address lookup");
+          return;
+        }
+
+        const controller = new AbortController();
+        const fetchSuggestions = async (): Promise<void> => {
+          setIsLoading(true);
+          try {
+            const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
+            console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
+              query,
+              url: mapboxUrl,
+            });
+            const mapboxResponse = await fetch(mapboxUrl, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+              signal: controller.signal,
+            });
+
+            if (!mapboxResponse.ok) {
+              throw new Error(`Address lookup failed (${mapboxResponse.status})`);
             }
 
-            const placeName = sanitizeAddressComponent(feature.place_name);
-            const text = sanitizeAddressComponent(feature.text);
-            const label = placeName || buildMapboxLabel(feature);
-            if (!label || label === "Unknown address") {
-              return null;
+            const payload = (await mapboxResponse.json()) as MapboxResponse;
+            console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
+            if (!payload || !Array.isArray(payload.features)) {
+              setSuggestions([]);
+              setOpen(false);
+              return;
+            }
+            const rows = payload.features;
+            if (rows.length === 0) {
+              console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
+                query,
+                url: mapboxUrl,
+              });
             }
 
-            return {
-              id: feature.id,
-              text: text || label,
-              place_name: label,
-              address: label,
-              lat,
-              lng,
-            } satisfies AddressSuggestion;
-          })
-          .filter((row): row is AddressSuggestion => Boolean(row));
+            const mapped = rows
+              .map((feature) => {
+                const coordinates = feature.geometry?.coordinates ?? feature.center;
+                const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
+                const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
+                if (lat === null || lng === null) {
+                  return null;
+                }
 
-        setSuggestions(mapped);
-        setOpen(mapped.length > 0);
-      } catch {
-        setSuggestions([]);
-        setOpen(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+                const placeName = sanitizeAddressComponent(feature.place_name);
+                const text = sanitizeAddressComponent(feature.text);
+                const label = placeName || buildMapboxLabel(feature);
+                if (!label || label === "Unknown address") {
+                  return null;
+                }
 
-    const debounceTimer = window.setTimeout(() => {
-      void fetchSuggestions();
-    }, 300);
+                return {
+                  id: feature.id,
+                  text: text || label,
+                  place_name: label,
+                  address: label,
+                  lat,
+                  lng,
+                } satisfies AddressSuggestion;
+              })
+              .filter((row): row is AddressSuggestion => Boolean(row));
 
-    return () => {
-      window.clearTimeout(debounceTimer);
-      controller.abort();
-    };
-  }, [value]);
+            setSuggestions(mapped);
+            setOpen(mapped.length > 0);
+          } catch {
+            setSuggestions([]);
+            setOpen(false);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        const debounceTimer = window.setTimeout(() => {
+          void fetchSuggestions();
+        }, 300);
+
+        return () => {
+          window.clearTimeout(debounceTimer);
+          controller.abort();
+        };
+      }, 300),
+    []
+  );
+
+  useEffect(() => {
+    debouncedFetch(value);
+  }, [value, debouncedFetch]);
 
   useEffect(() => {
     function onDocumentClick(event: MouseEvent): void {
