@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Activity, Clock3, Hammer, ReceiptText } from "lucide-react";
+import { Activity } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -10,8 +10,13 @@ import { AuthSessionExpiredError } from "@/lib/api";
 import { clearAuthState, useAuth } from "@/lib/auth";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { db } from "@/lib/db";
-import { computePulseMetrics, formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
+import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { backgroundSync } from "@/lib/syncService";
+
+function isVisibleClientJob(job: JobListItem): boolean {
+  const clientName = String(job.client_name ?? "").trim();
+  return Boolean(clientName) && clientName !== "Unknown Client" && clientName !== "None";
+}
 
 function initialsFromName(name: string): string {
   const tokens = name
@@ -61,10 +66,30 @@ export default function DashboardPage(): React.JSX.Element {
   );
 
   const displayName = metadataName || profileName;
-  const pulse = useMemo(() => computePulseMetrics(jobs), [jobs]);
+  const visibleJobs = useMemo(() => jobs.filter(isVisibleClientJob), [jobs]);
+  const pulseCards = useMemo(() => {
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const activeDrafts = visibleJobs.filter((job) => normalizeJobStatus(job.status) === "DRAFT").length;
+    const pendingSync = visibleJobs.filter((job) => normalizeJobStatus(job.status) === "SYNCING").length;
+    const completedToday = visibleJobs.filter((job) => {
+      if (normalizeJobStatus(job.status) !== "DONE") {
+        return false;
+      }
+      const candidateDate = job.date_scheduled || job.created_at;
+      return String(candidateDate).slice(0, 10) === todayKey;
+    }).length;
+
+    return [
+      { label: "Active Drafts", value: activeDrafts },
+      { label: "Pending Sync", value: pendingSync },
+      { label: "Completed Today", value: completedToday },
+    ];
+  }, [visibleJobs]);
   const recentActivity = useMemo(() => {
-    return jobs.slice(0, 5);
-  }, [jobs]);
+    return visibleJobs.slice(0, 5);
+  }, [visibleJobs]);
   const ownerFieldFocus = role === "OWNER" && mode === "FIELD";
 
   useEffect(() => {
@@ -147,10 +172,6 @@ export default function DashboardPage(): React.JSX.Element {
           </p>
         ) : null}
 
-        {loading ? (
-          <p className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600">Loading pulse data...</p>
-        ) : null}
-
         {isSessionExpired ? (
           <section className="mt-4 rounded-2xl border border-orange-300 bg-orange-50 p-5">
             <h2 className="text-lg font-semibold text-orange-700">Session Expired</h2>
@@ -169,7 +190,7 @@ export default function DashboardPage(): React.JSX.Element {
           <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>
         ) : null}
 
-        {!loading && jobs.length === 0 ? (
+        {!loading && visibleJobs.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6">
             <h2 className="text-xl font-semibold text-gray-900">{displayName ? `Welcome ${displayName}` : "Welcome"}</h2>
             <p className="mt-2 text-sm text-gray-600">You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline.</p>
@@ -182,33 +203,16 @@ export default function DashboardPage(): React.JSX.Element {
           </section>
         ) : null}
 
-        {jobs.length > 0 ? (
+        {visibleJobs.length > 0 ? (
           <>
             {!ownerFieldFocus ? (
-              <section className="mt-6 grid gap-4 sm:grid-cols-3">
-                <article className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Clock3 className="h-4 w-4 text-orange-600" />
-                    <p className="text-xs uppercase tracking-[0.18em]">Pending Jobs</p>
-                  </div>
-                  <p className="mt-3 text-3xl font-bold text-orange-600">{pulse.pendingJobs}</p>
-                </article>
-
-                <article className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Hammer className="h-4 w-4 text-orange-600" />
-                    <p className="text-xs uppercase tracking-[0.18em]">Billable Hours</p>
-                  </div>
-                  <p className="mt-3 text-3xl font-bold text-orange-600">{pulse.totalBillableHours.toFixed(1)}</p>
-                </article>
-
-                <article className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <ReceiptText className="h-4 w-4 text-orange-600" />
-                    <p className="text-xs uppercase tracking-[0.18em]">Material Spend</p>
-                  </div>
-                  <p className="mt-3 text-3xl font-bold text-orange-600">${pulse.materialSpend.toFixed(2)}</p>
-                </article>
+              <section className="mt-6 grid gap-4 sm:grid-cols-2">
+                {pulseCards.map((metric) => (
+                  <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{metric.label}</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">{metric.value}</p>
+                  </article>
+                ))}
               </section>
             ) : null}
 

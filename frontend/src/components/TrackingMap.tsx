@@ -2,7 +2,7 @@
 
 import L, { DivIcon } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
 export type Coordinate = {
@@ -135,8 +135,19 @@ function youIcon(): DivIcon {
 
 export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
   const center: [number, number] = [current.lat, current.lng];
-  const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${getMapboxToken()}`;
-  const tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>';
+  const mapboxToken = getMapboxToken();
+  const [useMapboxTiles, setUseMapboxTiles] = useState(Boolean(mapboxToken));
+
+  useEffect(() => {
+    setUseMapboxTiles(Boolean(mapboxToken));
+  }, [mapboxToken]);
+
+  const mapboxTileUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`;
+  const openStreetMapTileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const tileUrl = useMapboxTiles ? mapboxTileUrl : openStreetMapTileUrl;
+  const tileAttribution = useMapboxTiles
+    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   const markers = useMemo(
     () =>
@@ -163,6 +174,13 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
         <TileLayer
           attribution={tileAttribution}
           url={tileUrl}
+          eventHandlers={{
+            tileerror: () => {
+              if (useMapboxTiles) {
+                setUseMapboxTiles(false);
+              }
+            },
+          }}
         />
         <FollowCurrentLocation current={current} recenterSignal={recenterSignal} />
 

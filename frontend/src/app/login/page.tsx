@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -24,19 +23,12 @@ function LoginPageContent(): React.JSX.Element {
         <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
           {/* Header */}
           <div className="text-center mb-8">
-            <motion.button
-              type="button"
-              aria-label="TradeOps secure access"
-              className="mx-auto mb-4 inline-flex min-h-14 min-w-14 items-center justify-center rounded-2xl border border-orange-300 bg-orange-50 text-orange-700"
-              animate={reduceMotion ? undefined : { scale: [1, 1.07, 1] }}
+            <motion.div
+              animate={reduceMotion ? undefined : { opacity: [0.9, 1, 0.9] }}
               transition={reduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border-2 border-current font-black leading-none">TO</span>
-            </motion.button>
-            <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-gray-100">
-              <LogIn className="h-8 w-8 text-orange-600" />
-            </div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900">TRADEOPS SECURE ACCESS</h1>
+              <h1 className="text-4xl font-black tracking-tighter text-gray-900">TradeOps</h1>
+            </motion.div>
             <p className="text-gray-700">Welcome</p>
             <p className="mt-1 text-sm text-gray-500">Sign in or create your TradeOps account.</p>
           </div>
@@ -65,7 +57,7 @@ function LoginPageContent(): React.JSX.Element {
             </button>
           </div>
 
-          {authMessage ? (
+          {authMessage && authMessage !== "Logged out" ? (
             <p className="mb-4 rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700">
               {authMessage}
             </p>

@@ -252,7 +252,7 @@ export default function JobsPage(): React.JSX.Element {
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase();
     const dedupedById = new Map<string, JobListItem>();
-    for (const job of jobs) {
+    for (const job of jobs.filter((candidate) => candidate.client_name && candidate.client_name !== "Unknown Client" && candidate.client_name !== "None")) {
       if (isMissingJobId(job.id)) {
         continue;
       }
