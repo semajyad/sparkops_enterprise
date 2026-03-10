@@ -20,6 +20,8 @@ import { apiFetch } from "@/lib/api";
 import { saveJobDraft } from "@/lib/db";
 
 import { syncPendingDrafts } from "@/lib/syncManager";
+import { vibrateLight, vibrateSuccess, vibrateError } from "@/lib/haptics";
+import { VoiceVisualizer } from "@/components/VoiceVisualizer";
 import { getPrimaryActionState, hasMeaningfulCaptureContent } from "@/app/capture/captureLogic";
 
 
@@ -303,12 +305,14 @@ export default function CapturePage() {
       recorder.start();
 
       setIsRecording(true);
+      vibrateLight();
 
       setStatusMessage("Recording in progress...");
 
     } catch {
 
       setStatusMessage("Microphone access denied or unavailable.");
+      vibrateError();
 
       setIsRecording(false);
 
@@ -327,6 +331,7 @@ export default function CapturePage() {
     }
 
     mediaRecorder.current.stop();
+    vibrateSuccess();
 
     setIsRecording(false);
 
@@ -424,6 +429,7 @@ export default function CapturePage() {
 
 
       setStatusMessage("Draft saved offline and queued for sync.");
+      vibrateSuccess();
 
       await refreshCounts();
 
@@ -458,12 +464,14 @@ export default function CapturePage() {
       await refreshCounts();
 
       setStatusMessage("Pending drafts sync complete.");
+      vibrateSuccess();
 
       window.alert(`Sync Complete: ${result.synced} drafts uploaded.`);
 
     } catch {
 
       setStatusMessage("Sync failed. Please try again.");
+      vibrateError();
 
       window.alert("Sync Failed: Check network connection.");
 
@@ -576,8 +584,9 @@ export default function CapturePage() {
                 transition={reduceMotion ? undefined : { duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
+                <VoiceVisualizer stream={recordingStreamRef.current} />
                 <span className="sr-only">Stop recording</span>
-                <Square className="h-14 w-14" />
+                <Square className="h-14 w-14 z-10" />
               </motion.button>
             )}
           </div>

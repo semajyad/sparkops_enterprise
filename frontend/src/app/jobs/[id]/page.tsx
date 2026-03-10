@@ -93,6 +93,7 @@ export default function JobReviewPage(): React.JSX.Element {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isPushingToXero, setIsPushingToXero] = useState(false);
+  const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
   const [localError, setLocalError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
@@ -273,6 +274,7 @@ export default function JobReviewPage(): React.JSX.Element {
 
       await parseApiJson<{ status: string }>(response);
       setToast("Invoice pushed to Xero.");
+      setIsXeroModalOpen(false);
     } catch (pushError) {
       setLocalError(pushError instanceof Error ? pushError.message : "Unable to push invoice to Xero.");
     } finally {
@@ -511,7 +513,7 @@ export default function JobReviewPage(): React.JSX.Element {
               {role === "OWNER" && normalizeJobStatus(job.status) === "DONE" ? (
                 <button
                   type="button"
-                  onClick={() => void pushToXero()}
+                  onClick={() => setIsXeroModalOpen(true)}
                   disabled={isPushingToXero}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-50"
                 >
@@ -545,6 +547,73 @@ export default function JobReviewPage(): React.JSX.Element {
 
             {toast ? <p className="mt-3 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
           </>
+        ) : null}
+
+        {isXeroModalOpen ? (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4">
+            <section className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white shadow-xl">
+              <div className="border-b border-gray-200 px-5 py-4">
+                <h2 className="text-xl font-semibold text-gray-900">Push to Xero Preview</h2>
+              </div>
+              <div className="p-5">
+                <p className="text-sm text-gray-600">This will push the following items to your Xero account as a Draft Invoice.</p>
+
+                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        <th className="px-3 py-2">Item</th>
+                        <th className="px-3 py-2">Qty</th>
+                        <th className="px-3 py-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {lineItems.map((item, index) => {
+                        const qty = parseNumeric(item.qty || 0);
+                        const lineTotal = parseNumeric(item.line_total || 0);
+                        const unitPrice = parseNumeric(item.unit_price || 0);
+                        const inferredValue = lineTotal > 0 ? lineTotal : qty * unitPrice;
+                        return (
+                          <tr key={`xero-${index}`} className="bg-white">
+                            <td className="px-3 py-2">
+                              <span className="font-medium text-gray-900">{item.description ?? "Unnamed"}</span>
+                              <span className="ml-2 inline-flex rounded-full border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                                {String(item.type ?? "LABOR").toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">{qty.toFixed(2)}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900">{inferredValue > 0 ? `$${inferredValue.toFixed(2)}` : "-"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {lineItems.length === 0 ? (
+                  <p className="mt-2 text-xs text-red-600 font-semibold">Warning: No line items found. Empty invoice will be created.</p>
+                ) : null}
+              </div>
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => setIsXeroModalOpen(false)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void pushToXero()}
+                  disabled={isPushingToXero}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Confirm Push to Xero
+                </button>
+              </div>
+            </section>
+          </div>
         ) : null}
 
         {isComplianceModalOpen ? (

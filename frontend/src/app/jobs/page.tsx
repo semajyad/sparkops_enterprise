@@ -21,6 +21,7 @@ const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gr
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING">("ALL");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -259,15 +260,21 @@ export default function JobsPage(): React.JSX.Element {
       dedupedById.set(job.id, job);
     }
     const safeJobs = Array.from(dedupedById.values());
+    
+    let result = safeJobs;
+    if (filter !== "ALL") {
+      result = result.filter((job) => job.status.toUpperCase() === filter);
+    }
+    
     if (!term) {
-      return safeJobs;
+      return result;
     }
 
-    return safeJobs.filter((job) => {
+    return result.filter((job) => {
       const dateText = job.created_at.toLowerCase();
       return job.client_name.toLowerCase().includes(term) || dateText.includes(term);
     });
-  }, [jobs, search]);
+  }, [jobs, search, filter]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
@@ -285,6 +292,22 @@ export default function JobsPage(): React.JSX.Element {
             className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
         </label>
+
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {["ALL", "DRAFT", "SYNCING", "DONE"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f as any)}
+              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold tracking-wide transition-colors ${
+                filter === f
+                  ? "bg-orange-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {f === "ALL" ? "All Jobs" : f === "SYNCING" ? "Syncing" : f === "DONE" ? "Completed" : "Drafts"}
+            </button>
+          ))}
+        </div>
 
         {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}

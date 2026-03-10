@@ -10,7 +10,7 @@ const isLocalRun = baseURL.includes("127.0.0.1") || baseURL.includes("localhost"
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["golden_path.spec.ts", "offline_resilience.spec.ts"],
+  testMatch: ["**/*.spec.ts"],
   globalSetup: "./tests/e2e/setup-e2e.ts",
   timeout: 90_000,
   retries: 1,

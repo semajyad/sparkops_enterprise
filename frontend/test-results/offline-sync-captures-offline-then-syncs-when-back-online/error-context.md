@@ -1,0 +1,144 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - paragraph [ref=e7]: Capture Console
+          - heading "Field Capture" [level=1] [ref=e8]
+        - 'generic "Capture status: pending or offline" [ref=e9]'
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: Voice First
+        - paragraph [ref=e12]: Tap the mic and speak your job notes naturally.
+        - button "Start recording" [ref=e14]:
+          - generic [ref=e15]: Start recording
+          - img [ref=e17]
+        - paragraph [ref=e20]: Ready. Tap to start
+      - generic [ref=e21]:
+        - paragraph [ref=e22]: Attach Invoice
+        - generic [ref=e23]:
+          - button "Photo" [ref=e24]:
+            - img [ref=e25]
+            - generic [ref=e28]: Photo
+          - button "Screenshot" [ref=e29]:
+            - img [ref=e30]
+            - generic [ref=e33]: Screenshot
+          - button "File" [ref=e34]:
+            - img [ref=e35]
+            - generic [ref=e39]: File
+      - generic [ref=e40]:
+        - paragraph [ref=e41]: Job Length
+        - paragraph [ref=e42]: Select labour time for invoice calculation
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - generic [ref=e45]: Hours
+            - combobox [ref=e46]:
+              - option "0" [selected]
+              - option "1"
+              - option "2"
+              - option "3"
+              - option "4"
+              - option "5"
+              - option "6"
+              - option "7"
+              - option "8"
+              - option "9"
+              - option "10"
+              - option "11"
+              - option "12"
+          - generic [ref=e47]:
+            - generic [ref=e48]: Minutes
+            - combobox [ref=e49]:
+              - option "0" [selected]
+              - option "1"
+              - option "2"
+              - option "3"
+              - option "4"
+              - option "5"
+              - option "6"
+              - option "7"
+              - option "8"
+              - option "9"
+              - option "10"
+              - option "11"
+              - option "12"
+              - option "13"
+              - option "14"
+              - option "15"
+              - option "16"
+              - option "17"
+              - option "18"
+              - option "19"
+              - option "20"
+              - option "21"
+              - option "22"
+              - option "23"
+              - option "24"
+              - option "25"
+              - option "26"
+              - option "27"
+              - option "28"
+              - option "29"
+              - option "30"
+              - option "31"
+              - option "32"
+              - option "33"
+              - option "34"
+              - option "35"
+              - option "36"
+              - option "37"
+              - option "38"
+              - option "39"
+              - option "40"
+              - option "41"
+              - option "42"
+              - option "43"
+              - option "44"
+              - option "45"
+              - option "46"
+              - option "47"
+              - option "48"
+              - option "49"
+              - option "50"
+              - option "51"
+              - option "52"
+              - option "53"
+              - option "54"
+              - option "55"
+              - option "56"
+              - option "57"
+              - option "58"
+              - option "59"
+      - generic [ref=e50]: Voice Notes (Text)
+      - textbox "Voice Notes (Text)" [ref=e51]:
+        - /placeholder: "Optional: add extra notes after voice capture"
+      - generic [ref=e52]:
+        - button "Save / Sync Now" [disabled] [ref=e53]:
+          - img [ref=e54]
+          - text: Save / Sync Now
+        - paragraph [ref=e57]: Draft saved offline and queued for sync.
+  - navigation [ref=e58]:
+    - link "Home" [ref=e59] [cursor=pointer]:
+      - /url: /home
+      - img [ref=e60]
+      - text: Home
+    - link "Jobs" [ref=e63] [cursor=pointer]:
+      - /url: /jobs
+      - img [ref=e64]
+      - text: Jobs
+    - link "Capture" [ref=e67] [cursor=pointer]:
+      - /url: /capture
+      - img [ref=e68]
+      - text: Capture
+    - link "Map" [ref=e71] [cursor=pointer]:
+      - /url: /map
+      - img [ref=e72]
+      - text: Map
+    - link "Profile" [ref=e75] [cursor=pointer]:
+      - /url: /profile
+      - img [ref=e76]
+      - text: Profile
+  - alert [ref=e79]
+```

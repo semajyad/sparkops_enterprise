@@ -1702,7 +1702,7 @@ def _xero_env_value(name: str) -> str:
 
 
 def _xero_state_secret() -> str:
-    return os.getenv("XERO_STATE_SECRET", os.getenv("SECRET_KEY", "tradeops-xero-state-secret"))
+    return os.getenv("XERO_STATE_SECRET", os.getenv("SECRET_KEY", "sparkops-xero-state-secret"))
 
 
 def _build_xero_state(organization_id: UUID) -> str:
@@ -1886,7 +1886,7 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
 
     client_id = _xero_env_value("XERO_CLIENT_ID")
     redirect_uri = _xero_env_value("XERO_REDIRECT_URI")
-    scope = os.getenv("XERO_SCOPES", "offline_access accounting.transactions accounting.contacts").strip()
+    scope = os.getenv("XERO_SCOPES", "openid profile email offline_access accounting.transactions accounting.contacts").strip()
     state = _build_xero_state(current_user.organization_id)
 
     auth_query = urlencode(

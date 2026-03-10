@@ -10,9 +10,9 @@ async function ensureAuthenticated(page: import("@playwright/test").Page): Promi
   }
 
   await page.goto("/login");
-  await page.getByLabel("Email").first().fill(configuredEmail);
-  await page.getByLabel("Password").first().fill(configuredPassword);
-  await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
+  await page.locator('input[type="email"]').first().fill(configuredEmail);
+  await page.locator('input[type="password"]').first().fill(configuredPassword);
+  await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 20_000 });
 }
 
