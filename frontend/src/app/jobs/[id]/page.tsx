@@ -1,9 +1,11 @@
 "use client";
 
-import { Download, Loader2, Trash2 } from "lucide-react";
+import { Download, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
+import { updateJob } from "@/app/actions/updateJob";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/auth";
@@ -35,6 +37,29 @@ const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
   { key: "photos", label: "Photos" },
   { key: "voice", label: "Voice Note" },
 ];
+
+const MODAL_INPUT_CLASS =
+  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
+
+function toDateTimeLocal(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+export function canEditJobForRole(role: string | null | undefined): boolean {
+  const roleLabel = String(role ?? "").toUpperCase();
+  return roleLabel.length > 0 && roleLabel !== "APPRENTICE";
+}
 
 function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
   const normalized = message.toLowerCase();
@@ -72,6 +97,14 @@ export default function JobReviewPage(): React.JSX.Element {
   const [toast, setToast] = useState<string | null>(null);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
   const [complianceChecklist, setComplianceChecklist] = useState<ComplianceChecklistItem[]>([]);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editClientName, setEditClientName] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editLatitude, setEditLatitude] = useState<number | null>(null);
+  const [editLongitude, setEditLongitude] = useState<number | null>(null);
+  const [editScheduledDate, setEditScheduledDate] = useState("");
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
   const guardrailClass =
@@ -250,6 +283,112 @@ export default function JobReviewPage(): React.JSX.Element {
   const lineItems = job?.extracted_data?.line_items ?? [];
   const invoiceSummary = job?.invoice_summary;
   const complianceSummary = job?.compliance_summary;
+  const canEditJob = canEditJobForRole(role);
+
+  function openEditModal(): void {
+    if (!job) {
+      return;
+    }
+
+    setEditClientName(job.extracted_data?.client ?? "");
+    setEditTitle(job.extracted_data?.job_title ?? "");
+    setEditAddress(job.extracted_data?.address ?? job.extracted_data?.location ?? "");
+    setEditLatitude(parseNumeric(job.extracted_data?.latitude ?? 0) || null);
+    setEditLongitude(parseNumeric(job.extracted_data?.longitude ?? 0) || null);
+    setEditScheduledDate(toDateTimeLocal(job.extracted_data?.scheduled_date ?? null));
+    setIsEditOpen(true);
+    setLocalError("");
+  }
+
+  async function saveJobEdits(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!job || isSavingEdit) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setLocalError("");
+
+    const scheduledIso =
+      editScheduledDate.trim().length > 0
+        ? (() => {
+            const parsed = new Date(editScheduledDate);
+            return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          })()
+        : null;
+
+    const nextAddress = editAddress.trim();
+    const nextClient = editClientName.trim();
+    const nextTitle = editTitle.trim();
+    const nextLatitude = editLatitude ?? undefined;
+    const nextLongitude = editLongitude ?? undefined;
+
+    try {
+      await updateJob({
+        id: job.id,
+        client_name: nextClient,
+        title: nextTitle,
+        location: nextAddress,
+        address: nextAddress,
+        latitude: editLatitude,
+        longitude: editLongitude,
+        scheduled_date: scheduledIso,
+      });
+
+      await db.jobs.update(job.id, {
+        client_name: nextClient,
+        date_scheduled: scheduledIso,
+        extracted_data: {
+          ...(job.extracted_data ?? {}),
+          client: nextClient,
+          job_title: nextTitle,
+          address: nextAddress,
+          location: nextAddress,
+          latitude: nextLatitude,
+          longitude: nextLongitude,
+          scheduled_date: scheduledIso,
+        },
+      });
+      await db.job_details.update(job.id, {
+        extracted_data: {
+          ...(job.extracted_data ?? {}),
+          client: nextClient,
+          job_title: nextTitle,
+          address: nextAddress,
+          location: nextAddress,
+          latitude: nextLatitude,
+          longitude: nextLongitude,
+          scheduled_date: scheduledIso,
+        },
+      });
+
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          client_name: nextClient,
+          title: nextTitle,
+          location: nextAddress,
+          address: nextAddress,
+          latitude: editLatitude,
+          longitude: editLongitude,
+          scheduled_date: scheduledIso,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Job update failed (${response.status})`);
+      }
+
+      await parseApiJson(response);
+      setIsEditOpen(false);
+      setToast("Job details updated.");
+      await refresh();
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Unable to save job edits.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
@@ -266,11 +405,22 @@ export default function JobReviewPage(): React.JSX.Element {
                 {normalizeJobStatus(job.status)}
               </span>
             ) : null}
+            {canEditJob ? (
+              <button
+                type="button"
+                onClick={openEditModal}
+                disabled={!job}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void deleteJob()}
               disabled={isDeleting}
-              className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Delete
@@ -357,43 +507,41 @@ export default function JobReviewPage(): React.JSX.Element {
               ) : null}
             </section>
 
-            <button
-              type="button"
-              onClick={() => void downloadPdf()}
-              disabled={isDownloading}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-50"
-            >
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download Invoice PDF
-            </button>
+            <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
+              {role === "OWNER" && normalizeJobStatus(job.status) === "DONE" ? (
+                <button
+                  type="button"
+                  onClick={() => void pushToXero()}
+                  disabled={isPushingToXero}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-50"
+                >
+                  {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Push to Xero
+                </button>
+              ) : null}
 
-            <button
-              type="button"
-              onClick={() => void completeJob()}
-              disabled={isCompleting || !job}
-              className={`mt-3 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:opacity-50 ${
-                guardrail === "GREEN_SHIELD"
-                  ? "bg-green-600 text-white hover:bg-green-700"
-                  : guardrail === "RED_SHIELD"
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-orange-600 text-white hover:bg-orange-700"
-              }`}
-            >
-              {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Complete Job
-            </button>
-
-            {role === "OWNER" && normalizeJobStatus(job.status) === "DONE" ? (
               <button
                 type="button"
-                onClick={() => void pushToXero()}
-                disabled={isPushingToXero}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-50"
+                onClick={() => void downloadPdf()}
+                disabled={isDownloading}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
               >
-                {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Push to Xero
+                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Download Invoice PDF
               </button>
-            ) : null}
+
+              <button
+                type="button"
+                onClick={() => void completeJob()}
+                disabled={isCompleting || !job}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 ${
+                  guardrail === "GREEN_SHIELD" ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700"
+                }`}
+              >
+                {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Complete Job
+              </button>
+            </div>
 
             {toast ? <p className="mt-3 rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
           </>
@@ -432,6 +580,88 @@ export default function JobReviewPage(): React.JSX.Element {
                   Close
                 </button>
               </div>
+            </section>
+          </div>
+        ) : null}
+
+        {isEditOpen ? (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
+            <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                <h2 className="text-xl font-semibold text-gray-900">Edit Job</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditOpen(false)}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-300 text-gray-600"
+                  aria-label="Close edit job form"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form className="grid gap-5 px-5 py-4" onSubmit={(event) => void saveJobEdits(event)}>
+                <label className={MODAL_LABEL_CLASS}>
+                  Client Name
+                  <input
+                    type="text"
+                    required
+                    value={editClientName}
+                    onChange={(event) => setEditClientName(event.target.value)}
+                    className={MODAL_INPUT_CLASS}
+                    placeholder="ACME Properties"
+                  />
+                </label>
+
+                <label className={MODAL_LABEL_CLASS}>
+                  Job Title / Description
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(event) => setEditTitle(event.target.value)}
+                    className={MODAL_INPUT_CLASS}
+                    placeholder="Switchboard inspection and repairs"
+                  />
+                </label>
+
+                <label className={MODAL_LABEL_CLASS}>
+                  Address
+                  <AddressAutocomplete
+                    id="edit-job-address"
+                    value={editAddress}
+                    onChange={(next) => {
+                      setEditAddress(next);
+                      setEditLatitude(null);
+                      setEditLongitude(null);
+                    }}
+                    onSelect={(selection) => {
+                      setEditAddress(selection.place_name);
+                      setEditLatitude(selection.lat);
+                      setEditLongitude(selection.lng);
+                    }}
+                    placeholder="Start typing an address"
+                    className={MODAL_INPUT_CLASS}
+                  />
+                </label>
+
+                <label className={MODAL_LABEL_CLASS}>
+                  Scheduled Date & Time
+                  <input
+                    type="datetime-local"
+                    value={editScheduledDate}
+                    onChange={(event) => setEditScheduledDate(event.target.value)}
+                    className={MODAL_INPUT_CLASS}
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="min-h-11 w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                >
+                  {isSavingEdit ? "Saving..." : "Save Changes"}
+                </button>
+              </form>
             </section>
           </div>
         ) : null}

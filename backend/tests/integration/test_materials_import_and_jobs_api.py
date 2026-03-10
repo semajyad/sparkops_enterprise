@@ -227,6 +227,98 @@ def test_create_manual_job_draft(sqlite_engine) -> None:
     assert jobs[0]["client_name"] == "Harbor Electrical Ltd"
 
 
+def test_update_job_draft_updates_editable_fields(sqlite_engine) -> None:
+    owner_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="OWNER",
+        full_name="Dispatch Owner",
+    )
+    main.app.dependency_overrides[main.get_current_user] = lambda: owner_user
+
+    draft_id = uuid4()
+    with Session(sqlite_engine) as session:
+        session.add(
+            JobDraft(
+                id=draft_id,
+                user_id=owner_user.id,
+                organization_id=owner_user.organization_id,
+                raw_transcript="Manual job: Old title",
+                extracted_data={
+                    "client": "Old Client",
+                    "job_title": "Old title",
+                    "location": "10 Old St",
+                    "address": "10 Old St",
+                },
+                status="DRAFT",
+            )
+        )
+        session.commit()
+
+    client = TestClient(main.app)
+    response = client.put(
+        f"/api/jobs/{draft_id}",
+        json={
+            "client_name": "New Client Ltd",
+            "title": "Switchboard upgrade",
+            "location": "22 Marine Parade, Auckland",
+            "address": "22 Marine Parade, Auckland",
+            "latitude": -36.85,
+            "longitude": 174.76,
+            "scheduled_date": "2026-03-10T09:30:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["raw_transcript"] == "Manual job: Switchboard upgrade"
+    assert payload["extracted_data"]["client"] == "New Client Ltd"
+    assert payload["extracted_data"]["job_title"] == "Switchboard upgrade"
+    assert payload["extracted_data"]["address"] == "22 Marine Parade, Auckland"
+
+
+def test_update_job_draft_requires_write_access(sqlite_engine) -> None:
+    owner_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=uuid4(),
+        role="OWNER",
+        full_name="Dispatch Owner",
+    )
+
+    employee_user = AuthenticatedUser(
+        id=uuid4(),
+        organization_id=owner_user.organization_id,
+        role="EMPLOYEE",
+        full_name="Field Tech",
+    )
+
+    draft_id = uuid4()
+    with Session(sqlite_engine) as session:
+        session.add(
+            JobDraft(
+                id=draft_id,
+                user_id=owner_user.id,
+                organization_id=owner_user.organization_id,
+                raw_transcript="Manual job: Protected job",
+                extracted_data={"client": "Owner Client", "job_title": "Protected job"},
+                status="DRAFT",
+            )
+        )
+        session.commit()
+
+    main.app.dependency_overrides[main.get_current_user] = lambda: employee_user
+    client = TestClient(main.app)
+    response = client.put(
+        f"/api/jobs/{draft_id}",
+        json={
+            "client_name": "Should Fail",
+            "title": "Unauthorized edit",
+            "location": "1 Anywhere St",
+        },
+    )
+
+    assert response.status_code == 403
+
 def test_complete_job_auto_sends_certificate_and_persists_url(sqlite_engine, monkeypatch: pytest.MonkeyPatch) -> None:
     owner_id = uuid4()
     organization_id = uuid4()
