@@ -1885,7 +1885,15 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
     """Build the OAuth2 authorization URL for Xero connect."""
 
     client_id = _xero_env_value("XERO_CLIENT_ID")
-    redirect_uri = _xero_env_value("XERO_REDIRECT_URI")
+    
+    # Dynamic redirect URI based on deployment environment
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_NAME"):
+        # Running on Railway (staging/production)
+        redirect_uri = os.getenv("XERO_REDIRECT_URI", "https://sparkopsstagingbackend-staging.up.railway.app/api/integrations/xero/callback")
+    else:
+        # Running locally
+        redirect_uri = os.getenv("XERO_REDIRECT_URI", "http://localhost:8000/api/integrations/xero/callback")
+    
     scope = os.getenv("XERO_SCOPES", "openid profile email offline_access accounting.transactions accounting.contacts").strip()
     state = _build_xero_state(current_user.organization_id)
 
