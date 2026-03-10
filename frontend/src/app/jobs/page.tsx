@@ -21,7 +21,7 @@ const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gr
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "DONE">("ALL");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -40,13 +40,45 @@ export default function JobsPage(): React.JSX.Element {
   const isOwner = role === "OWNER";
 
   useEffect(() => {
+    if (isCreateOpen && !location && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
+            if (!mapboxToken) return;
+            
+            const { latitude: lat, longitude: lng } = position.coords;
+            const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=address,poi&access_token=${mapboxToken}`;
+            
+            const response = await fetch(mapboxUrl);
+            if (!response.ok) return;
+            
+            const data = await response.json();
+            if (data.features && data.features.length > 0) {
+              setLocation(data.features[0].place_name);
+              setLatitude(lat);
+              setLongitude(lng);
+            }
+          } catch (e) {
+            console.warn("Failed to reverse geocode current location", e);
+          }
+        },
+        () => {
+          console.warn("Geolocation permission denied or timeout");
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  }, [isCreateOpen, location]);
+
+  useEffect(() => {
     console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
   }, [user]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("deleted") === "1") {
-      setToast("Draft Deleted");
+      setToast("Job Deleted");
       const timer = window.setTimeout(() => setToast(null), 2400);
       return () => window.clearTimeout(timer);
     }
@@ -277,10 +309,11 @@ export default function JobsPage(): React.JSX.Element {
   }, [jobs, search, filter]);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
-      <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+    <div className="min-h-screen bg-gray-50">
+      <main className="p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+        <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Job Manager</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Job Drafts</h1>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Jobs</h1>
 
         <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
           <Search className="h-4 w-4 text-orange-600" />
@@ -293,18 +326,18 @@ export default function JobsPage(): React.JSX.Element {
           />
         </label>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["ALL", "DRAFT", "SYNCING", "DONE"].map((f) => (
+        <div className="mt-4 flex gap-2">
+          {["ALL", "DONE"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as any)}
-              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold tracking-wide transition-colors ${
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                 filter === f
                   ? "bg-orange-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {f === "ALL" ? "All Jobs" : f === "SYNCING" ? "Syncing" : f === "DONE" ? "Completed" : "Drafts"}
+              {f === "ALL" ? "All Jobs" : "Completed"}
             </button>
           ))}
         </div>
@@ -429,13 +462,14 @@ export default function JobsPage(): React.JSX.Element {
                   disabled={isCreating}
                   className="mb-[20px] min-h-11 w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
                 >
-                  {isCreating ? "Creating Draft..." : "Create Draft"}
+                  {isCreating ? "Creating Job..." : "Create Job"}
                 </button>
             </form>
           </section>
         </div>
       ) : null}
-    </main>
+      </main>
+    </div>
   );
 }
 

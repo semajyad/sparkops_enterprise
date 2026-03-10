@@ -75,6 +75,8 @@ export default function CapturePage() {
 
 
   const [voiceText, setVoiceText] = useState("");
+  const [interimResult, setInterimResult] = useState("");
+  const recognitionRef = useRef<any>(null);
 
   const [audioBlob, setAudioBlob] = useState<string>("");
 
@@ -123,6 +125,41 @@ export default function CapturePage() {
   });
 
 
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event: any) => {
+          let finalTranscript = "";
+          let interimTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setVoiceText((prev) => prev + (prev ? " " : "") + finalTranscript);
+          }
+          setInterimResult(interimTranscript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn("Speech recognition error", event.error);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
 
   async function uploadAudioToSave(audioBase64: string): Promise<void> {
 
@@ -305,13 +342,25 @@ export default function CapturePage() {
       recorder.start();
 
       setIsRecording(true);
+
       vibrateLight();
+
+      try {
+
+        recognitionRef.current?.start();
+
+      } catch (e) {
+
+        console.warn("Speech recognition failed to start", e);
+
+      }
 
       setStatusMessage("Recording in progress...");
 
     } catch {
 
       setStatusMessage("Microphone access denied or unavailable.");
+
       vibrateError();
 
       setIsRecording(false);
@@ -331,7 +380,20 @@ export default function CapturePage() {
     }
 
     mediaRecorder.current.stop();
+
     vibrateSuccess();
+
+    try {
+
+      recognitionRef.current?.stop();
+
+      setInterimResult("");
+
+    } catch (e) {
+
+      // ignore
+
+    }
 
     setIsRecording(false);
 
@@ -340,32 +402,55 @@ export default function CapturePage() {
 
 
   async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "screenshot" | "file"): Promise<void> {
+
     const file = event.target.files?.[0];
+
     if (!file) {
+
       return;
+
     }
 
     const base64 = await fileToBase64(file);
+
     setReceiptBase64(base64);
 
     if (kind === "photo" || kind === "screenshot") {
+
       setReceiptPreview(`data:${file.type || "image/jpeg"};base64,${base64}`);
+
       setStatusMessage(`${kind === "photo" ? "Photo" : "Screenshot"} attached and preview ready.`);
+
     } else {
+
       setReceiptPreview("");
+
       setStatusMessage(`File attached: ${file.name}`);
+
     }
+
   }
 
+
+
   function toggleTimer(): void {
+
     if (isTimerRunning) {
+
       setIsTimerRunning(false);
+
       setStatusMessage(`Timer stopped at ${Math.floor(timerSeconds / 60)}m ${timerSeconds % 60}s.`);
+
       return;
+
     }
+
     setTimerStartedAt(Date.now() - timerSeconds * 1000);
+
     setIsTimerRunning(true);
+
     setStatusMessage("Timer started.");
+
   }
 
 
@@ -429,6 +514,7 @@ export default function CapturePage() {
 
 
       setStatusMessage("Draft saved offline and queued for sync.");
+
       vibrateSuccess();
 
       await refreshCounts();
@@ -464,6 +550,7 @@ export default function CapturePage() {
       await refreshCounts();
 
       setStatusMessage("Pending drafts sync complete.");
+
       vibrateSuccess();
 
       window.alert(`Sync Complete: ${result.synced} drafts uploaded.`);
@@ -471,6 +558,7 @@ export default function CapturePage() {
     } catch {
 
       setStatusMessage("Sync failed. Please try again.");
+
       vibrateError();
 
       window.alert("Sync Failed: Check network connection.");
@@ -584,7 +672,7 @@ export default function CapturePage() {
                 transition={reduceMotion ? undefined : { duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
-                <VoiceVisualizer stream={recordingStreamRef.current} />
+                <VoiceVisualizer stream={recordingStreamRef.current || undefined} />
                 <span className="sr-only">Stop recording</span>
                 <Square className="h-14 w-14 z-10" />
               </motion.button>
@@ -723,17 +811,11 @@ export default function CapturePage() {
         </label>
 
         <textarea
-
           id="voiceText"
-
-          value={voiceText}
-
+          value={voiceText + (interimResult ? (voiceText ? " " : "") + interimResult : "")}
           onChange={(event) => void handleVoiceChange(event)}
-
           placeholder="Optional: add extra notes after voice capture"
-
-          className="min-h-28 rounded-xl border border-gray-300 bg-white p-4 text-base text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:outline-none"
-
+          className="min-h-28 w-full rounded-xl border border-gray-300 bg-white p-4 text-base text-gray-900 placeholder:text-gray-400 focus:border-orange-500 focus:outline-none"
         />
 
         {/* Save/Action Button */}
