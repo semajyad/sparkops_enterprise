@@ -39,6 +39,7 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
+# Test PostgreSQL connection and fallback to SQLite if not available
 try:
     engine = create_engine(
         DATABASE_URL,
@@ -46,11 +47,18 @@ try:
         pool_size=20,
         max_overflow=0,
         pool_pre_ping=True,
+        connect_args={"connect_timeout": 5},  # 5 second timeout
     )
-except ImportError as exc:
-    print(f"WARNING: Falling back to SQLite because PostgreSQL driver is unavailable: {exc}")
+    # Test connection with timeout
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        conn.execute(text("SELECT 1"))
+    print("✅ PostgreSQL connection successful")
+except Exception as exc:
+    print(f"WARNING: PostgreSQL connection failed, falling back to SQLite: {exc}")
     engine = create_engine(
         "sqlite:///./sparkops_local.db",
         echo=False,
         connect_args={"check_same_thread": False},
     )
+    print("✅ Using SQLite for local development")

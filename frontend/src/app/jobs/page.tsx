@@ -16,12 +16,13 @@ import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncSer
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
+const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("ALL");
+  const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("DRAFT");
+  const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -294,10 +295,45 @@ export default function JobsPage(): React.JSX.Element {
     const safeJobs = Array.from(dedupedById.values());
     
     let result = safeJobs;
-    if (filter !== "ALL") {
-      result = result.filter((job) => job.status.toUpperCase() === filter);
-    }
+    result = result.filter((job) => job.status.toUpperCase() === filter);
     
+    // Timeframe filtering
+    if (timeframe !== "ALL_TIME") {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Start of today
+
+      result = result.filter((job) => {
+        const jobDateStr = job.date_scheduled || job.created_at;
+        if (!jobDateStr) return false;
+        
+        const jobDate = new Date(jobDateStr);
+        jobDate.setHours(0, 0, 0, 0); // Normalize to start of day for comparison
+        
+        const diffDays = Math.round((jobDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const currentDayOfWeek = now.getDay();
+        
+        switch (timeframe) {
+          case "TODAY":
+            return diffDays === 0;
+          case "YESTERDAY":
+            return diffDays === -1;
+          case "TOMORROW":
+            return diffDays === 1;
+          case "THIS_WEEK":
+            // -currentDayOfWeek to get Sunday, +6 to get Saturday
+            return diffDays >= -currentDayOfWeek && diffDays <= (6 - currentDayOfWeek);
+          case "NEXT_WEEK":
+            const nextWeekStart = 7 - currentDayOfWeek;
+            return diffDays >= nextWeekStart && diffDays <= nextWeekStart + 6;
+          case "LAST_WEEK":
+            const lastWeekStart = -currentDayOfWeek - 7;
+            return diffDays >= lastWeekStart && diffDays <= lastWeekStart + 6;
+          default:
+            return true;
+        }
+      });
+    }
+
     if (!term) {
       return result;
     }
@@ -306,7 +342,7 @@ export default function JobsPage(): React.JSX.Element {
       const dateText = job.created_at.toLowerCase();
       return job.client_name.toLowerCase().includes(term) || dateText.includes(term);
     });
-  }, [jobs, search, filter]);
+  }, [jobs, search, filter, timeframe]);
 
   return (
     <div className="bg-gray-50">
@@ -315,29 +351,44 @@ export default function JobsPage(): React.JSX.Element {
         <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Job Manager</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Jobs</h1>
 
-        <label htmlFor="jobs-search" className="mt-6 flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
-          <Search className="h-4 w-4 text-orange-600" />
-          <input
-            id="jobs-search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by client or date (e.g. Mar 8)"
-            className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
-          />
-        </label>
+        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          <label htmlFor="jobs-search" className="flex flex-1 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
+            <Search className="h-4 w-4 text-orange-600" />
+            <input
+              id="jobs-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by client or date (e.g. Mar 8)"
+              className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            />
+          </label>
+          <select 
+            value={timeframe} 
+            onChange={(e) => setTimeframe(e.target.value as "TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME")}
+            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-500 focus:outline-none"
+          >
+            <option value="TODAY">Today</option>
+            <option value="YESTERDAY">Yesterday</option>
+            <option value="TOMORROW">Tomorrow</option>
+            <option value="THIS_WEEK">This Week</option>
+            <option value="NEXT_WEEK">Next Week</option>
+            <option value="LAST_WEEK">Last Week</option>
+            <option value="ALL_TIME">All Time</option>
+          </select>
+        </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["ALL", "DRAFT", "IN_PROGRESS", "DONE"].map((f) => (
+          {["DRAFT", "IN_PROGRESS", "DONE"].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f as "ALL" | "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS")}
+              onClick={() => setFilter(f as "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS")}
               className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
                 filter === f
                   ? "bg-orange-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {f === "ALL" ? "All Jobs" : f === "DRAFT" ? "Drafts" : f === "IN_PROGRESS" ? "To Do" : "Completed"}
+              {f === "DRAFT" ? "Drafts" : f === "IN_PROGRESS" ? "To Do" : "Completed"}
             </button>
           ))}
         </div>

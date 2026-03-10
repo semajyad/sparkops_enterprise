@@ -42,6 +42,14 @@ venv.bak/
 .env.test.local
 .env.production.local
 
+# Security: Never commit API keys or secrets
+**/SUPABASE_SERVICE_ROLE_KEY*
+**/service_role_key*
+**/supabase_admin_key*
+**/admin_key*
+**/secret_key*
+**/api_key*
+
 # Node.js
 node_modules/
 npm-debug.log*

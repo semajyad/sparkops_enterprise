@@ -40,7 +40,7 @@ const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
 
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gray-500";
+const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block";
 
 function toDateTimeLocal(value: string | null | undefined): string {
   if (!value) {

@@ -104,7 +104,7 @@ function LoginPageContent(): React.JSX.Element {
                 type="submit"
                 className="min-h-11 w-full rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-all hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Sign In to TradeOps
+                Sign In to SparkOps
               </button>
             </form>
           ) : (

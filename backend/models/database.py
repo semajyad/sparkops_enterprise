@@ -272,6 +272,11 @@ def enable_pgvector_extension(engine: Engine) -> bool:
         bool: True when pgvector extension is available for use.
     """
 
+    # Skip pgvector for SQLite
+    if engine.dialect.name == 'sqlite':
+        logger.info("Skipping pgvector extension for SQLite")
+        return False
+
     try:
         with engine.begin() as connection:
             extension_available = connection.execute(
@@ -317,11 +322,13 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
 
     # Backwards-compatible schema guard for older deployments that created
     # job_drafts before user_id existed on the model.
-    try:
-        with db_engine.begin() as connection:
-            connection.execute(
-                text(
-                    """
+    # Skip PostgreSQL-specific migrations for SQLite
+    if db_engine.dialect.name != 'sqlite':
+        try:
+            with db_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        """
                     ALTER TABLE IF EXISTS public.job_drafts
                     ADD COLUMN IF NOT EXISTS user_id UUID,
                     ADD COLUMN IF NOT EXISTS organization_id UUID,
@@ -332,12 +339,12 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS certificate_pdf_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ
                     """
+                    )
                 )
-            )
 
-            connection.execute(
-                text(
-                    """
+                connection.execute(
+                    text(
+                        """
                     ALTER TABLE IF EXISTS public.organization_settings
                     ADD COLUMN IF NOT EXISTS logo_url VARCHAR(1000),
                     ADD COLUMN IF NOT EXISTS website_url VARCHAR(1000),
@@ -351,17 +358,17 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS standard_markup NUMERIC(6,4) NOT NULL DEFAULT 0.2000,
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     """
+                    )
                 )
-            )
 
-            connection.execute(
-                text(
-                    """
+                connection.execute(
+                    text(
+                        """
                     ALTER TABLE IF EXISTS public.profiles
                     ADD COLUMN IF NOT EXISTS trade VARCHAR(32)
                     """
+                    )
                 )
-            )
 
             connection.execute(
                 text(
@@ -404,7 +411,8 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     """
                 )
             )
-    except Exception as exc:
-        logger.warning("Unable to apply job_drafts schema guard: %s", exc)
+
+        except Exception as exc:
+            logger.warning("Unable to apply job_drafts schema guard: %s", exc)
     
     return db_engine

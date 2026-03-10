@@ -33,6 +33,11 @@ body {
   z-index: 0;
 }
 
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
 .map-avatar-marker {
   background: transparent !important;
   border: none !important;

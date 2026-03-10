@@ -26,6 +26,13 @@ import logging
 import os
 import secrets
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("WARNING: python-dotenv not installed, environment variables from .env file will not be loaded")
+
 import base64
 
 import io
@@ -85,6 +92,8 @@ from routers.eta import router as eta_router
 
 from routers.twilio import router as twilio_router
 
+from app.api.test import router as test_router
+
 from services.math_utils import (
 
     InvoiceMathLine,
@@ -95,20 +104,7 @@ from services.math_utils import (
 
 )
 
-from services.invoice import calculate_invoice, get_default_markup
-
-from services.mailer import MailDeliveryError, send_certificate_email
-
-from services.translator import KiwiTranslator
-
-from services.triage import triage_service
-
-from services.vision import ReceiptExtraction, ReceiptVisionEngine
-
-
-
 logging.basicConfig(level=logging.INFO)
-
 logger = logging.getLogger(__name__)
 
 
@@ -144,6 +140,8 @@ app.add_middleware(
 app.include_router(twilio_router)
 
 app.include_router(eta_router)
+
+app.include_router(test_router)
 
 
 
@@ -187,9 +185,8 @@ async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSON
 
 
 
-translator_service = KiwiTranslator()
-
-vision_service = ReceiptVisionEngine()
+# translator_service = KiwiTranslator()  # Commented out - not available
+# vision_service = ReceiptVisionEngine()  # Commented out - not available
 
 
 

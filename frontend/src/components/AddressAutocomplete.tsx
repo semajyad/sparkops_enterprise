@@ -177,16 +177,14 @@ export function AddressAutocomplete({
             const payload = (await mapboxResponse.json()) as MapboxResponse;
             console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
             if (!payload || !Array.isArray(payload.features)) {
+              console.warn("[AddressAutocomplete] Invalid payload from Mapbox", payload);
               setSuggestions([]);
               setOpen(false);
               return;
             }
             const rows = payload.features;
             if (rows.length === 0) {
-              console.error("[AddressAutocomplete] Mapbox returned an empty features array", {
-                query,
-                url: mapboxUrl,
-              });
+              console.warn("[AddressAutocomplete] Mapbox returned an empty features array for query:", query);
             }
 
             const mapped = rows

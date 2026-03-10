@@ -629,14 +629,16 @@ export default function CapturePage() {
               <motion.button
                 type="button"
                 onClick={stopRecording}
-                className="relative inline-flex h-32 w-32 items-center justify-center rounded-full border border-red-500/80 bg-red-50 text-red-600 shadow-lg"
+                className="relative inline-flex h-32 w-32 items-center justify-center rounded-full border border-red-500/80 bg-red-50 text-red-600 shadow-lg overflow-hidden"
                 animate={reduceMotion ? undefined : { scale: [1, 0.93, 1] }}
                 transition={reduceMotion ? undefined : { duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                 whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
-                <VoiceVisualizer stream={recordingStreamRef.current || undefined} />
+                <div className="absolute inset-0 z-0 opacity-50">
+                  <VoiceVisualizer stream={recordingStreamRef.current || undefined} />
+                </div>
                 <span className="sr-only">Stop recording</span>
-                <Square className="h-14 w-14 z-10" />
+                <Square className="h-14 w-14 z-10 fill-current" />
               </motion.button>
             )}
           </div>

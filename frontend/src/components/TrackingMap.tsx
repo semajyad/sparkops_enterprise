@@ -2,6 +2,7 @@
 
 import L, { DivIcon } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { Locate } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
@@ -104,22 +105,22 @@ function escapeAttribute(value: string): string {
 }
 
 function jobIcon(job: MapJob, selected: boolean): DivIcon {
-  const stateClass =
-    job.markerState === "done"
-      ? "map-job-marker--done"
-      : job.markerState === "active"
-        ? "map-job-marker--active"
-        : "map-job-marker--pending";
-
   const avatarHtml = job.avatarUrl
-    ? `<img class="map-job-avatar" src="${escapeAttribute(job.avatarUrl)}" alt="${escapeAttribute(job.clientName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="map-job-avatar-fallback" style="display:none">${job.initials}</div>`
-    : `<div class="map-job-avatar-fallback">${job.initials}</div>`;
+    ? `<img class="map-job-avatar h-full w-full rounded-full object-cover" src="${escapeAttribute(job.avatarUrl)}" alt="${escapeAttribute(job.clientName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="map-job-avatar-fallback hidden h-full w-full items-center justify-center rounded-full text-[11px] font-bold uppercase tracking-wider text-white">${job.initials}</div>`
+    : `<div class="map-job-avatar-fallback flex h-full w-full items-center justify-center rounded-full text-[11px] font-bold uppercase tracking-wider text-white">${job.initials}</div>`;
 
   return L.divIcon({
     className: "map-avatar-marker",
-    html: `<div class="map-job-marker ${stateClass} ${selected ? "map-job-marker--selected" : ""}"><div class="map-job-avatar-shell">${avatarHtml}</div><span class="map-job-time-pill">${job.timePill}</span></div>`,
-    iconSize: [72, 46],
-    iconAnchor: [24, 40],
+    html: `
+      <div class="relative w-10 h-10 rounded-full border-2 border-white shadow-lg bg-orange-600 flex items-center justify-center text-white font-bold ${selected ? 'scale-110 transition-transform' : ''}">
+        ${avatarHtml}
+        <div class="absolute -top-2 -right-4 bg-white text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-full shadow border border-gray-200">
+          ${job.timePill}
+        </div>
+      </div>
+    `,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -130,6 +131,20 @@ function youIcon(): DivIcon {
     iconSize: [26, 26],
     iconAnchor: [13, 13],
   });
+}
+
+function LocateMeButton({ current }: { current: Coordinate }): React.JSX.Element {
+  const map = useMap();
+  return (
+    <button
+      type="button"
+      onClick={() => map.flyTo([current.lat, current.lng], 14, { animate: true, duration: 0.8 })}
+      className="absolute bottom-6 right-4 z-[400] flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg border border-gray-200 transition hover:bg-gray-50 hover:text-orange-600 active:scale-95"
+      aria-label="Locate me"
+    >
+      <Locate className="h-6 w-6" />
+    </button>
+  );
 }
 
 export function TrackingMap({ current, jobs, staffLocations, routeLines, selectedJobId, recenterSignal, onJobSelect }: TrackingMapProps): React.JSX.Element {
@@ -185,6 +200,7 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
           }}
         />
         <FollowCurrentLocation current={current} recenterSignal={recenterSignal} />
+        <LocateMeButton current={current} />
 
         {routeLines.map((line) => (
           <Polyline key={line.id} positions={line.points} pathOptions={{ color: line.color, weight: 4, opacity: 0.75 }} />

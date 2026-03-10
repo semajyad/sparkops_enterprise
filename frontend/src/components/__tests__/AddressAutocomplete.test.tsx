@@ -92,7 +92,7 @@ describe("AddressAutocomplete", () => {
     })) as unknown as typeof fetch;
     global.fetch = fetchMock;
 
-    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
 
     render(<Harness onSelect={onSelect} />);
 
@@ -102,8 +102,8 @@ describe("AddressAutocomplete", () => {
 
     await waitFor(() => {
       expect(errorSpy).toHaveBeenCalledWith(
-        "[AddressAutocomplete] Mapbox returned an empty features array",
-        expect.objectContaining({ query: "21 Churchill" }),
+        "[AddressAutocomplete] Mapbox returned an empty features array for query:",
+        "21 Churchill"
       );
     });
 
