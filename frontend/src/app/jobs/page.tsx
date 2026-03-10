@@ -21,7 +21,7 @@ const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gr
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "DONE">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING">("ALL");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -330,7 +330,7 @@ export default function JobsPage(): React.JSX.Element {
           {["ALL", "DONE"].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f as any)}
+              onClick={() => setFilter(f as "ALL" | "DRAFT" | "DONE" | "SYNCING")}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                 filter === f
                   ? "bg-orange-600 text-white"

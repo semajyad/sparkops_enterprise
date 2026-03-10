@@ -2,7 +2,7 @@
 
 
 
-import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Timer, Upload } from "lucide-react";
+import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
 import Image from "next/image";
 
 import { motion, useReducedMotion } from "framer-motion";
@@ -76,7 +76,7 @@ export default function CapturePage() {
 
   const [voiceText, setVoiceText] = useState("");
   const [interimResult, setInterimResult] = useState("");
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const [audioBlob, setAudioBlob] = useState<string>("");
 
@@ -128,21 +128,22 @@ export default function CapturePage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
+      const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionConstructor) {
+        const recognition = new SpeechRecognitionConstructor();
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
           let finalTranscript = "";
           let interimTranscript = "";
 
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              interimTranscript += event.results[i][0].transcript;
+            const result = event.results[i];
+            if (result && result.isFinal) {
+              finalTranscript += result[0]?.transcript || "";
+            } else if (result) {
+              interimTranscript += result[0]?.transcript || "";
             }
           }
 
@@ -152,7 +153,7 @@ export default function CapturePage() {
           setInterimResult(interimTranscript);
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.warn("Speech recognition error", event.error);
         };
 
@@ -346,13 +347,9 @@ export default function CapturePage() {
       vibrateLight();
 
       try {
-
         recognitionRef.current?.start();
-
       } catch (e) {
-
         console.warn("Speech recognition failed to start", e);
-
       }
 
       setStatusMessage("Recording in progress...");
@@ -372,34 +369,21 @@ export default function CapturePage() {
 
 
   function stopRecording(): void {
-
     if (!mediaRecorder.current || mediaRecorder.current.state === "inactive") {
-
       return;
-
     }
-
     mediaRecorder.current.stop();
-
     vibrateSuccess();
-
+    
     try {
-
       recognitionRef.current?.stop();
-
       setInterimResult("");
-
-    } catch (e) {
-
+    } catch {
       // ignore
-
     }
 
     setIsRecording(false);
-
   }
-
-
 
   async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "screenshot" | "file"): Promise<void> {
 
@@ -428,28 +412,6 @@ export default function CapturePage() {
       setStatusMessage(`File attached: ${file.name}`);
 
     }
-
-  }
-
-
-
-  function toggleTimer(): void {
-
-    if (isTimerRunning) {
-
-      setIsTimerRunning(false);
-
-      setStatusMessage(`Timer stopped at ${Math.floor(timerSeconds / 60)}m ${timerSeconds % 60}s.`);
-
-      return;
-
-    }
-
-    setTimerStartedAt(Date.now() - timerSeconds * 1000);
-
-    setIsTimerRunning(true);
-
-    setStatusMessage("Timer started.");
 
   }
 
