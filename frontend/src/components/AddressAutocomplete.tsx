@@ -3,12 +3,12 @@
 import { Loader2, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-function debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
+function debounce<TArgs extends unknown[]>(func: (...args: TArgs) => void, delay: number): (...args: TArgs) => void {
   let timeoutId: NodeJS.Timeout;
-  return ((...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
-  }) as T;
+  };
 }
 
 type AddressSuggestion = {
@@ -157,7 +157,6 @@ export function AddressAutocomplete({
           return;
         }
 
-        const controller = new AbortController();
         const fetchSuggestions = async (): Promise<void> => {
           setIsLoading(true);
           try {
@@ -169,7 +168,6 @@ export function AddressAutocomplete({
             const mapboxResponse = await fetch(mapboxUrl, {
               method: "GET",
               headers: { Accept: "application/json" },
-              signal: controller.signal,
             });
 
             if (!mapboxResponse.ok) {
@@ -228,14 +226,7 @@ export function AddressAutocomplete({
           }
         };
 
-        const debounceTimer = window.setTimeout(() => {
-          void fetchSuggestions();
-        }, 300);
-
-        return () => {
-          window.clearTimeout(debounceTimer);
-          controller.abort();
-        };
+        void fetchSuggestions();
       }, 300),
     []
   );

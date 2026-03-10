@@ -5,6 +5,8 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 
+import { getTrackingTileConfig } from "@/lib/trackingMapConfig";
+
 export type Coordinate = {
   lat: number;
   lng: number;
@@ -54,19 +56,16 @@ function getMapboxToken(): string {
 
 function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinate; recenterSignal: number }): null {
   const map = useMap();
-  const hasInitializedRef = useRef(false);
+  const hasCenteredRef = useRef(false);
   const handledRecenterSignalRef = useRef(0);
 
   useEffect(() => {
-    if (hasInitializedRef.current) {
+    if (hasCenteredRef.current) {
       return;
     }
-    hasInitializedRef.current = true;
-    map.flyTo([current.lat, current.lng], map.getZoom(), {
-      animate: true,
-      duration: 0.8,
-    });
-  }, [current.lat, current.lng, map]);
+    map.setView([current.lat, current.lng], 14);
+    hasCenteredRef.current = true;
+  }, [map, current]);
 
   useEffect(() => {
     if (recenterSignal <= 0) {
@@ -89,11 +88,11 @@ function FollowCurrentLocation({ current, recenterSignal }: { current: Coordinat
 
 function avatarIcon(location: StaffLocation): DivIcon {
   const avatarHtml = location.avatarUrl
-    ? `<img src="${location.avatarUrl}" alt="${location.name}" />`
+    ? `<div class="map-staff-avatar"><img src="${location.avatarUrl}" alt="${location.name}" /></div>`
     : `<div class="map-avatar-fallback">${location.initials}</div>`;
 
   return L.divIcon({
-    className: `map-avatar-marker ${location.isStale ? "opacity-50" : ""}`,
+    className: `map-avatar-marker ${location.isStale ? "map-avatar-marker--stale" : ""}`,
     html: avatarHtml,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
@@ -117,8 +116,8 @@ function jobIcon(job: MapJob, selected: boolean): DivIcon {
     : `<div class="map-job-avatar-fallback">${job.initials}</div>`;
 
   return L.divIcon({
-    className: "map-job-marker-wrapper",
-    html: `<div class="map-job-marker ${stateClass} ${selected ? "map-job-marker--selected" : ""}">${avatarHtml}<span class="map-job-time-pill">${job.timePill}</span></div>`,
+    className: "map-avatar-marker",
+    html: `<div class="map-job-marker ${stateClass} ${selected ? "map-job-marker--selected" : ""}"><div class="map-job-avatar-shell">${avatarHtml}</div><span class="map-job-time-pill">${job.timePill}</span></div>`,
     iconSize: [72, 46],
     iconAnchor: [24, 40],
   });
@@ -142,12 +141,7 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
     setUseMapboxTiles(Boolean(mapboxToken));
   }, [mapboxToken]);
 
-  const mapboxTileUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`;
-  const openStreetMapTileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-  const tileUrl = useMapboxTiles ? mapboxTileUrl : openStreetMapTileUrl;
-  const tileAttribution = useMapboxTiles
-    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  const tileConfig = getTrackingTileConfig(mapboxToken, useMapboxTiles);
 
   const markers = useMemo(
     () =>
@@ -172,8 +166,8 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
     <div className="tracking-map-shell relative z-0 h-full w-full overflow-hidden">
       <MapContainer center={center} zoom={14} className="h-full w-full" style={{ height: "100%", width: "100%" }} scrollWheelZoom>
         <TileLayer
-          attribution={tileAttribution}
-          url={tileUrl}
+          attribution={tileConfig.attribution}
+          url={tileConfig.url}
           eventHandlers={{
             tileerror: () => {
               if (useMapboxTiles) {
