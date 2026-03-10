@@ -2,7 +2,7 @@
 
 
 
-import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Timer, Upload } from "lucide-react";
+import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
 import Image from "next/image";
 
 import { motion, useReducedMotion } from "framer-motion";
@@ -613,15 +613,15 @@ export default function CapturePage() {
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-4 pb-[max(env(safe-area-inset-bottom),1.75rem)]">
-          <p className="text-sm font-semibold text-gray-900">Quick Attach</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <p className="text-sm font-semibold text-gray-900">Attach Invoice</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => photoInputRef.current?.click()}
               className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700 transition hover:border-orange-500"
             >
               <Camera className="h-4 w-4 text-orange-600" />
-              <span className="text-[10px] font-semibold uppercase tracking-wide">Photo</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide">Screenshot</span>
             </button>
 
             <button
@@ -630,20 +630,7 @@ export default function CapturePage() {
               className="inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700 transition hover:border-orange-500"
             >
               <FileUp className="h-4 w-4 text-orange-600" />
-              <span className="text-[10px] font-semibold uppercase tracking-wide">Invoice</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleTimer}
-              className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-gray-700 transition ${
-                isTimerRunning
-                  ? "border-green-400/70 bg-green-50"
-                  : "border-gray-300 bg-gray-50 hover:border-orange-500"
-              }`}
-            >
-              <Timer className="h-4 w-4 text-orange-600" />
-              <span className="text-[10px] font-semibold uppercase tracking-wide">Timer</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide">File</span>
             </button>
           </div>
 
@@ -669,8 +656,6 @@ export default function CapturePage() {
               <Image src={receiptPreview} alt="Attachment preview" width={640} height={288} className="h-36 w-full object-cover" />
             </div>
           ) : null}
-
-          <p className="mt-3 text-xs text-gray-500">Timer: {Math.floor(timerSeconds / 60)}m {timerSeconds % 60}s</p>
         </section>
 
         <label className="text-sm font-semibold text-gray-900" htmlFor="voiceText">
