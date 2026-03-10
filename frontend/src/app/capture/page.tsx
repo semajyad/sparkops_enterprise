@@ -526,7 +526,7 @@ export default function CapturePage() {
 
   return (
 
-    <main className="min-h-screen bg-gray-50 p-4 pb-[max(8rem,env(safe-area-inset-bottom,8rem))] text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-10">
       <div className="pb-8">
 
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
@@ -693,12 +693,8 @@ export default function CapturePage() {
 
         />
 
-      </section>
-      </div>
-
-      {/* Sticky Footer */}
-      <div className="fixed bottom-[max(env(safe-area-inset-bottom),1rem)] left-0 z-50 w-full border-t border-gray-200 bg-white p-4">
-        <div className="mx-auto max-w-3xl">
+        {/* Save/Action Button */}
+        <div className="mt-4">
           <button
             type="button"
             onClick={() =>
@@ -729,7 +725,10 @@ export default function CapturePage() {
 
           {statusMessage ? <p className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">{statusMessage}</p> : null}
         </div>
+
+      </section>
       </div>
+
     </main>
 
   );
