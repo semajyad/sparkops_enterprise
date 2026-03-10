@@ -34,6 +34,7 @@ export function VoiceVisualizer({ stream }: VoiceVisualizerProps) {
       ctx.fillStyle = "rgb(249, 115, 22)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
       const barWidth = (canvas.width / bufferLength) * 2.5;
       let barHeight;
       let x = 0;

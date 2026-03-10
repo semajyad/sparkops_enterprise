@@ -21,7 +21,7 @@ const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-[0.12em] text-gr
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("ALL");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -309,7 +309,7 @@ export default function JobsPage(): React.JSX.Element {
   }, [jobs, search, filter]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <main className="p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
         <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Job Manager</p>
@@ -326,18 +326,18 @@ export default function JobsPage(): React.JSX.Element {
           />
         </label>
 
-        <div className="mt-4 flex gap-2">
-          {["ALL", "DONE"].map((f) => (
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {["ALL", "DRAFT", "IN_PROGRESS", "DONE"].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f as "ALL" | "DRAFT" | "DONE" | "SYNCING")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              onClick={() => setFilter(f as "ALL" | "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS")}
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
                 filter === f
                   ? "bg-orange-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {f === "ALL" ? "All Jobs" : "Completed"}
+              {f === "ALL" ? "All Jobs" : f === "DRAFT" ? "Drafts" : f === "IN_PROGRESS" ? "To Do" : "Completed"}
             </button>
           ))}
         </div>

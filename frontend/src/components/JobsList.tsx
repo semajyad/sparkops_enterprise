@@ -1,6 +1,6 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
+import Link from "next/link";
 import { CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { JobListItem } from "@/lib/jobs";
 
@@ -25,9 +25,10 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
   return (
     <div className="space-y-3">
       {jobs.map((job) => (
-        <div
+        <Link
+          href={`/jobs/${job.id}`}
           key={job.id}
-          className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+          className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -63,19 +64,27 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
                   {job.compliance_status.replace("_", " ")}
                 </span>
               )}
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex gap-2 justify-end">
                 {onComplete && (
                   <button
-                    onClick={() => onComplete(job.id)}
-                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onComplete(job.id);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition"
                   >
                     Complete
                   </button>
                 )}
                 {onDelete && (
                   <button
-                    onClick={() => onDelete(job.id)}
-                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDelete(job.id);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition"
                   >
                     Delete
                   </button>
@@ -83,7 +92,7 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
               </div>
             </div>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

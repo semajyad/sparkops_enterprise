@@ -164,7 +164,15 @@ export function TrackingMap({ current, jobs, staffLocations, routeLines, selecte
 
   return (
     <div className="tracking-map-shell relative z-0 h-full w-full overflow-hidden">
-      <MapContainer center={center} zoom={14} className="h-full w-full" style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+      <MapContainer 
+        center={center} 
+        zoom={14} 
+        className="h-full w-full" 
+        style={{ height: "100%", width: "100%" }} 
+        scrollWheelZoom
+        zoomControl={false}
+        attributionControl={false}
+      >
         <TileLayer
           attribution={tileConfig.attribution}
           url={tileConfig.url}
