@@ -5,6 +5,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
 export async function login(formData: FormData) {
   const supabase = await createClient();
 
@@ -79,6 +81,7 @@ export async function signup(formData: FormData) {
       fullName: (formData.get("full_name") as string | null)?.trim() ?? "",
       organization: (formData.get("organization") as string | null)?.trim() ?? "",
       trade: String(formData.get("trade") ?? "ELECTRICAL").trim().toUpperCase(),
+      referralCode: (formData.get("referral_code") as string | null)?.trim().toUpperCase() ?? "",
     };
 
     const normalizedTrade = data.trade === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
@@ -105,6 +108,24 @@ export async function signup(formData: FormData) {
   if (error) {
     console.error("Server action: Signup failed:", error.message);
     redirect(`/login?error=${encodeURIComponent(error.message)}&mode=signup`);
+  }
+
+  if (data.referralCode) {
+    try {
+      await fetch(`${API_BASE_URL}/api/referrals/capture`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          referral_code: data.referralCode,
+        }),
+      });
+    } catch (referralError) {
+      console.warn("Referral capture failed during signup:", referralError);
+    }
   }
 
   console.log("Server action: Signup successful");

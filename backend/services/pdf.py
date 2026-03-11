@@ -257,3 +257,97 @@ def generate_certificate_pdf(job_data: Any, safety_tests: list[dict[str, Any]]) 
     pdf.showPage()
     pdf.save()
     return buffer.getvalue()
+
+
+def generate_sssp_pdf(*, job_data: Any, trade: str, plan_json: dict[str, Any]) -> bytes:
+    """Generate a Site Specific Safety Plan (SSSP) PDF."""
+
+    extracted = job_data.extracted_data if isinstance(job_data.extracted_data, dict) else {}
+    client_name = str(extracted.get("client", "Client")).strip() or "Client"
+    address = str(extracted.get("address") or extracted.get("location") or "Address not provided").strip()
+    hazards = plan_json.get("hazards", []) if isinstance(plan_json, dict) else []
+    controls = plan_json.get("controls", []) if isinstance(plan_json, dict) else []
+    signoff = plan_json.get("signoff_checklist", []) if isinstance(plan_json, dict) else []
+    emergency_plan = str(plan_json.get("emergency_plan") or "Call 111, isolate hazard, notify supervisor.").strip()
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 24 * mm
+
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.rect(0, height - 34 * mm, width, 34 * mm, fill=1, stroke=0)
+    pdf.setFillColor(colors.white)
+    pdf.setFont("Helvetica-Bold", 17)
+    pdf.drawString(16 * mm, height - 20 * mm, "Site Specific Safety Plan (SSSP)")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(16 * mm, height - 26 * mm, "WorkSafe NZ pre-job safety check")
+
+    y -= 22 * mm
+    pdf.setFillColor(colors.HexColor("#0f172a"))
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(16 * mm, y, "Job Context")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(16 * mm, y, f"Client: {client_name}")
+    y -= 5 * mm
+    pdf.drawString(16 * mm, y, f"Address: {address}")
+    y -= 5 * mm
+    pdf.drawString(16 * mm, y, f"Trade: {(trade or 'ELECTRICAL').upper()}")
+    y -= 5 * mm
+    pdf.drawString(16 * mm, y, f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+
+    y -= 10 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(16 * mm, y, "Primary Hazards")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    for hazard in hazards[:8] if isinstance(hazards, list) else []:
+        if y < 35 * mm:
+            pdf.showPage()
+            y = height - 24 * mm
+            pdf.setFont("Helvetica", 10)
+        pdf.drawString(18 * mm, y, f"- {str(hazard)[:100]}")
+        y -= 5 * mm
+
+    y -= 3 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(16 * mm, y, "Controls & Mitigations")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    for control in controls[:10] if isinstance(controls, list) else []:
+        if y < 35 * mm:
+            pdf.showPage()
+            y = height - 24 * mm
+            pdf.setFont("Helvetica", 10)
+        pdf.drawString(18 * mm, y, f"- {str(control)[:100]}")
+        y -= 5 * mm
+
+    y -= 3 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(16 * mm, y, "Emergency Plan")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(18 * mm, y, emergency_plan[:110])
+
+    y -= 10 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(16 * mm, y, "Pre-Start Signoff Checklist")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    for item in signoff[:8] if isinstance(signoff, list) else []:
+        if y < 25 * mm:
+            pdf.showPage()
+            y = height - 24 * mm
+            pdf.setFont("Helvetica", 10)
+        pdf.drawString(18 * mm, y, f"[ ] {str(item)[:100]}")
+        y -= 5 * mm
+
+    y -= 8 * mm
+    pdf.setFillColor(colors.HexColor("#065f46"))
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(16 * mm, y, "Status: READY FOR PRE-START ACKNOWLEDGEMENT")
+
+    pdf.showPage()
+    pdf.save()
+    return buffer.getvalue()

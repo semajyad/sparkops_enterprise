@@ -50,7 +50,7 @@ from uuid import UUID
 
 
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 
 from fastapi.exceptions import RequestValidationError
 
@@ -1639,7 +1639,59 @@ def _to_org_settings_response(settings: OrganizationSettings) -> OrganizationSet
         terms_and_conditions=settings.terms_and_conditions,
         bank_account_name=settings.bank_account_name,
         bank_account_number=settings.bank_account_number,
+        subscription_status=(settings.subscription_status or "INACTIVE").upper(),
+        licensed_seats=max(1, int(settings.licensed_seats or 1)),
+        stripe_customer_id=settings.stripe_customer_id,
+        stripe_subscription_id=settings.stripe_subscription_id,
         updated_at=settings.updated_at,
+    )
+
+
+def _ensure_org_settings(session: Session, organization_id: UUID, default_trade: str = "ELECTRICAL") -> OrganizationSettings:
+    settings = session.get(OrganizationSettings, organization_id)
+    if settings is None:
+        settings = OrganizationSettings(organization_id=organization_id)
+        settings.default_trade = _normalize_trade(default_trade)
+        settings.subscription_status = "INACTIVE"
+        settings.licensed_seats = 1
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    return settings
+
+
+def _billing_entitlements(session: Session, organization_id: UUID) -> BillingEntitlementsResponse:
+    settings = _ensure_org_settings(session, organization_id)
+    active_users = 0
+    try:
+        with ENGINE.begin() as connection:
+            active_users = int(
+                connection.execute(
+                    text("SELECT COUNT(*) FROM public.profiles WHERE organization_id = :org_id"),
+                    {"org_id": str(organization_id)},
+                ).scalar()
+                or 0
+            )
+    except Exception:
+        active_users = 0
+
+    pending_invites = len(
+        session.exec(
+            select(Invite).where(
+                Invite.organization_id == organization_id,
+                Invite.status == "PENDING",
+            )
+        ).all()
+    )
+    seats = max(1, int(settings.licensed_seats or 1))
+    allocated = active_users + pending_invites
+    return BillingEntitlementsResponse(
+        subscription_status=(settings.subscription_status or "INACTIVE").upper(),
+        licensed_seats=seats,
+        active_users=active_users,
+        pending_invites=pending_invites,
+        total_allocated=allocated,
+        can_add_member=allocated < seats,
     )
 
 
@@ -1704,6 +1756,365 @@ def upsert_organization_settings(
         session.commit()
         session.refresh(settings)
         return _to_org_settings_response(settings)
+
+
+@app.get("/api/v1/admin/billing/entitlements", response_model=BillingEntitlementsResponse)
+@app.get("/api/admin/billing/entitlements", response_model=BillingEntitlementsResponse)
+def get_billing_entitlements(current_user: AuthenticatedUser = Depends(require_owner)) -> BillingEntitlementsResponse:
+    with Session(ENGINE) as session:
+        return _billing_entitlements(session, current_user.organization_id)
+
+
+@app.get("/api/v1/invites", response_model=list[InviteResponse])
+@app.get("/api/invites", response_model=list[InviteResponse])
+def list_invites(current_user: AuthenticatedUser = Depends(require_owner)) -> list[InviteResponse]:
+    with Session(ENGINE) as session:
+        rows = session.exec(
+            select(Invite)
+            .where(Invite.organization_id == current_user.organization_id)
+            .order_by(Invite.created_at.desc())
+        ).all()
+        return [_to_invite_response(row) for row in rows]
+
+
+@app.post("/api/v1/invites", response_model=InviteResponse)
+@app.post("/api/invites", response_model=InviteResponse)
+def create_invite(payload: InviteCreateRequest, current_user: AuthenticatedUser = Depends(require_owner)) -> InviteResponse:
+    with Session(ENGINE) as session:
+        entitlements = _billing_entitlements(session, current_user.organization_id)
+        if not entitlements.can_add_member:
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    "Licensed seat limit reached. Purchase additional technician licenses in Billing before inviting more team members."
+                ),
+            )
+
+        existing = session.exec(
+            select(Invite).where(
+                Invite.organization_id == current_user.organization_id,
+                Invite.email == payload.email.strip().lower(),
+                Invite.status == "PENDING",
+            )
+        ).first()
+        if existing is not None:
+            return _to_invite_response(existing)
+
+        invite = Invite(
+            organization_id=current_user.organization_id,
+            invited_by_user_id=current_user.id,
+            email=payload.email.strip().lower(),
+            full_name=payload.full_name.strip(),
+            role=payload.role.strip().upper() if payload.role else "TRADESMAN",
+            status="PENDING",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(invite)
+        session.commit()
+        session.refresh(invite)
+        return _to_invite_response(invite)
+
+
+@app.post("/api/v1/referrals/capture", response_model=ReferralCaptureResponse)
+@app.post("/api/referrals/capture", response_model=ReferralCaptureResponse)
+def capture_referral(payload: ReferralCaptureRequest) -> ReferralCaptureResponse:
+    with Session(ENGINE) as session:
+        code = payload.referral_code.strip().upper()
+        affiliate = session.exec(
+            select(Affiliate).where(Affiliate.referral_code == code, Affiliate.is_active == True)  # noqa: E712
+        ).first()
+        if affiliate is None:
+            raise HTTPException(status_code=404, detail="Referral code not found.")
+
+        email = payload.email.strip().lower()
+        existing = session.exec(
+            select(Referral).where(Referral.referred_email == email, Referral.referral_code == code)
+        ).first()
+        if existing is not None:
+            if payload.organization_id and existing.organization_id is None:
+                existing.organization_id = payload.organization_id
+                existing.updated_at = datetime.now(timezone.utc) if hasattr(existing, "updated_at") else None
+                session.add(existing)
+                session.commit()
+                session.refresh(existing)
+            return ReferralCaptureResponse(status="captured", referral_id=existing.id)
+
+        referral = Referral(
+            affiliate_id=affiliate.id,
+            organization_id=payload.organization_id,
+            referred_email=email,
+            referral_code=code,
+            status="PENDING",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(referral)
+        session.commit()
+        session.refresh(referral)
+        return ReferralCaptureResponse(status="captured", referral_id=referral.id)
+
+
+@app.get("/api/v1/admin/affiliates/summary", response_model=list[AffiliateSummaryRow])
+@app.get("/api/admin/affiliates/summary", response_model=list[AffiliateSummaryRow])
+def affiliate_summary(current_user: AuthenticatedUser = Depends(require_owner)) -> list[AffiliateSummaryRow]:
+    with Session(ENGINE) as session:
+        affiliates = session.exec(select(Affiliate).where(Affiliate.is_active == True)).all()  # noqa: E712
+        rows: list[AffiliateSummaryRow] = []
+        for affiliate in affiliates:
+            referrals = session.exec(select(Referral).where(Referral.affiliate_id == affiliate.id)).all()
+            referral_ids = [ref.id for ref in referrals]
+            commissions = session.exec(select(Commission).where(Commission.affiliate_id == affiliate.id, Commission.status == "PENDING")).all()
+            rows.append(
+                AffiliateSummaryRow(
+                    affiliate_id=affiliate.id,
+                    name=affiliate.name,
+                    referral_code=affiliate.referral_code,
+                    referrals=len(referrals),
+                    converted=len([ref for ref in referrals if ref.status == "CONVERTED"]),
+                    pending_commission_nzd=sum((commission.amount_nzd for commission in commissions), Decimal("0.00")),
+                )
+            )
+        return rows
+
+
+def _stripe_base_price_id() -> str:
+    return (os.getenv("STRIPE_BASE_PRICE_ID") or os.getenv("STRIPE_PRICE_ID") or "").strip()
+
+
+def _stripe_seat_price_id() -> str:
+    return (os.getenv("STRIPE_SEAT_PRICE_ID") or "").strip()
+
+
+def _stripe_seat_count_from_subscription(subscription_payload: dict[str, Any]) -> int:
+    seat_price_id = _stripe_seat_price_id()
+    items = (((subscription_payload or {}).get("items") or {}).get("data") or [])
+    seats = 1
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        price_id = str(((item.get("price") or {}).get("id") or "")).strip()
+        if seat_price_id and price_id == seat_price_id:
+            seats += max(0, int(item.get("quantity") or 0))
+    return max(1, seats)
+
+
+@app.post("/api/v1/integrations/stripe/checkout/base", response_model=StripeCheckoutResponse)
+@app.post("/api/integrations/stripe/checkout/base", response_model=StripeCheckoutResponse)
+def stripe_checkout_base(
+    payload: StripeCheckoutRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> StripeCheckoutResponse:
+    price_id = _stripe_base_price_id()
+    if not price_id:
+        raise HTTPException(status_code=500, detail="STRIPE_BASE_PRICE_ID or STRIPE_PRICE_ID is not configured.")
+
+    try:
+        with Session(ENGINE) as session:
+            settings = _ensure_org_settings(session, current_user.organization_id, current_user.organization_default_trade)
+            result = create_checkout_session(
+                customer_id=settings.stripe_customer_id,
+                success_url=payload.success_url,
+                cancel_url=payload.cancel_url,
+                price_id=price_id,
+                quantity=1,
+                metadata={
+                    "organization_id": str(current_user.organization_id),
+                    "purchase_type": "base",
+                },
+            )
+            customer = result.get("customer")
+            if isinstance(customer, str) and customer.strip() and not settings.stripe_customer_id:
+                settings.stripe_customer_id = customer.strip()
+                settings.updated_at = datetime.now(timezone.utc)
+                session.add(settings)
+                session.commit()
+    except BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    session_id = str(result.get("id") or "")
+    url = str(result.get("url") or "")
+    if not session_id or not url:
+        raise HTTPException(status_code=500, detail="Stripe checkout session payload was incomplete.")
+    return StripeCheckoutResponse(session_id=session_id, url=url)
+
+
+@app.post("/api/v1/integrations/stripe/checkout/seats", response_model=StripeCheckoutResponse)
+@app.post("/api/integrations/stripe/checkout/seats", response_model=StripeCheckoutResponse)
+def stripe_checkout_seats(
+    payload: StripeCheckoutRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> StripeCheckoutResponse:
+    seat_price_id = _stripe_seat_price_id()
+    if not seat_price_id:
+        raise HTTPException(status_code=500, detail="STRIPE_SEAT_PRICE_ID is not configured.")
+
+    try:
+        with Session(ENGINE) as session:
+            settings = _ensure_org_settings(session, current_user.organization_id, current_user.organization_default_trade)
+            result = create_checkout_session(
+                customer_id=settings.stripe_customer_id,
+                success_url=payload.success_url,
+                cancel_url=payload.cancel_url,
+                price_id=seat_price_id,
+                quantity=payload.quantity,
+                metadata={
+                    "organization_id": str(current_user.organization_id),
+                    "purchase_type": "seat_addon",
+                },
+            )
+            customer = result.get("customer")
+            if isinstance(customer, str) and customer.strip() and not settings.stripe_customer_id:
+                settings.stripe_customer_id = customer.strip()
+                settings.updated_at = datetime.now(timezone.utc)
+                session.add(settings)
+                session.commit()
+    except BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    session_id = str(result.get("id") or "")
+    url = str(result.get("url") or "")
+    if not session_id or not url:
+        raise HTTPException(status_code=500, detail="Stripe checkout session payload was incomplete.")
+    return StripeCheckoutResponse(session_id=session_id, url=url)
+
+
+@app.post("/api/v1/integrations/stripe/portal", response_model=StripePortalResponse)
+@app.post("/api/integrations/stripe/portal", response_model=StripePortalResponse)
+def stripe_customer_portal(
+    payload: StripePortalRequest,
+    current_user: AuthenticatedUser = Depends(require_owner),
+) -> StripePortalResponse:
+    with Session(ENGINE) as session:
+        settings = _ensure_org_settings(session, current_user.organization_id, current_user.organization_default_trade)
+        if not settings.stripe_customer_id:
+            raise HTTPException(status_code=400, detail="No Stripe customer is linked yet. Start with base subscription checkout.")
+
+    try:
+        result = create_customer_portal_session(customer_id=settings.stripe_customer_id, return_url=payload.return_url)
+    except BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    url = str(result.get("url") or "")
+    if not url:
+        raise HTTPException(status_code=500, detail="Stripe portal session payload was incomplete.")
+    return StripePortalResponse(url=url)
+
+
+def _apply_subscription_snapshot(session: Session, settings: OrganizationSettings, subscription_id: str) -> None:
+    subscription = retrieve_subscription(subscription_id)
+    settings.stripe_subscription_id = str(subscription.get("id") or settings.stripe_subscription_id or "").strip() or None
+    status = str(subscription.get("status") or "").strip().upper() or "INACTIVE"
+    settings.subscription_status = status
+    settings.licensed_seats = _stripe_seat_count_from_subscription(subscription)
+    items = (((subscription or {}).get("items") or {}).get("data") or [])
+    seat_price_id = _stripe_seat_price_id()
+    if seat_price_id:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if str(((item.get("price") or {}).get("id") or "")).strip() == seat_price_id:
+                settings.stripe_subscription_item_id = str(item.get("id") or "").strip() or None
+                break
+    settings.updated_at = datetime.now(timezone.utc)
+    session.add(settings)
+
+
+def _find_settings_for_customer(session: Session, customer_id: str) -> OrganizationSettings | None:
+    return session.exec(select(OrganizationSettings).where(OrganizationSettings.stripe_customer_id == customer_id)).first()
+
+
+def _find_settings_for_subscription(session: Session, subscription_id: str) -> OrganizationSettings | None:
+    return session.exec(select(OrganizationSettings).where(OrganizationSettings.stripe_subscription_id == subscription_id)).first()
+
+
+@app.post("/api/v1/integrations/stripe/webhook")
+@app.post("/api/integrations/stripe/webhook")
+async def stripe_webhook(request: Request, stripe_signature: str | None = Header(default=None, alias="Stripe-Signature")) -> dict[str, str]:
+    payload = await request.body()
+    try:
+        event = verify_webhook_signature(payload=payload, signature_header=stripe_signature)
+    except BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    event_type = str(event.get("type") or "")
+    data_object = ((event.get("data") or {}).get("object") or {}) if isinstance(event, dict) else {}
+
+    try:
+        with Session(ENGINE) as session:
+            if event_type == "checkout.session.completed":
+                org_id_raw = str((data_object.get("metadata") or {}).get("organization_id") or "").strip()
+                customer_id = str(data_object.get("customer") or "").strip()
+                subscription_id = str(data_object.get("subscription") or "").strip()
+
+                settings = None
+                if org_id_raw:
+                    try:
+                        settings = _ensure_org_settings(session, UUID(org_id_raw))
+                    except Exception:
+                        settings = None
+                if settings is None and customer_id:
+                    settings = _find_settings_for_customer(session, customer_id)
+
+                if settings is not None:
+                    if customer_id:
+                        settings.stripe_customer_id = customer_id
+                    if subscription_id:
+                        _apply_subscription_snapshot(session, settings, subscription_id)
+                    session.commit()
+
+            elif event_type in {"customer.subscription.updated", "customer.subscription.created", "customer.subscription.deleted"}:
+                subscription_id = str(data_object.get("id") or "").strip()
+                customer_id = str(data_object.get("customer") or "").strip()
+                settings = None
+                if subscription_id:
+                    settings = _find_settings_for_subscription(session, subscription_id)
+                if settings is None and customer_id:
+                    settings = _find_settings_for_customer(session, customer_id)
+                if settings is not None:
+                    if customer_id:
+                        settings.stripe_customer_id = customer_id
+                    if subscription_id:
+                        settings.stripe_subscription_id = subscription_id
+                        if event_type == "customer.subscription.deleted":
+                            settings.subscription_status = "CANCELED"
+                            settings.licensed_seats = max(1, int(settings.licensed_seats or 1))
+                        else:
+                            _apply_subscription_snapshot(session, settings, subscription_id)
+                    settings.updated_at = datetime.now(timezone.utc)
+                    session.add(settings)
+                    session.commit()
+
+            elif event_type == "invoice.payment_succeeded":
+                customer_id = str(data_object.get("customer") or "").strip()
+                invoice_id = str(data_object.get("id") or "").strip() or None
+                paid_amount = Decimal(str((data_object.get("amount_paid") or 0))) / Decimal("100")
+                settings = _find_settings_for_customer(session, customer_id) if customer_id else None
+                if settings is not None:
+                    referral = session.exec(
+                        select(Referral).where(
+                            Referral.organization_id == settings.organization_id,
+                            Referral.status.in_(["PENDING", "CAPTURED", "CONVERTED"]),
+                        )
+                    ).first()
+                    if referral is not None:
+                        referral.status = "CONVERTED"
+                        referral.converted_at = datetime.now(timezone.utc)
+                        session.add(referral)
+                        commission = Commission(
+                            referral_id=referral.id,
+                            affiliate_id=referral.affiliate_id,
+                            organization_id=settings.organization_id,
+                            amount_nzd=(paid_amount * Decimal("0.20")).quantize(Decimal("0.01")),
+                            currency="NZD",
+                            status="PENDING",
+                            stripe_invoice_id=invoice_id,
+                            created_at=datetime.now(timezone.utc),
+                        )
+                        session.add(commission)
+                        session.commit()
+    except BillingError as exc:
+        logger.warning("Stripe webhook processing warning: %s", exc)
+
+    return {"status": "ok"}
 
 
 def _to_vehicle_response(vehicle: Vehicle) -> VehicleResponse:
@@ -2365,6 +2776,93 @@ def delete_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get
         session.commit()
 
     return JobDeleteResponse(status="deleted", id=job_id)
+
+
+@app.post("/api/v1/jobs/{job_id}/safety-plan", response_model=SafetyPlanGenerateResponse)
+@app.post("/api/jobs/{job_id}/safety-plan", response_model=SafetyPlanGenerateResponse)
+def generate_job_safety_plan(
+    job_id: UUID,
+    payload: SafetyPlanGenerateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> SafetyPlanGenerateResponse:
+    """Generate and persist pre-job Site Specific Safety Plan from voice transcript."""
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        _assert_job_write_access(draft, current_user)
+
+        from services.sssp import generate_site_safety_plan
+
+        plan_json = generate_site_safety_plan(
+            transcript=payload.transcript.strip(),
+            trade=_normalize_trade(draft.required_trade),
+        )
+        now = datetime.now(timezone.utc)
+        row = SafetyPlan(
+            job_id=draft.id,
+            organization_id=current_user.organization_id,
+            user_id=current_user.id,
+            trade=_normalize_trade(draft.required_trade),
+            source_transcript=payload.transcript.strip(),
+            plan_json=plan_json,
+            acknowledged=bool(payload.acknowledge),
+            created_at=now,
+            acknowledged_at=now if payload.acknowledge else None,
+        )
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+
+        extracted = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+        extracted["pre_job_safety_plan"] = {
+            "id": str(row.id),
+            "acknowledged": row.acknowledged,
+            "created_at": row.created_at.isoformat(),
+        }
+        draft.extracted_data = extracted
+        session.add(draft)
+        session.commit()
+
+        return SafetyPlanGenerateResponse(
+            id=row.id,
+            job_id=draft.id,
+            trade=row.trade,
+            acknowledged=row.acknowledged,
+            plan_json=row.plan_json,
+            pdf_url=f"/api/jobs/{draft.id}/safety-plan/{row.id}.pdf",
+        )
+
+
+@app.get("/api/jobs/{job_id}/safety-plan/{plan_id}.pdf")
+def download_job_safety_plan_pdf(
+    job_id: UUID,
+    plan_id: UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> StreamingResponse:
+    """Generate and return PDF for a previously generated SSSP."""
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+        _assert_job_write_access(draft, current_user)
+
+        plan = session.get(SafetyPlan, plan_id)
+        if plan is None or plan.job_id != draft.id or plan.organization_id != current_user.organization_id:
+            raise HTTPException(status_code=404, detail="Safety plan not found.")
+
+    from services.pdf import generate_sssp_pdf
+
+    pdf_bytes = generate_sssp_pdf(job_data=draft, trade=plan.trade, plan_json=plan.plan_json)
+    filename = f"tradeops-sssp-{job_id}-{plan_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/v1/jobs/{job_id}/complete", response_model=JobCompleteResponse)
