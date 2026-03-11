@@ -162,6 +162,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Fast path for optimistic UI - set role from localStorage immediately
+      if (typeof window !== "undefined") {
+        const cachedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
+        if (cachedRole === "OWNER" || cachedRole === "EMPLOYEE") {
+          setRole(cachedRole as AppRole);
+        }
+      }
+
       try {
         const response = await apiFetch(`${API_BASE_URL}/api/v1/auth/handshake`, {
           cache: "no-store",
