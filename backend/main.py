@@ -1894,7 +1894,8 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
         # Running locally
         redirect_uri = os.getenv("XERO_REDIRECT_URI", "http://localhost:8000/api/integrations/xero/callback")
     
-    scope = os.getenv("XERO_SCOPES", "openid profile email offline_access accounting.transactions accounting.contacts").strip()
+    # Use the exact required scope string with proper encoding
+    scope = "openid profile email offline_access accounting.transactions accounting.contacts"
     state = _build_xero_state(current_user.organization_id)
 
     auth_query = urlencode(
