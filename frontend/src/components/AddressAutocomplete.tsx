@@ -46,27 +46,57 @@ type MapboxResponse = {
 function getMapboxToken(): string {
   // Try multiple ways to access the Mapbox token
   let token = '';
+  let tokenSource = '';
+  
+  console.log("[AddressAutocomplete] === TOKEN DEBUG START ===");
   
   if (typeof window !== 'undefined') {
-    // Browser environment - try Next.js injected env vars
-    token = (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+    console.log("[AddressAutocomplete] Browser environment detected");
     
-    // Fallback: check if it's available directly (Next.js should inject this)
-    if (!token && typeof process !== 'undefined' && process.env) {
-      token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+    // Check window.__NEXT_DATA__
+    if ((window as any).__NEXT_DATA__) {
+      console.log("[AddressAutocomplete] window.__NEXT_DATA__ exists");
+      console.log("[AddressAutocomplete] __NEXT_DATA__.env keys:", Object.keys((window as any).__NEXT_DATA__.env || {}));
+      token = (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+      tokenSource = 'window.__NEXT_DATA__.env.NEXT_PUBLIC_MAPBOX_TOKEN';
+      console.log("[AddressAutocomplete] Token from __NEXT_DATA__:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
+    } else {
+      console.log("[AddressAutocomplete] window.__NEXT_DATA__ does NOT exist");
     }
+    
+    // Check process.env (if available)
+    if (!token && typeof process !== 'undefined' && process.env) {
+      console.log("[AddressAutocomplete] process.env exists");
+      token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+      tokenSource = 'process.env.NEXT_PUBLIC_MAPBOX_TOKEN';
+      console.log("[AddressAutocomplete] Token from process.env:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
+    } else if (!token) {
+      console.log("[AddressAutocomplete] process.env does NOT exist or is empty");
+    }
+    
+    // Check all window properties for token
+    if (!token) {
+      console.log("[AddressAutocomplete] Checking all window properties...");
+      Object.keys(window).forEach(key => {
+        if (key.toLowerCase().includes('mapbox') || key.toLowerCase().includes('token')) {
+          console.log(`[AddressAutocomplete] Found window.${key}:`, (window as any)[key]);
+        }
+      });
+    }
+    
   } else {
-    // Server environment
+    console.log("[AddressAutocomplete] Server environment detected");
     token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+    tokenSource = 'process.env.NEXT_PUBLIC_MAPBOX_TOKEN (server)';
+    console.log("[AddressAutocomplete] Token from server:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
   }
   
-  console.log("[AddressAutocomplete] getMapboxToken() called, token exists:", !!token, "token length:", token.length);
-  console.log("[AddressAutocomplete] Environment source:", typeof window !== 'undefined' ? 'browser' : 'server');
-  
-  // For debugging - show what we actually have
-  if (typeof window !== 'undefined') {
-    console.log("[AddressAutocomplete] window.__NEXT_DATA__:", (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN);
-  }
+  console.log("[AddressAutocomplete] === TOKEN DEBUG RESULTS ===");
+  console.log("[AddressAutocomplete] Final token source:", tokenSource);
+  console.log("[AddressAutocomplete] Final token exists:", !!token);
+  console.log("[AddressAutocomplete] Final token length:", token.length);
+  console.log("[AddressAutocomplete] Final token value:", token ? token.substring(0, 10) + '...' : 'NONE');
+  console.log("[AddressAutocomplete] === TOKEN DEBUG END ===");
   
   return token;
 }
@@ -157,7 +187,10 @@ export function AddressAutocomplete({
   const debouncedFetch = useMemo(
     () =>
       debounce((value: string) => {
+        console.log("[AddressAutocomplete] === DEBOUNCED FETCH START ===");
         console.log("[AddressAutocomplete] debouncedFetch called with value:", value);
+        console.log("[AddressAutocomplete] suppressFetchRef.current:", suppressFetchRef.current);
+        
         if (suppressFetchRef.current) {
           console.log("[AddressAutocomplete] Fetch suppressed");
           suppressFetchRef.current = false;
@@ -165,44 +198,63 @@ export function AddressAutocomplete({
         }
 
         const query = value.trim();
+        console.log("[AddressAutocomplete] Query length:", query.length);
+        console.log("[AddressAutocomplete] Query content:", `"${query}"`);
+        
         if (query.length < 3) {
-          console.log("[AddressAutocomplete] Query too short:", query.length);
+          console.log("[AddressAutocomplete] Query too short, returning");
           return;
         }
 
         const mapboxToken = getMapboxToken().trim();
-        console.log("[AddressAutocomplete] Query:", query, "Token exists:", !!mapboxToken, "Token length:", mapboxToken.length);
+        console.log("[AddressAutocomplete] Retrieved token length:", mapboxToken.length);
+        console.log("[AddressAutocomplete] Retrieved token exists:", !!mapboxToken);
+        
         if (!mapboxToken) {
-          console.log("[AddressAutocomplete] No Mapbox token available, skipping address lookup");
+          console.log("[AddressAutocomplete] ❌ NO TOKEN - skipping address lookup");
           return;
         }
 
+        console.log("[AddressAutocomplete] ✅ TOKEN FOUND - proceeding with API call");
+
         const fetchSuggestions = async (): Promise<void> => {
+          console.log("[AddressAutocomplete] === API CALL START ===");
           setIsLoading(true);
           try {
             const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
             console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
               query,
               url: mapboxUrl,
+              tokenLength: mapboxToken.length,
             });
+            
             const mapboxResponse = await fetch(mapboxUrl, {
               method: "GET",
               headers: { Accept: "application/json" },
             });
 
+            console.log("[AddressAutocomplete] Mapbox response status:", mapboxResponse.status);
+            console.log("[AddressAutocomplete] Mapbox response ok:", mapboxResponse.ok);
+
             if (!mapboxResponse.ok) {
-              throw new Error(`Address lookup failed (${mapboxResponse.status})`);
+              const errorText = await mapboxResponse.text();
+              console.log("[AddressAutocomplete] Error response body:", errorText);
+              throw new Error(`Address lookup failed (${mapboxResponse.status}): ${errorText}`);
             }
 
             const payload = (await mapboxResponse.json()) as MapboxResponse;
             console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
+            
             if (!payload || !Array.isArray(payload.features)) {
               console.warn("[AddressAutocomplete] Invalid payload from Mapbox", payload);
               setSuggestions([]);
               setOpen(false);
               return;
             }
+            
             const rows = payload.features;
+            console.log("[AddressAutocomplete] Features count:", rows.length);
+            
             if (rows.length === 0) {
               console.warn("[AddressAutocomplete] Mapbox returned an empty features array for query:", query);
             }
@@ -213,6 +265,7 @@ export function AddressAutocomplete({
                 const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
                 const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
                 if (lat === null || lng === null) {
+                  console.log("[AddressAutocomplete] Skipping feature - invalid coordinates");
                   return null;
                 }
 
@@ -220,6 +273,7 @@ export function AddressAutocomplete({
                 const text = sanitizeAddressComponent(feature.text);
                 const label = placeName || buildMapboxLabel(feature);
                 if (!label || label === "Unknown address") {
+                  console.log("[AddressAutocomplete] Skipping feature - invalid label");
                   return null;
                 }
 
@@ -234,17 +288,23 @@ export function AddressAutocomplete({
               })
               .filter((row): row is AddressSuggestion => Boolean(row));
 
+            console.log("[AddressAutocomplete] Mapped suggestions count:", mapped.length);
+            console.log("[AddressAutocomplete] Setting suggestions:", mapped.map(s => s.place_name));
+
             setSuggestions(mapped);
             setOpen(mapped.length > 0);
-          } catch {
+          } catch (error) {
+            console.error("[AddressAutocomplete] ❌ API CALL FAILED:", error);
             setSuggestions([]);
             setOpen(false);
           } finally {
             setIsLoading(false);
+            console.log("[AddressAutocomplete] === API CALL END ===");
           }
         };
 
         void fetchSuggestions();
+        console.log("[AddressAutocomplete] === DEBOUNCED FETCH END ===");
       }, 300),
     []
   );
