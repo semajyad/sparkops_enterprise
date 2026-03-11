@@ -852,6 +852,24 @@ export default function AdminPage(): React.JSX.Element {
                   placeholder="15"
                 />
               </label>
+              <label className="block text-sm text-gray-700 mt-4">
+                Material Markup Percentage (%)
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={typeof settings.standard_markup === "number" ? String(settings.standard_markup * 100) : ""}
+                  onChange={(event) => {
+                    const parsed = Number(event.target.value);
+                    setSettings((prev) => ({
+                      ...prev,
+                      standard_markup: Number.isFinite(parsed) && event.target.value ? parsed / 100 : null,
+                    }));
+                  }}
+                  className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
+                  placeholder="20.00"
+                />
+              </label>
               <label className="block text-sm text-gray-700">
                 Organization Default Trade
                 <select
