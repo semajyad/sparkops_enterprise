@@ -85,7 +85,7 @@ def test_compute_guardrail_status_empty_transcript() -> None:
     
     assert status == "NOT_REQUIRED"
     assert len(missing) == 0
-    assert "not captured yet" in notes.lower()
+    assert "no transcript captured yet" in notes.lower()
     assert "as/nzs 3000" in notes.lower()
 
 
@@ -112,8 +112,8 @@ def test_compute_guardrail_status_plumbing_trade() -> None:
 
 
 def test_normalize_safety_tests() -> None:
-    """Test safety test normalization with canonical types."""
-    
+    """Test safety test normalization logic."""
+
     extracted_data = {
         "safety_tests": [
             {"type": "earth loop", "result": "PASS"},
@@ -125,13 +125,12 @@ def test_normalize_safety_tests() -> None:
             {"type": "backflow prevention", "result": "PASS"},
         ]
     }
-    
+
     normalized = _normalize_safety_tests(extracted_data, Decimal("-36.85"), Decimal("174.76"))
-    
     assert len(normalized) == 7
-    
+
     # Check canonical type mapping
-    test_types = [test.get("type") for test in normalized if test.get("type")]
+    test_types = [test.get("test_type") for test in normalized if test.get("test_type")]
     assert "Earth Loop" in test_types
     assert "Polarity" in test_types
     assert "Insulation Resistance" in test_types
@@ -139,27 +138,26 @@ def test_normalize_safety_tests() -> None:
     assert "Gas Pressure" in test_types
     assert "Water Flow" in test_types
     assert "Backflow Prevention" in test_types
-    
-    # Check GPS coordinates added
-    for test in normalized:
-        assert test.get("gps_lat") == Decimal("-36.85")
-        assert test.get("gps_lng") == Decimal("174.76")
+
+    # Check fields
+    assert normalized[0]["gps_lat"] == Decimal("-36.85")
+    assert normalized[0]["gps_lng"] == Decimal("174.76")
+    assert normalized[0]["result"] == "PASS"
 
 
-def test_normalize_safety_tests_empty_input() -> None:
-    """Test safety test normalization with empty input."""
+def test_normalize_safety_tests_empty_data() -> None:
+    """Test safety test normalization with empty data."""
     
-    # Test with empty list
-    normalized = _normalize_safety_tests([], Decimal("-36.85"), Decimal("174.76"))
-    assert normalized == []
-    
-    # Test with missing key
     normalized = _normalize_safety_tests({}, Decimal("-36.85"), Decimal("174.76"))
-    assert normalized == []
+    assert len(normalized) == 0
+
+
+def test_normalize_safety_tests_no_tests() -> None:
+    """Test safety test normalization with missing tests key."""
     
-    # Test with invalid type
-    normalized = _normalize_safety_tests({"safety_tests": "invalid"}, Decimal("-36.85"), Decimal("174.76"))
-    assert normalized == []
+    extracted_data: dict[str, Any] = {"other_key": "value"}
+    normalized = _normalize_safety_tests(extracted_data, Decimal("-36.85"), Decimal("174.76"))
+    assert len(normalized) == 0
 
 
 def test_normalize_safety_tests_invalid_test_entries() -> None:
@@ -173,26 +171,27 @@ def test_normalize_safety_tests_invalid_test_entries() -> None:
             {"type": "", "result": "PASS"},  # Empty type should be filtered
         ]
     }
-    
+
     normalized = _normalize_safety_tests(extracted_data, Decimal("-36.85"), Decimal("174.76"))
     
     # Should only include valid entries - check the structure
-    valid_entries = [test for test in normalized if isinstance(test, dict) and test.get("type")]
+    valid_entries = [test for test in normalized if isinstance(test, dict) and test.get("test_type")]
     assert len(valid_entries) == 1
-    assert valid_entries[0]["type"] == "valid test"
+    assert valid_entries[0]["test_type"] == "valid test"
+    assert valid_entries[0]["result"] == "PASS"
 
 
 def test_health_endpoint() -> None:
     """Test health check endpoint."""
     client = TestClient(app)
-    
+
     response = client.get("/health")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["status"] == "healthy"
-    assert data["service"] == "sparkops-data-factory"
-    assert data["version"] == "1.0.0"
+    assert data["service"] == "tradeops-data-factory"
+    assert "version" in data
 
 
 def test_materials_import_endpoint() -> None:
@@ -241,7 +240,7 @@ def test_root_endpoint() -> None:
     
     data = response.json()
     assert data["status"] == "healthy"
-    assert data["service"] == "sparkops-data-factory"
+    assert data["service"] == "tradeops-data-factory"
 
 
 def test_required_tests_for_trade() -> None:

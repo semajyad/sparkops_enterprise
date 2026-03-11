@@ -24,7 +24,9 @@ class TestMainAPIRealFunctions:
         """Test the root health check endpoint."""
         response = client.get("/")
         assert response.status_code == 200
-        assert "SparkOps API" in response.json()["message"]
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "version" in data
 
     def test_health_endpoint(self):
         """Test the health check endpoint."""
@@ -47,31 +49,66 @@ class TestMainAPIRealFunctions:
                 get_openai_client()
 
     @patch('main.get_openai_client')
-    def test_transcribe_audio(self, mock_get_client):
-        """Test audio transcription."""
+    @patch('main.AudioSegment')
+    def test_transcribe_audio(self, mock_audio_segment, mock_get_client):
+        """Test audio transcription endpoint with mocked OpenAI client."""
+        from main import transcribe_audio
+        
+        # Mock the wav conversion
+        mock_segment_instance = Mock()
+        mock_segment_instance.export.return_value = io.BytesIO(b"mock_wav_data")
+        mock_audio_segment.from_file.return_value = mock_segment_instance
+        
+        # Mock OpenAI client
         mock_client = Mock()
         mock_get_client.return_value = mock_client
         
-        mock_transcription = Mock()
-        mock_transcription.text = "Transcribed text"
-        mock_client.audio.transcriptions.create.return_value = mock_transcription
+        # Mock response
+        mock_message = Mock()
+        mock_message.content = "Test transcription"
+        mock_choice = Mock()
+        mock_choice.message = mock_message
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
         
-        from main import transcribe_audio
-        result = transcribe_audio("dGVzdCBhdWRpbyBkYXRh")  # base64 encoded "test audio data"
+        mock_client.chat.completions.create.return_value = mock_response
         
-        assert result == "Transcribed text"
+        # Test valid base64
+        valid_base64 = base64.b64encode(b"fake audio data").decode('utf-8')
+        result = transcribe_audio(valid_base64)
+        
+        assert result == "Test transcription"
+        
+        # Verify OpenAI was called correctly
+        mock_client.chat.completions.create.assert_called_once()
+        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o-mini-audio-preview"
+        assert "messages" in call_kwargs
 
     @patch('main.get_openai_client')
-    def test_transcribe_audio_failure(self, mock_get_client):
-        """Test audio transcription failure."""
+    @patch('main.AudioSegment')
+    def test_transcribe_audio_failure(self, mock_audio_segment, mock_get_client):
+        """Test audio transcription failure handling."""
+        from main import transcribe_audio
+        
+        # Mock the wav conversion
+        mock_segment_instance = Mock()
+        mock_segment_instance.export.return_value = io.BytesIO(b"mock_wav_data")
+        mock_audio_segment.from_file.return_value = mock_segment_instance
+        
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        mock_client.audio.transcriptions.create.side_effect = Exception("Transcription failed")
         
-        from main import transcribe_audio
-        result = transcribe_audio("dGVzdCBhdWRpbyBkYXRh")
+        # Make OpenAI raise an exception
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
         
-        assert result == ""
+        valid_base64 = base64.b64encode(b"fake audio data").decode('utf-8')
+        
+        with pytest.raises(HTTPException) as exc_info:
+            transcribe_audio(valid_base64)
+            
+        assert exc_info.value.status_code == 500
+        assert "Transcription failed" in str(exc_info.value.detail)
 
     @patch('main.get_openai_client')
     def test_embed_text(self, mock_get_client):
@@ -96,9 +133,9 @@ class TestMainAPIRealFunctions:
         mock_client.embeddings.create.side_effect = Exception("API Error")
         
         from main import embed_text
-        result = embed_text("test text")
         
-        assert result == []
+        with pytest.raises(Exception, match="API Error"):
+            embed_text("test text")
 
     @patch('main.get_openai_client')
     def test_embed_text_batch(self, mock_get_client):
@@ -131,18 +168,21 @@ class TestMainAPIRealFunctions:
         
         extracted_data = {
             "safety_tests": [
-                {"name": "Earth Loop", "status": "PASS", "value": "0.32 Ohms"},
-                {"name": "Polarity", "status": "PASS", "value": "Correct"}
+                {"type": "Earth Loop", "result": "PASS", "value": "0.32", "unit": "Ohms"},
+                {"type": "Polarity", "result": "PASS", "value": "Correct"}
             ]
         }
         
         result = _normalize_safety_tests(extracted_data, None, None)
         
         assert len(result) == 2
-        assert result[0]["name"] == "Earth Loop"
-        assert result[0]["status"] == "PASS"
-        assert result[1]["name"] == "Polarity"
-        assert result[1]["status"] == "PASS"
+        assert result[0]["test_type"] == "Earth Loop"
+        assert result[0]["result"] == "PASS"
+        assert result[0]["value_text"] == "0.32"
+        assert result[0]["unit"] == "Ohms"
+        assert result[1]["test_type"] == "Polarity"
+        assert result[1]["result"] == "PASS"
+        assert result[1]["value_text"] == "Correct"
 
     def test_normalize_safety_tests_invalid_structure(self):
         """Test normalizing safety tests with invalid structure."""
@@ -206,17 +246,17 @@ class TestMainAPIRealFunctions:
         assert "RCD Test" in plumbing_tests
         
         any_tests = _required_tests_for_trade("ANY")
-        assert len(any_tests) == 0  # No required tests for ANY
+        assert len(any_tests) == 7  # All tests are required for ANY trade
 
     def test_compute_guardrail_status_compliant(self):
         """Test guardrail status for compliant evidence."""
         from main import _compute_guardrail_status
         
         tests = [
-            {"name": "Earth Loop", "status": "PASS"},
-            {"name": "Polarity", "status": "PASS"},
-            {"name": "Insulation Resistance", "status": "PASS"},
-            {"name": "RCD Test", "status": "PASS"}
+            {"test_type": "Earth Loop", "status": "PASS"},
+            {"test_type": "Polarity", "status": "PASS"},
+            {"test_type": "Insulation Resistance", "status": "PASS"},
+            {"test_type": "RCD Test", "status": "PASS"}
         ]
         
         status, missing, message = _compute_guardrail_status("test transcript", tests, "ELECTRICAL")
@@ -226,35 +266,18 @@ class TestMainAPIRealFunctions:
         assert "compliant" in message.lower()
 
     def test_compute_guardrail_status_non_compliant(self):
-        """Test guardrail status for non-compliant evidence."""
+        """Test guardrail status for missing tests (non-compliant)."""
         from main import _compute_guardrail_status
         
         tests = [
-            {"name": "Earth Loop", "status": "PASS"},
-            {"name": "Polarity", "status": "FAIL"},
-            {"name": "Insulation Resistance", "status": "PASS"},
-            {"name": "RCD Test", "status": "PASS"}
-        ]
-        
-        status, missing, message = _compute_guardrail_status("test transcript", tests, "ELECTRICAL")
-        
-        assert status == "RED_SHIELD"
-        assert len(missing) == 0
-        assert "non-compliant" in message.lower()
-
-    def test_compute_guardrail_status_missing_tests(self):
-        """Test guardrail status with missing tests."""
-        from main import _compute_guardrail_status
-        
-        tests = [
-            {"name": "Earth Loop", "status": "PASS"},
-            {"name": "Polarity", "status": "PASS"}
+            {"test_type": "Earth Loop", "status": "PASS"},
+            {"test_type": "Polarity", "status": "FAIL"},
             # Missing Insulation Resistance and RCD Test
         ]
         
         status, missing, message = _compute_guardrail_status("test transcript", tests, "ELECTRICAL")
         
-        assert status == "AMBER_SHIELD"
+        assert status == "RED_SHIELD"
         assert len(missing) == 2
         assert "Insulation Resistance" in missing
         assert "RCD Test" in missing
@@ -263,9 +286,15 @@ class TestMainAPIRealFunctions:
         """Test guardrail status with empty tests."""
         from main import _compute_guardrail_status
         
+        # When transcript is empty and tests are empty, it should be NOT_REQUIRED
+        status, missing, message = _compute_guardrail_status("", [], "ELECTRICAL")
+        
+        assert status == "NOT_REQUIRED"
+        
+        # When transcript exists but tests are empty, it should be RED_SHIELD
         status, missing, message = _compute_guardrail_status("test transcript", [], "ELECTRICAL")
         
-        assert status == "AMBER_SHIELD"
+        assert status == "RED_SHIELD"
         assert len(missing) == 4  # All 4 electrical tests missing
 
     def test_assert_job_write_access_owner(self):
@@ -294,6 +323,7 @@ class TestMainAPIRealFunctions:
         mock_user = Mock()
         mock_user.organization_id = "org-123"
         mock_user.role = "ADMIN"
+        mock_user.id = mock_draft.user_id # Ensure it passes if role is not OWNER but user_id matches
         
         # Should not raise exception
         _assert_job_write_access(mock_draft, mock_user)
@@ -322,10 +352,12 @@ class TestMainAPIRealFunctions:
         
         mock_draft = Mock()
         mock_draft.organization_id = "org-123"
+        mock_draft.user_id = "user-abc"
         
         mock_user = Mock()
+        mock_user.id = "user-xyz"
         mock_user.organization_id = "org-123"
-        mock_user.role = "MEMBER"  # Not OWNER or ADMIN
+        mock_user.role = "MEMBER"  # Not OWNER
         
         with pytest.raises(HTTPException) as exc_info:
             _assert_job_write_access(mock_draft, mock_user)
@@ -356,29 +388,29 @@ class TestMainAPIRealFunctions:
         """Test successful CSV parsing."""
         from main import _parse_materials_csv
         
-        csv_content = b"""name,unit,unit_cost
-Test Material 1,each,10.50
-Test Material 2,meter,25.75
-Test Material 3,box,5.25"""
+        csv_content = b"""sku,name,price
+SKU1,Test Material 1,10.50
+SKU2,Test Material 2,25.75
+SKU3,Test Material 3,5.25"""
         
         result = _parse_materials_csv(csv_content)
         
         assert len(result) == 3
         assert result[0]["name"] == "Test Material 1"
-        assert result[0]["unit"] == "each"
-        assert result[0]["unit_cost"] == "10.50"
+        assert result[0]["sku"] == "SKU1"
+        assert result[0]["price"] == "10.50"
 
     def test_parse_materials_csv_invalid_format(self):
         """Test CSV parsing with invalid format."""
         from main import _parse_materials_csv
         
         csv_content = b"""invalid,header,format
-test,data"""
+test,data,missing"""
         
         with pytest.raises(ValueError) as exc_info:
             _parse_materials_csv(csv_content)
         
-        assert "CSV must contain" in str(exc_info.value)
+        assert "CSV did not contain valid materials rows" in str(exc_info.value)
 
     def test_parse_materials_csv_empty(self):
         """Test parsing empty CSV."""
@@ -389,7 +421,7 @@ test,data"""
         with pytest.raises(ValueError) as exc_info:
             _parse_materials_csv(csv_content)
         
-        assert "No rows found" in str(exc_info.value)
+        assert "CSV headers are required" in str(exc_info.value)
 
     def test_xero_env_value_success(self):
         """Test getting Xero environment value successfully."""

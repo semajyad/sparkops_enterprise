@@ -35,6 +35,7 @@ type AdminSettings = {
   terms_and_conditions: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;
+  xero_tenant_id: string | null;
 };
 
 type TeamMember = {
@@ -451,6 +452,7 @@ export default function AdminPage(): React.JSX.Element {
       terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
       bank_account_name: toNullable(toInput(settings.bank_account_name)),
       bank_account_number: toNullable(toInput(settings.bank_account_number)),
+      xero_tenant_id: settings.xero_tenant_id,
     };
 
     setSettings(optimisticSettings);
@@ -482,6 +484,7 @@ export default function AdminPage(): React.JSX.Element {
         terms_and_conditions: payload.terms_and_conditions,
         bank_account_name: payload.bank_account_name,
         bank_account_number: payload.bank_account_number,
+        xero_tenant_id: payload.xero_tenant_id,
       };
       setSettings(canonical);
       await setAdminSettingsCache(canonical);
@@ -917,15 +920,25 @@ export default function AdminPage(): React.JSX.Element {
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-sm font-semibold text-gray-900">Xero Integration</p>
                 <p className="mt-1 text-xs text-gray-500">Connect your Xero org, then push completed jobs from Job Details.</p>
-                <button
-                  type="button"
-                  onClick={() => void connectXero()}
-                  disabled={isConnectingXero}
-                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-60"
-                >
-                  {isConnectingXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Connect Xero
-                </button>
+                {settings.xero_tenant_id ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-green-500 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 opacity-100"
+                  >
+                    Connected to Xero
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void connectXero()}
+                    disabled={isConnectingXero}
+                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-60"
+                  >
+                    {isConnectingXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Connect Xero
+                  </button>
+                )}
               </div>
               <label className="block text-sm text-gray-700">
                 Terms &amp; Conditions

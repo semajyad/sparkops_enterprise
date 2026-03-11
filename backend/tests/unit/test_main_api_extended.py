@@ -38,22 +38,34 @@ def test_get_openai_client() -> None:
 def test_get_openai_client_missing_key() -> None:
     """Test OpenAI client creation with missing API key."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(HTTPException, match="OPENAI_API_KEY is not configured"):
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY is required"):
             get_openai_client()
 
 
-def test_transcribe_audio() -> None:
+@patch("main.get_openai_client")
+@patch("main.AudioSegment")
+def test_transcribe_audio(mock_audio_segment, mock_get_client) -> None:
     """Test audio transcription."""
     audio_base64 = "dGVzdCBhdWRpbyBkYXRh"  # "test audio data" in base64
     
-    with patch("main.get_openai_client") as mock_client:
-        mock_audio_response = Mock()
-        mock_audio_response.text = "Test transcription"
-        
-        mock_client.return_value.audio.transcriptions.create.return_value = mock_audio_response
-        
-        result = transcribe_audio(audio_base64)
-        assert result == "Test transcription"
+    # Mock the wav conversion
+    import io
+    mock_segment_instance = Mock()
+    mock_segment_instance.export.return_value = io.BytesIO(b"mock_wav_data")
+    mock_audio_segment.from_file.return_value = mock_segment_instance
+    
+    mock_audio_response = Mock()
+    # Support both property accesses
+    mock_message = Mock()
+    mock_message.content = "Test transcription"
+    mock_choice = Mock()
+    mock_choice.message = mock_message
+    mock_audio_response.choices = [mock_choice]
+    
+    mock_get_client.return_value.chat.completions.create.return_value = mock_audio_response
+    
+    result = transcribe_audio(audio_base64)
+    assert result == "Test transcription"
 
 
 def test_embed_text() -> None:
@@ -108,7 +120,7 @@ def test_assert_job_write_access_field_user() -> None:
     """Test job write access for field user."""
     draft = Mock()
     draft.organization_id = "org-123"
-    draft.created_by = "user-456"
+    draft.user_id = "user-456"
     
     user = Mock()
     user.organization_id = "org-123"
@@ -136,7 +148,7 @@ def test_assert_job_write_access_insufficient_permissions() -> None:
     """Test job write access with insufficient permissions."""
     draft = Mock()
     draft.organization_id = "org-123"
-    draft.created_by = "user-789"
+    draft.user_id = "user-789"
     
     user = Mock()
     user.organization_id = "org-123"
@@ -158,6 +170,10 @@ def test_upsert_materials_rows_with_vector() -> None:
     rows = [{"sku": "TEST001", "name": "Test Material", "price": "10.50"}]
     embeddings = [[0.1, 0.2, 0.3]]
     
+    from uuid import uuid4
+    org_id = uuid4()
+    user_id = uuid4()
+    
     with patch("main.Session") as mock_session, \
          patch("main._materials_supports_vector_column", return_value=True):
         
@@ -166,13 +182,17 @@ def test_upsert_materials_rows_with_vector() -> None:
         mock_session_instance.exec.return_value = Mock()
         mock_session_instance.commit.return_value = None
         
-        count = _upsert_materials_rows(rows, embeddings, True)
+        count = _upsert_materials_rows(rows, embeddings, True, org_id, user_id)
         assert count == 1
 
 
 def test_upsert_materials_rows_without_vector() -> None:
     """Test materials upsert without vector support."""
     rows = [{"sku": "TEST001", "name": "Test Material", "price": "10.50"}]
+    
+    from uuid import uuid4
+    org_id = uuid4()
+    user_id = uuid4()
     
     with patch("main.Session") as mock_session, \
          patch("main._materials_supports_vector_column", return_value=False):
@@ -182,13 +202,15 @@ def test_upsert_materials_rows_without_vector() -> None:
         mock_session_instance.exec.return_value = Mock()
         mock_session_instance.commit.return_value = None
         
-        count = _upsert_materials_rows(rows, None, False)
+        count = _upsert_materials_rows(rows, None, False, org_id, user_id)
         assert count == 1
 
 
 def test_import_materials() -> None:
     """Test materials import."""
     csv_content = b"sku,name,price\nTEST001,Test Material,10.50\n"
+    
+    from uuid import uuid4
     
     with patch("main._parse_materials_csv") as mock_parse, \
          patch("main._materials_supports_vector_column", return_value=False), \
@@ -197,42 +219,55 @@ def test_import_materials() -> None:
         mock_parse.return_value = [{"sku": "TEST001", "name": "Test Material", "price": "10.50"}]
         
         user = Mock()
+        user.organization_id = uuid4()
+        user.id = uuid4()
         result = import_materials(csv_content, "test.csv", user)
         
-        assert result.imported == 1
-        assert result.failed == 0
+        assert result.status == "ok"
+        assert result.imported_count == 1
+        assert result.failed_count == 0
 
 
 def test_build_auth_me_response() -> None:
     """Test auth me response building."""
+    from uuid import uuid4
     user = Mock()
-    user.id = "user-123"
-    user.organization_id = "org-123"
+    user.id = uuid4()
+    user.organization_id = uuid4()
     user.role = "OWNER"
     user.email = "test@example.com"
+    user.trade = "ELECTRICAL"
+    user.organization_default_trade = "ELECTRICAL"
+    user.full_name = "Test User"
     
     response = _build_auth_me_response(user)
     
-    assert response.user_id == "user-123"
-    assert response.organization_id == "org-123"
+    assert response.id == user.id
+    assert response.organization_id == user.organization_id
     assert response.role == "OWNER"
     assert response.email == "test@example.com"
 
 
 def test_to_invite_response() -> None:
     """Test invite response building."""
+    from uuid import uuid4
+    from datetime import datetime, timezone
+    
     invite = Mock()
-    invite.id = "invite-123"
-    invite.organization_id = "org-123"
+    invite.id = uuid4()
+    invite.organization_id = uuid4()
     invite.email = "test@example.com"
+    invite.full_name = "Test User"
     invite.role = "FIELD"
-    invite.created_at = "2023-01-01T00:00:00Z"
+    invite.status = "PENDING"
+    invite.invited_by_user_id = uuid4()
+    invite.created_at = datetime.now(timezone.utc)
     invite.accepted_at = None
     
     response = _to_invite_response(invite)
     
-    assert response.id == "invite-123"
-    assert response.organization_id == "org-123"
+    assert response.id == invite.id
+    assert response.organization_id == invite.organization_id
     assert response.email == "test@example.com"
     assert response.role == "FIELD"
     assert response.accepted_at is None
@@ -240,41 +275,57 @@ def test_to_invite_response() -> None:
 
 def test_to_org_settings_response() -> None:
     """Test organization settings response building."""
+    from uuid import uuid4
+    from datetime import datetime, timezone
     settings = Mock()
-    settings.organization_id = "org-123"
+    settings.organization_id = uuid4()
     settings.logo_url = "https://example.com/logo.png"
+    settings.website_url = "https://example.com"
     settings.business_name = "Test Business"
-    settings.contact_email = "contact@example.com"
-    settings.phone = "+64 21 123 4567"
-    settings.address = "123 Test St"
-    settings.xero_tenant_id = "tenant-123"
+    settings.gst_number = "123-456-789"
+    settings.default_trade = "ELECTRICAL"
+    settings.tax_rate = 15.0
+    settings.standard_markup = 20.0
+    settings.terms_and_conditions = "Test terms"
+    settings.bank_account_name = "Test Account"
+    settings.bank_account_number = "12-3456-1234567-00"
+    settings.subscription_status = "ACTIVE"
+    settings.plan_type = "BASE"
+    settings.licensed_seats = 1
+    settings.trial_started_at = None
+    settings.trial_ends_at = None
+    settings.stripe_customer_id = None
+    settings.stripe_subscription_id = None
+    settings.updated_at = datetime.now(timezone.utc)
     
     response = _to_org_settings_response(settings)
     
-    assert response.organization_id == "org-123"
+    assert response.organization_id == settings.organization_id
     assert response.logo_url == "https://example.com/logo.png"
     assert response.business_name == "Test Business"
-    assert response.contact_email == "contact@example.com"
+    assert response.website_url == "https://example.com"
 
 
 def test_to_vehicle_response() -> None:
     """Test vehicle response building."""
+    from uuid import uuid4
+    from datetime import datetime, timezone
+    
     vehicle = Mock()
-    vehicle.id = "vehicle-123"
-    vehicle.organization_id = "org-123"
-    vehicle.make = "Toyota"
-    vehicle.model = "Hilux"
-    vehicle.license_plate = "ABC123"
-    vehicle.year = 2023
-    vehicle.created_at = "2023-01-01T00:00:00Z"
+    vehicle.id = uuid4()
+    vehicle.organization_id = uuid4()
+    vehicle.name = "Toyota Hilux"
+    vehicle.plate = "ABC123"
+    vehicle.notes = "Company truck"
+    vehicle.created_at = datetime.now(timezone.utc)
+    vehicle.updated_at = datetime.now(timezone.utc)
     
     response = _to_vehicle_response(vehicle)
     
-    assert response.id == "vehicle-123"
-    assert response.make == "Toyota"
-    assert response.model == "Hilux"
-    assert response.license_plate == "ABC123"
-    assert response.year == 2023
+    assert response.id == vehicle.id
+    assert response.name == "Toyota Hilux"
+    assert response.plate == "ABC123"
+    assert response.notes == "Company truck"
 
 
 def test_xero_env_value() -> None:
@@ -314,9 +365,16 @@ def test_xero_state_secret_default() -> None:
 
 def test_build_xero_state() -> None:
     """Test Xero state building."""
-    org_id = "org-123"
+    from uuid import uuid4
+    org_id = uuid4()
     
     with patch("main._xero_state_secret", return_value="test-secret"):
-        with patch("main.jwt.encode", return_value="encoded-state"):
-            result = _build_xero_state(org_id)
-            assert result == "encoded-state"
+        result = _build_xero_state(org_id)
+        # Should return a string in the format payload.signature
+        assert isinstance(result, str)
+        assert "." in result
+        
+        parts = result.split(".")
+        assert len(parts) == 2
+        assert len(parts[0]) > 0
+        assert len(parts[1]) > 0

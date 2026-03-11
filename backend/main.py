@@ -56,7 +56,7 @@ from fastapi.exceptions import RequestValidationError
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 
 from pydantic import BaseModel, Field
 
@@ -617,6 +617,7 @@ class OrganizationSettingsResponse(BaseModel):
     trial_ends_at: datetime | None = None
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
+    xero_tenant_id: str | None = None
     updated_at: datetime
 
 
@@ -1619,7 +1620,7 @@ def _to_invite_response(record: Invite) -> InviteResponse:
     )
 
 
-def _to_org_settings_response(settings: OrganizationSettings) -> OrganizationSettingsResponse:
+def _to_org_settings_response(settings: OrganizationSettings, xero_tenant_id: str | None = None) -> OrganizationSettingsResponse:
     return OrganizationSettingsResponse(
         organization_id=settings.organization_id,
         logo_url=settings.logo_url,
@@ -1639,6 +1640,7 @@ def _to_org_settings_response(settings: OrganizationSettings) -> OrganizationSet
         trial_ends_at=settings.trial_ends_at,
         stripe_customer_id=settings.stripe_customer_id,
         stripe_subscription_id=settings.stripe_subscription_id,
+        xero_tenant_id=xero_tenant_id,
         updated_at=settings.updated_at,
     )
 
@@ -1716,7 +1718,16 @@ def get_organization_settings(current_user: AuthenticatedUser = Depends(require_
             session.add(settings)
             session.commit()
             session.refresh(settings)
-        return _to_org_settings_response(settings)
+            
+        xero_integration = session.exec(
+            select(Integration)
+            .where(Integration.organization_id == current_user.organization_id)
+            .where(Integration.provider == "XERO")
+            .limit(1)
+        ).first()
+        xero_tenant_id = xero_integration.tenant_id if xero_integration else None
+
+        return _to_org_settings_response(settings, xero_tenant_id=xero_tenant_id)
 
 
 @app.put("/api/v1/admin/settings", response_model=OrganizationSettingsResponse)
@@ -1763,7 +1774,16 @@ def upsert_organization_settings(
         session.add(settings)
         session.commit()
         session.refresh(settings)
-        return _to_org_settings_response(settings)
+
+        xero_integration = session.exec(
+            select(Integration)
+            .where(Integration.organization_id == current_user.organization_id)
+            .where(Integration.provider == "XERO")
+            .limit(1)
+        ).first()
+        xero_tenant_id = xero_integration.tenant_id if xero_integration else None
+
+        return _to_org_settings_response(settings, xero_tenant_id=xero_tenant_id)
 
 
 @app.get("/api/v1/admin/billing/entitlements", response_model=BillingEntitlementsResponse)
@@ -2451,12 +2471,12 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
     )
 
 
-@app.get("/api/v1/integrations/xero/callback", response_model=XeroConnectCallbackResponse)
-@app.get("/api/integrations/xero/callback", response_model=XeroConnectCallbackResponse)
+@app.get("/api/v1/integrations/xero/callback")
+@app.get("/api/integrations/xero/callback")
 def connect_xero_callback(
     code: str,
     state: str,
-) -> XeroConnectCallbackResponse:
+):
     """Handle Xero OAuth callback and persist access/refresh tokens."""
 
     parsed_state = _decode_xero_state(state)
@@ -2518,12 +2538,8 @@ def connect_xero_callback(
         session.add(record)
         session.commit()
 
-    return XeroConnectCallbackResponse(
-        status="connected",
-        organization_id=organization_id,
-        provider="XERO",
-        tenant_id=tenant_id,
-    )
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    return RedirectResponse(url=f"{frontend_url}/admin?xero=success", status_code=302)
 
 
 @app.post("/api/v1/integrations/xero/push-invoice", response_model=XeroPushInvoiceResponse)

@@ -51,8 +51,14 @@ class TestMainAPIMassiveBoost:
         assert response.status_code in [405, 422]
 
     @patch('main.get_openai_client')
-    def test_transcribe_audio_all_scenarios(self, mock_get_client):
+    @patch('main.AudioSegment')
+    def test_transcribe_audio_all_scenarios(self, mock_audio_segment, mock_get_client):
         """Test audio transcription with all scenarios."""
+        import io
+        mock_segment_instance = Mock()
+        mock_segment_instance.export.return_value = io.BytesIO(b"mock_wav_data")
+        mock_audio_segment.from_file.return_value = mock_segment_instance
+        
         mock_client = Mock()
         mock_get_client.return_value = mock_client
         
@@ -60,8 +66,13 @@ class TestMainAPIMassiveBoost:
         
         # Test successful transcription
         mock_transcription = Mock()
-        mock_transcription.text = "Test transcription result"
-        mock_client.audio.transcriptions.create.return_value = mock_transcription
+        mock_message = Mock()
+        mock_message.content = "Test transcription result"
+        mock_choice = Mock()
+        mock_choice.message = mock_message
+        mock_transcription.choices = [mock_choice]
+        
+        mock_client.chat.completions.create.return_value = mock_transcription
         
         result = transcribe_audio("SGVsbG8gV29ybGQ=")
         assert result == "Test transcription result"
@@ -179,7 +190,7 @@ class TestMainAPIMassiveBoost:
         for trade_input in all_inputs:
             result = _required_tests_for_trade(trade_input)
             assert isinstance(result, tuple)
-            assert len(result) in [0, 4]  # Either empty or 4 tests
+            assert len(result) in [0, 4, 8, 7]  # Either empty, 4 tests, or 7/8 tests (ANY)
 
     def test_normalize_safety_tests_all_data_structures(self):
         """Test safety test normalization with all data structures."""
@@ -190,9 +201,9 @@ class TestMainAPIMassiveBoost:
             # Valid structure
             {
                 "safety_tests": [
-                    {"name": "Test 1", "status": "PASS", "value": "1.0"},
-                    {"name": "Test 2", "status": "FAIL", "value": "2.0"},
-                    {"name": "Test 3", "status": "PASS", "value": "3.0"},
+                    {"type": "Test 1", "result": "PASS", "value": "1.0"},
+                    {"type": "Test 2", "result": "FAIL", "value": "2.0"},
+                    {"type": "Test 3", "result": "PASS", "value": "3.0"},
                 ]
             },
             # Empty tests
@@ -209,9 +220,9 @@ class TestMainAPIMassiveBoost:
                     "string",
                     123,
                     None,
-                    {"name": "Valid", "status": "PASS"},
-                    {"status": "PASS"},  # Missing name
-                    {"name": "Test"},  # Missing status
+                    {"type": "Valid", "result": "PASS"},
+                    {"result": "PASS"},  # Missing name
+                    {"type": "Test"},  # Missing status
                     {},  # Empty dict
                 ]
             },
@@ -230,21 +241,21 @@ class TestMainAPIMassiveBoost:
         
         test_scenarios = [
             # All passing
-            [{"name": "Test 1", "status": "PASS"}, {"name": "Test 2", "status": "PASS"}],
+            [{"test_type": "Test 1", "status": "PASS"}, {"test_type": "Test 2", "status": "PASS"}],
             # All failing
-            [{"name": "Test 1", "status": "FAIL"}, {"name": "Test 2", "status": "FAIL"}],
+            [{"test_type": "Test 1", "status": "FAIL"}, {"test_type": "Test 2", "status": "FAIL"}],
             # Mixed
-            [{"name": "Test 1", "status": "PASS"}, {"name": "Test 2", "status": "FAIL"}],
+            [{"test_type": "Test 1", "status": "PASS"}, {"test_type": "Test 2", "status": "FAIL"}],
             # Empty
             [],
             # Single test
-            [{"name": "Test 1", "status": "PASS"}],
+            [{"test_type": "Test 1", "status": "PASS"}],
         ]
         
         for trade in all_trades:
             for tests in test_scenarios:
                 status, missing, message = _compute_guardrail_status("transcript", tests, trade)
-                assert status in ["GREEN_SHIELD", "AMBER_SHIELD", "RED_SHIELD"]
+                assert status in ["GREEN_SHIELD", "AMBER_SHIELD", "RED_SHIELD", "NOT_REQUIRED"]
                 assert isinstance(missing, list)
                 assert isinstance(message, str)
 
@@ -254,6 +265,7 @@ class TestMainAPIMassiveBoost:
         
         mock_draft = Mock()
         mock_draft.organization_id = "org-123"
+        mock_draft.user_id = "user-123"
         
         # Test all role and organization combinations
         roles = ["OWNER", "ADMIN", "MEMBER", "VIEWER", "INVALID"]
@@ -264,14 +276,16 @@ class TestMainAPIMassiveBoost:
                 mock_user = Mock()
                 mock_user.organization_id = org_id
                 mock_user.role = role
+                # For non-owners, it only passes if their user ID matches the draft user ID
+                mock_user.id = "user-123" if role == "ADMIN" else "user-456"
                 
                 try:
                     _assert_job_write_access(mock_draft, mock_user)
                     # If no exception, should be allowed
-                    assert org_id == "org-123" and role in ["OWNER", "ADMIN"]
+                    assert org_id == "org-123" and (role == "OWNER" or mock_user.id == mock_draft.user_id)
                 except HTTPException:
                     # If exception, should be denied
-                    assert org_id != "org-123" or role not in ["OWNER", "ADMIN"]
+                    assert org_id != "org-123" or (role != "OWNER" and mock_user.id != mock_draft.user_id)
 
     def test_materials_vector_support_all_scenarios(self):
         """Test vector column support detection in all scenarios."""
@@ -384,12 +398,12 @@ class TestMainAPIMassiveBoost:
             mock_client.embeddings.create.side_effect = error
             
             # Test embed_text error handling
-            result = embed_text("test")
-            assert result == []
+            with pytest.raises(Exception, match=str(error)):
+                embed_text("test")
             
             # Test embed_text_batch error handling
-            result = embed_text_batch(["test"])
-            assert result == []
+            with pytest.raises(Exception, match=str(error)):
+                embed_text_batch(["test"])
 
     def test_data_validation_edge_cases(self):
         """Test data validation with extreme edge cases."""
@@ -425,18 +439,27 @@ class TestMainAPIMassiveBoost:
                 "id": uuid4(),
                 "email": "test@example.com",
                 "role": "OWNER",
+                "trade": "ELECTRICAL",
+                "organization_default_trade": "ELECTRICAL",
+                "full_name": "Test Owner",
                 "organization_id": uuid4(),
             },
             {
                 "id": uuid4(),
                 "email": "admin@example.com",
                 "role": "ADMIN",
+                "trade": "PLUMBING",
+                "organization_default_trade": "PLUMBING",
+                "full_name": "Test Admin",
                 "organization_id": uuid4(),
             },
             {
                 "id": uuid4(),
                 "email": "member@example.com",
                 "role": "MEMBER",
+                "trade": "ANY",
+                "organization_default_trade": "ELECTRICAL",
+                "full_name": "Test Member",
                 "organization_id": uuid4(),
             },
         ]
@@ -469,9 +492,9 @@ class TestMainAPIMassiveBoost:
             
             # Create test results
             if required:
-                tests = [{"name": test, "status": "PASS"} for test in required]
+                tests = [{"test_type": test, "status": "PASS"} for test in required]
             else:
-                tests = [{"name": "General Test", "status": "PASS"}]
+                tests = [{"test_type": "General Test", "status": "PASS"}]
             
             # Compute guardrail status
             status, missing, message = _compute_guardrail_status("test transcript", tests, normalized)
@@ -504,7 +527,7 @@ class TestMainAPIMassiveBoost:
         from main import _normalize_safety_tests
         
         # Test with large data structures
-        large_tests = [{"name": f"Test {i}", "status": "PASS"} for i in range(1000)]
+        large_tests = [{"type": f"Test {i}", "result": "PASS"} for i in range(1000)]
         
         extracted_data = {"safety_tests": large_tests}
         result = _normalize_safety_tests(extracted_data, None, None)

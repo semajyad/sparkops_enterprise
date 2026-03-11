@@ -145,6 +145,7 @@ export interface CachedAdminState {
   terms_and_conditions: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;
+  xero_tenant_id: string | null;
   updated_at: number;
 }
 

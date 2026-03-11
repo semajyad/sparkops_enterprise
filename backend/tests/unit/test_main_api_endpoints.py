@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
-from main import app
+from main import app, get_current_user, require_owner
 from models.database import JobDraft, OrganizationSettings, Vehicle
 
 
@@ -21,7 +21,7 @@ def test_root_endpoint() -> None:
     
     assert response.status_code == 200
     data = response.json()
-    assert data["service"] == "sparkops-data-factory"
+    assert data["service"] == "tradeops-data-factory"
     assert data["version"] == "1.0.0"
     assert "uptime" in data
 
@@ -30,14 +30,15 @@ def test_ingest_endpoint_success() -> None:
     """Test successful ingest endpoint."""
     client = TestClient(app)
     
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     payload = {
         "voice_notes": "Install TPS cable and outlets",
         "audio_base64": None,
         "receipt_image_base64": None
     }
     
-    with patch("main.get_current_user", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.transcribe_audio", return_value="Install TPS cable and outlets"), \
+    with patch("main.transcribe_audio", return_value="Install TPS cable and outlets"), \
          patch("main.embed_text", return_value=[[0.1, 0.2, 0.3]]), \
          patch("main._normalize_trade", return_value="ELECTRICAL"), \
          patch("main._normalize_safety_tests", return_value=[]), \
@@ -50,26 +51,18 @@ def test_ingest_endpoint_success() -> None:
         mock_session_instance.commit.return_value = None
         mock_session_instance.refresh.return_value = None
         
-        # Mock the job draft
-        job_draft = Mock()
-        job_draft.id = "job-123"
-        job_draft.extracted_data = {"client": "Test Client"}
-        job_draft.sync_status = "pending"
-        job_draft.created_at = "2023-01-01T00:00:00Z"
-        job_draft.updated_at = "2023-01-01T00:00:00Z"
-        
-        mock_session_instance.add.return_value = None
-        mock_session_instance.commit.return_value = None
-        mock_session_instance.refresh.return_value = None
-        
         response = client.post("/api/ingest", json=payload)
         
         assert response.status_code == 200
+    
+    app.dependency_overrides.clear()
 
 
 def test_ingest_endpoint_with_audio() -> None:
     """Test ingest endpoint with audio data."""
     client = TestClient(app)
+    
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
     
     payload = {
         "voice_notes": None,
@@ -77,8 +70,7 @@ def test_ingest_endpoint_with_audio() -> None:
         "receipt_image_base64": None
     }
     
-    with patch("main.get_current_user", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.transcribe_audio", return_value="Test audio transcription"), \
+    with patch("main.transcribe_audio", return_value="Test audio transcription"), \
          patch("main.embed_text", return_value=[[0.1, 0.2, 0.3]]), \
          patch("main._normalize_trade", return_value="ELECTRICAL"), \
          patch("main._normalize_safety_tests", return_value=[]), \
@@ -94,11 +86,15 @@ def test_ingest_endpoint_with_audio() -> None:
         response = client.post("/api/ingest", json=payload)
         
         assert response.status_code == 200
+    
+    app.dependency_overrides.clear()
 
 
 def test_ingest_endpoint_with_receipt() -> None:
     """Test ingest endpoint with receipt data."""
     client = TestClient(app)
+    
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
     
     payload = {
         "voice_notes": None,
@@ -106,8 +102,7 @@ def test_ingest_endpoint_with_receipt() -> None:
         "receipt_image_base64": "dGVzdCByZWNlaXB0IGRhdGE="  # "test receipt data" in base64
     }
     
-    with patch("main.get_current_user", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.transcribe_audio", return_value=""), \
+    with patch("main.transcribe_audio", return_value=""), \
          patch("main.embed_text", return_value=[[0.1, 0.2, 0.3]]), \
          patch("main._normalize_trade", return_value="ELECTRICAL"), \
          patch("main._normalize_safety_tests", return_value=[]), \
@@ -123,11 +118,18 @@ def test_ingest_endpoint_with_receipt() -> None:
         response = client.post("/api/ingest", json=payload)
         
         assert response.status_code == 200
+        
+    app.dependency_overrides.clear()
 
 
 def test_ingest_endpoint_unauthorized() -> None:
     """Test ingest endpoint without authentication."""
     client = TestClient(app)
+    
+    def override_get_current_user():
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    app.dependency_overrides[get_current_user] = override_get_current_user
     
     payload = {
         "voice_notes": "Test note",
@@ -135,58 +137,73 @@ def test_ingest_endpoint_unauthorized() -> None:
         "receipt_image_base64": None
     }
     
-    with patch("main.get_current_user", side_effect=HTTPException(status_code=401, detail="Unauthorized")):
-        response = client.post("/api/ingest", json=payload)
-        assert response.status_code == 401
+    response = client.post("/api/ingest", json=payload)
+    assert response.status_code == 401
+    
+    app.dependency_overrides.clear()
 
 
 def test_auth_me_endpoint() -> None:
     """Test auth me endpoint."""
     client = TestClient(app)
     
-    with patch("main.get_current_user", return_value=Mock(
-        id="user-123",
-        organization_id="org-123", 
-        role="OWNER",
-        email="test@example.com"
-    )):
-        response = client.get("/api/auth/me")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["user_id"] == "user-123"
-        assert data["organization_id"] == "org-123"
-        assert data["role"] == "OWNER"
-        assert data["email"] == "test@example.com"
+    mock_user = Mock()
+    mock_user.id = "user-123"
+    mock_user.organization_id = "org-123"
+    mock_user.role = "OWNER"
+    mock_user.email = "test@example.com"
+    mock_user.trade = "ELECTRICAL"
+    mock_user.organization_default_trade = "ELECTRICAL"
+    mock_user.full_name = "Test User"
+    
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    
+    response = client.get("/api/auth/me")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "user-123"
+    assert data["organization_id"] == "org-123"
+    assert data["role"] == "OWNER"
+    assert data["email"] == "test@example.com"
+    
+    app.dependency_overrides.clear()
 
 
 def test_auth_handshake_v1_endpoint() -> None:
     """Test auth handshake v1 endpoint."""
     client = TestClient(app)
     
-    with patch("main.get_current_user", return_value=Mock(
-        id="user-456",
-        organization_id="org-456", 
-        role="FIELD",
-        email="field@example.com"
-    )):
-        response = client.get("/api/v1/auth/handshake")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["user_id"] == "user-456"
-        assert data["organization_id"] == "org-456"
-        assert data["role"] == "FIELD"
-        assert data["email"] == "field@example.com"
+    mock_user = Mock()
+    mock_user.id = "user-456"
+    mock_user.organization_id = "org-456"
+    mock_user.role = "FIELD"
+    mock_user.email = "field@example.com"
+    mock_user.trade = "PLUMBING"
+    mock_user.organization_default_trade = "PLUMBING"
+    mock_user.full_name = "Field User"
+    
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    
+    response = client.get("/api/v1/auth/handshake")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "user-456"
+    assert data["organization_id"] == "org-456"
+    assert data["role"] == "FIELD"
+    assert data["email"] == "field@example.com"
+    
+    app.dependency_overrides.clear()
 
 
 def test_get_organization_settings() -> None:
     """Test getting organization settings."""
     client = TestClient(app)
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -196,9 +213,22 @@ def test_get_organization_settings() -> None:
         settings.logo_url = "https://example.com/logo.png"
         settings.business_name = "Test Business"
         settings.contact_email = "contact@example.com"
-        settings.phone = "+64 21 123 4567"
-        settings.address = "123 Test St"
-        settings.xero_tenant_id = "tenant-123"
+        settings.website_url = "https://example.com"
+        settings.gst_number = "123-456"
+        settings.default_trade = "ELECTRICAL"
+        settings.tax_rate = 15.0
+        settings.standard_markup = 20.0
+        settings.terms_and_conditions = ""
+        settings.bank_account_name = ""
+        settings.bank_account_number = ""
+        settings.subscription_status = "ACTIVE"
+        settings.plan_type = "BASE"
+        settings.licensed_seats = 1
+        settings.trial_started_at = None
+        settings.trial_ends_at = None
+        settings.stripe_customer_id = None
+        settings.stripe_subscription_id = None
+        settings.updated_at = "2023-01-01T00:00:00Z"
         
         mock_session_instance.get.return_value = settings
         
@@ -208,24 +238,31 @@ def test_get_organization_settings() -> None:
         data = response.json()
         assert data["organization_id"] == "org-123"
         assert data["business_name"] == "Test Business"
+        
+    app.dependency_overrides.clear()
 
 
 def test_upsert_organization_settings() -> None:
     """Test updating organization settings."""
     client = TestClient(app)
     
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     payload = {
         "logo_url": "https://example.com/new-logo.png",
         "business_name": "Updated Business",
         "contact_email": "updated@example.com",
-        "phone": "+64 21 987 6543",
-        "address": "456 Updated St",
-        "xero_tenant_id": "new-tenant-123"
+        "website_url": "https://example.com",
+        "gst_number": "123",
+        "default_trade": "ELECTRICAL",
+        "tax_rate": 15.0,
+        "standard_markup": 20.0,
+        "terms_and_conditions": "",
+        "bank_account_name": "",
+        "bank_account_number": ""
     }
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -240,9 +277,22 @@ def test_upsert_organization_settings() -> None:
         updated_settings.logo_url = payload["logo_url"]
         updated_settings.business_name = payload["business_name"]
         updated_settings.contact_email = payload["contact_email"]
-        updated_settings.phone = payload["phone"]
-        updated_settings.address = payload["address"]
-        updated_settings.xero_tenant_id = payload["xero_tenant_id"]
+        updated_settings.website_url = payload["website_url"]
+        updated_settings.gst_number = payload["gst_number"]
+        updated_settings.default_trade = payload["default_trade"]
+        updated_settings.tax_rate = payload["tax_rate"]
+        updated_settings.standard_markup = payload["standard_markup"]
+        updated_settings.terms_and_conditions = payload["terms_and_conditions"]
+        updated_settings.bank_account_name = payload["bank_account_name"]
+        updated_settings.bank_account_number = payload["bank_account_number"]
+        updated_settings.subscription_status = "ACTIVE"
+        updated_settings.plan_type = "BASE"
+        updated_settings.licensed_seats = 1
+        updated_settings.trial_started_at = None
+        updated_settings.trial_ends_at = None
+        updated_settings.stripe_customer_id = None
+        updated_settings.stripe_subscription_id = None
+        updated_settings.updated_at = "2023-01-01T00:00:00Z"
         
         mock_session_instance.commit.return_value = None
         mock_session_instance.refresh.return_value = updated_settings
@@ -250,15 +300,17 @@ def test_upsert_organization_settings() -> None:
         response = client.put("/api/admin/settings", json=payload)
         
         assert response.status_code == 200
+        
+    app.dependency_overrides.clear()
 
 
 def test_list_vehicles() -> None:
     """Test listing vehicles."""
     client = TestClient(app)
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -267,20 +319,20 @@ def test_list_vehicles() -> None:
             Mock(
                 id="vehicle-1",
                 organization_id="org-123",
-                make="Toyota",
-                model="Hilux",
-                license_plate="ABC123",
-                year=2023,
-                created_at="2023-01-01T00:00:00Z"
+                name="Toyota Hilux",
+                plate="ABC123",
+                notes="",
+                created_at="2023-01-01T00:00:00Z",
+                updated_at="2023-01-01T00:00:00Z"
             ),
             Mock(
                 id="vehicle-2", 
                 organization_id="org-123",
-                make="Ford",
-                model="Ranger",
-                license_plate="XYZ789",
-                year=2022,
-                created_at="2023-01-02T00:00:00Z"
+                name="Ford Ranger",
+                plate="XYZ789",
+                notes="",
+                created_at="2023-01-02T00:00:00Z",
+                updated_at="2023-01-01T00:00:00Z"
             )
         ]
         
@@ -291,24 +343,25 @@ def test_list_vehicles() -> None:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
-        assert data[0]["make"] == "Toyota"
-        assert data[1]["make"] == "Ford"
+        assert data[0]["name"] == "Toyota Hilux"
+        assert data[1]["name"] == "Ford Ranger"
+        
+    app.dependency_overrides.clear()
 
 
 def test_create_vehicle() -> None:
     """Test creating a vehicle."""
     client = TestClient(app)
     
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     payload = {
-        "make": "Nissan",
-        "model": "Navara",
-        "license_plate": "DEF456",
-        "year": 2023
+        "name": "Nissan Navara",
+        "plate": "DEF456",
+        "notes": "Work truck"
     }
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -316,11 +369,11 @@ def test_create_vehicle() -> None:
         vehicle = Mock()
         vehicle.id = "vehicle-new"
         vehicle.organization_id = "org-123"
-        vehicle.make = payload["make"]
-        vehicle.model = payload["model"]
-        vehicle.license_plate = payload["license_plate"]
-        vehicle.year = payload["year"]
+        vehicle.name = payload["name"]
+        vehicle.plate = payload["plate"]
+        vehicle.notes = payload["notes"]
         vehicle.created_at = "2023-01-01T00:00:00Z"
+        vehicle.updated_at = "2023-01-01T00:00:00Z"
         
         mock_session_instance.add.return_value = None
         mock_session_instance.commit.return_value = None
@@ -330,25 +383,26 @@ def test_create_vehicle() -> None:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["make"] == "Nissan"
-        assert data["model"] == "Navara"
+        assert data["name"] == "Nissan Navara"
+        assert data["plate"] == "DEF456"
+        
+    app.dependency_overrides.clear()
 
 
 def test_update_vehicle() -> None:
     """Test updating a vehicle."""
     client = TestClient(app)
     
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     vehicle_id = "vehicle-123"
     payload = {
-        "make": "Updated Toyota",
-        "model": "Updated Hilux",
-        "license_plate": "UPD123",
-        "year": 2024
+        "name": "Updated Toyota",
+        "plate": "UPD123",
+        "notes": "Updated notes"
     }
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -362,11 +416,11 @@ def test_update_vehicle() -> None:
         updated_vehicle = Mock()
         updated_vehicle.id = vehicle_id
         updated_vehicle.organization_id = "org-123"
-        updated_vehicle.make = payload["make"]
-        updated_vehicle.model = payload["model"]
-        updated_vehicle.license_plate = payload["license_plate"]
-        updated_vehicle.year = payload["year"]
+        updated_vehicle.name = payload["name"]
+        updated_vehicle.plate = payload["plate"]
+        updated_vehicle.notes = payload["notes"]
         updated_vehicle.created_at = "2023-01-01T00:00:00Z"
+        updated_vehicle.updated_at = "2023-01-01T00:00:00Z"
         
         mock_session_instance.commit.return_value = None
         mock_session_instance.refresh.return_value = updated_vehicle
@@ -375,19 +429,21 @@ def test_update_vehicle() -> None:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["make"] == "Updated Toyota"
-        assert data["license_plate"] == "UPD123"
+        assert data["name"] == "Updated Toyota"
+        assert data["plate"] == "UPD123"
+        
+    app.dependency_overrides.clear()
 
 
 def test_delete_vehicle() -> None:
     """Test deleting a vehicle."""
     client = TestClient(app)
     
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     vehicle_id = "vehicle-123"
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         
@@ -406,17 +462,19 @@ def test_delete_vehicle() -> None:
         data = response.json()
         assert data["status"] == "deleted"
         assert data["id"] == vehicle_id
+        
+    app.dependency_overrides.clear()
 
 
 def test_delete_vehicle_not_found() -> None:
     """Test deleting a vehicle that doesn't exist."""
     client = TestClient(app)
     
+    app.dependency_overrides[require_owner] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     vehicle_id = "nonexistent-vehicle"
     
-    with patch("main.require_owner", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.Session") as mock_session:
-        
+    with patch("main.Session") as mock_session:
         mock_session_instance = Mock()
         mock_session.return_value.__enter__.return_value = mock_session_instance
         mock_session_instance.get.return_value = None  # Vehicle not found
@@ -424,21 +482,29 @@ def test_delete_vehicle_not_found() -> None:
         response = client.delete(f"/api/admin/vehicles/{vehicle_id}")
         
         assert response.status_code == 404
+        
+    app.dependency_overrides.clear()
 
 
 def test_ingest_endpoint_validation_error() -> None:
     """Test ingest endpoint with invalid payload."""
     client = TestClient(app)
     
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     # Empty payload should fail validation
     response = client.post("/api/ingest", json={})
     
     assert response.status_code == 422  # Validation error
+    
+    app.dependency_overrides.clear()
 
 
 def test_ingest_endpoint_processing_error() -> None:
     """Test ingest endpoint with processing error."""
     client = TestClient(app)
+    
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
     
     payload = {
         "voice_notes": "Test note",
@@ -446,41 +512,50 @@ def test_ingest_endpoint_processing_error() -> None:
         "receipt_image_base64": None
     }
     
-    with patch("main.get_current_user", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.transcribe_audio", side_effect=Exception("Processing failed")):
-        
+    with patch("main.transcribe_audio", side_effect=Exception("Processing failed")):
         response = client.post("/api/ingest", json=payload)
-        
         assert response.status_code == 500
+        
+    app.dependency_overrides.clear()
 
 
 def test_materials_import_endpoint() -> None:
     """Test materials import endpoint."""
     client = TestClient(app)
     
+    app.dependency_overrides[get_current_user] = lambda: Mock(id="user-123", organization_id="org-123")
+    
     csv_content = "sku,name,price\nTEST001,Test Material,10.50\n"
     
-    with patch("main.get_current_user", return_value=Mock(id="user-123", organization_id="org-123")), \
-         patch("main.import_materials", return_value=Mock(imported=1, failed=0)):
-        
+    from main import MaterialsImportResponse
+    
+    with patch("main.import_materials", return_value=MaterialsImportResponse(status="success", imported_count=1, failed_count=0, total_rows=1, message="Success")):
         response = client.post(
             "/api/materials/import",
             files={"file": ("test.csv", csv_content, "text/csv")}
         )
         
         assert response.status_code == 200
+        
+    app.dependency_overrides.clear()
 
 
 def test_materials_import_endpoint_unauthorized() -> None:
     """Test materials import endpoint without authentication."""
     client = TestClient(app)
     
+    def override_get_current_user():
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    
     csv_content = "sku,name,price\nTEST001,Test Material,10.50\n"
     
-    with patch("main.get_current_user", side_effect=HTTPException(status_code=401, detail="Unauthorized")):
-        response = client.post(
-            "/api/materials/import",
-            files={"file": ("test.csv", csv_content, "text/csv")}
-        )
-        
-        assert response.status_code == 401
+    response = client.post(
+        "/api/materials/import",
+        files={"file": ("test.csv", csv_content, "text/csv")}
+    )
+    
+    assert response.status_code == 401
+    
+    app.dependency_overrides.clear()
