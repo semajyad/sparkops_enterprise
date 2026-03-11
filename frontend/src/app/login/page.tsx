@@ -104,7 +104,7 @@ function LoginPageContent(): React.JSX.Element {
                 type="submit"
                 className="min-h-11 w-full rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-all hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Sign In to SparkOps
+                Sign In to TradeOps
               </button>
             </form>
           ) : (
@@ -188,18 +188,6 @@ function LoginPageContent(): React.JSX.Element {
               </button>
             </form>
           )}
-
-          {/* Footer */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Status: <span className="font-medium text-green-600">Connected</span>
-            </p>
-            <div className="mt-3 text-xs text-gray-500">
-              <Link href="/" className="hover:text-orange-600">Back to home</Link>
-              <span className="mx-2">•</span>
-              <Link href="/signup" className="hover:text-orange-600">Create account</Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

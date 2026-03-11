@@ -958,21 +958,24 @@ export default function AdminPage(): React.JSX.Element {
                   <li key={vehicle.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{vehicle.name}</p>
-                      <p className="text-xs text-gray-500">{vehicle.plate}{vehicle.notes ? ` · ${vehicle.notes}` : ""}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="inline-flex rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs font-bold tracking-widest text-gray-700">
+                          {vehicle.plate}
+                        </span>
+                        {vehicle.notes ? <span className="text-xs text-gray-500">{vehicle.notes}</span> : null}
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => void removeVehicle(vehicle.id)}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                      className="text-gray-500 p-2 rounded-full hover:bg-red-50 hover:text-red-600 transition disabled:opacity-50"
+                      aria-label="Delete Vehicle"
                     >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
+                      <Trash2 className="h-5 w-5" />
                     </button>
                   </li>
                 ))}
               </ul>
-
-              {vehicles.length === 0 ? <p className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-600">No vehicles added yet.</p> : null}
             </div>
           ) : null}
 

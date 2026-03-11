@@ -586,12 +586,6 @@ export default function CapturePage() {
       <div className="pb-8">
 
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
-          <span
-            className={`absolute right-4 top-4 h-3 w-3 rounded-full ${
-              isOnline && pendingCount === 0 ? "bg-green-400" : "bg-orange-400"
-            }`}
-            aria-label={isOnline && pendingCount === 0 ? "Capture status: healthy" : "Capture status: pending or offline"}
-          />
 
         <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Voice First</p>

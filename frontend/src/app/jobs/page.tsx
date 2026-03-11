@@ -413,20 +413,21 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-visible rounded-xl border border-gray-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
               <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
                 className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-300 text-gray-600"
-                aria-label="Close new job form"
+                aria-label="Close create job form"
               >
-                <X className="h-4 w-4" />
+                ×
               </button>
             </div>
 
-            <form className="grid gap-5 px-5 py-4" onSubmit={onCreateManualJob}>
+            <form className="flex flex-col overflow-y-auto px-5 py-4 shrink" onSubmit={onCreateManualJob}>
+              <div className="grid gap-5">
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
@@ -513,6 +514,7 @@ export default function JobsPage(): React.JSX.Element {
                 >
                   {isCreating ? "Creating Job..." : "Create Job"}
                 </button>
+              </div>
             </form>
           </section>
         </div>

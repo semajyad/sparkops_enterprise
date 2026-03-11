@@ -209,16 +209,14 @@ export default function DashboardPage(): React.JSX.Element {
 
         {visibleJobs.length > 0 ? (
           <>
-            {!ownerFieldFocus ? (
-              <section className="mt-6 grid grid-cols-2 gap-4">
-                {pulseCards.map((metric) => (
-                  <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <p className="text-xs uppercase text-gray-500 font-bold">{metric.label}</p>
-                    <p className="mt-2 text-4xl font-bold text-gray-900">{metric.value}</p>
-                  </article>
-                ))}
-              </section>
-            ) : null}
+            <section className="mt-6 grid grid-cols-2 gap-4">
+              {pulseCards.map((metric) => (
+                <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <p className="text-xs uppercase text-gray-500 font-bold">{metric.label}</p>
+                  <p className="mt-2 text-4xl font-bold text-gray-900">{metric.value}</p>
+                </article>
+              ))}
+            </section>
 
             <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
               <div className="flex items-center gap-2 text-gray-700">

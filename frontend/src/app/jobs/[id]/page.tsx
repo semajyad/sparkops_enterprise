@@ -149,6 +149,10 @@ export default function JobReviewPage(): React.JSX.Element {
       return;
     }
 
+    if (!window.confirm("Are you sure you want to delete this job?")) {
+      return;
+    }
+
     const confirmed = window.confirm("Delete this job draft permanently?");
     if (!confirmed) {
       return;
