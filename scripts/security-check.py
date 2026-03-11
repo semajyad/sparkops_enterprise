@@ -87,7 +87,7 @@ def check_for_secrets(file_path):
 
 def main():
     """Main security check function."""
-    print("🔒 Security Check: Scanning for secrets and API keys...")
+    print("Security Check: Scanning for secrets and API keys...")
     
     # Get current directory or use provided path
     root_dir = Path('.')
@@ -102,22 +102,22 @@ def main():
     
     # Report results
     if issues:
-        print("\n❌ SECURITY ISSUES FOUND:")
+        print("\nSECURITY ISSUES FOUND:")
         print("The following files contain potential secrets that should not be committed:")
         print()
         
         for issue in issues:
-            print(f"📁 File: {issue['file']}")
-            print(f"📍 Line {issue['line']}: {issue['content']}")
-            print(f"🔍 Pattern: {issue['pattern']}")
-            print(f"⚠️  Match: {issue['match']}")
+            print(f"File: {issue['file']}")
+            print(f"Line {issue['line']}: {issue['content']}")
+            print(f"Pattern: {issue['pattern']}")
+            print(f"Match: {issue['match']}")
             print()
         
-        print("🚨 PLEASE REMOVE THESE SECRETS BEFORE COMMITTING!")
-        print("💡 Use environment variables instead of hardcoding secrets.")
+        print("PLEASE REMOVE THESE SECRETS BEFORE COMMITTING!")
+        print("TIP: Use environment variables instead of hardcoding secrets.")
         sys.exit(1)
     else:
-        print("✅ No secrets found. Safe to commit!")
+        print("No secrets found. Safe to commit!")
         sys.exit(0)
 
 if __name__ == "__main__":
