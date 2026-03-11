@@ -37,6 +37,7 @@ export default function JobsPage(): React.JSX.Element {
   const [scheduledDate, setScheduledDate] = useState("");
   const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const createInFlightRef = useRef(false);
 
@@ -100,8 +101,10 @@ export default function JobsPage(): React.JSX.Element {
 
     let cancelled = false;
     async function hydrateTeam(): Promise<void> {
+      setIsLoadingTeam(true);
       const cached = await getTeamCache();
       if (cancelled) {
+        setIsLoadingTeam(false);
         return;
       }
 
@@ -111,6 +114,7 @@ export default function JobsPage(): React.JSX.Element {
 
       const teamResult = await listTeamMembers();
       if (cancelled) {
+        setIsLoadingTeam(false);
         return;
       }
 
@@ -121,6 +125,7 @@ export default function JobsPage(): React.JSX.Element {
           pendingInvites: teamResult.pendingInvites,
         });
       }
+      setIsLoadingTeam(false);
     }
 
     void hydrateTeam();
@@ -128,6 +133,35 @@ export default function JobsPage(): React.JSX.Element {
       cancelled = true;
     };
   }, [isOwner, user?.id]);
+
+  // Refresh team members when modal opens
+  useEffect(() => {
+    if (isCreateOpen && isOwner && user?.id) {
+      let cancelled = false;
+      async function refreshTeam(): Promise<void> {
+        setIsLoadingTeam(true);
+        const teamResult = await listTeamMembers();
+        if (cancelled) {
+          setIsLoadingTeam(false);
+          return;
+        }
+
+        if (teamResult.success) {
+          setTeamMembers(teamResult.activeUsers);
+          await setTeamCache({
+            activeUsers: teamResult.activeUsers,
+            pendingInvites: teamResult.pendingInvites,
+          });
+        }
+        setIsLoadingTeam(false);
+      }
+
+      void refreshTeam();
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [isCreateOpen, isOwner, user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -484,17 +518,28 @@ export default function JobsPage(): React.JSX.Element {
                         value={assignedToUserId}
                         onChange={(event) => setAssignedToUserId(event.target.value)}
                         className={MODAL_INPUT_SMALL_CLASS}
+                        disabled={isLoadingTeam}
                       >
                         <option value={user?.id ?? ""}>Me</option>
-                        {teamMembers
-                          .filter((member) => member.id !== user?.id)
-                          .filter((member) => member.trade === organizationDefaultTrade)
-                          .map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.full_name} ({member.email}) · {member.trade}
-                            </option>
-                          ))}
+                        {isLoadingTeam ? (
+                          <option disabled>Loading team members...</option>
+                        ) : (
+                          teamMembers
+                            .filter((member) => member.id !== user?.id)
+                            .filter((member) => member.trade === organizationDefaultTrade)
+                            .map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.full_name} ({member.email}) · {member.trade}
+                              </option>
+                            ))
+                        )}
                       </select>
+                      {isLoadingTeam && (
+                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                          <div className="animate-spin w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full"></div>
+                          Loading team members...
+                        </div>
+                      )}
                     </label>
                   </>
                 ) : null}
