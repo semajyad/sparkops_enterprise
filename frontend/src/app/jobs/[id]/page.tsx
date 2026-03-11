@@ -106,6 +106,8 @@ export default function JobReviewPage(): React.JSX.Element {
   const [editLatitude, setEditLatitude] = useState<number | null>(null);
   const [editLongitude, setEditLongitude] = useState<number | null>(null);
   const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [voiceNoteInput, setVoiceNoteInput] = useState("");
+  const [isAppendingVoiceNote, setIsAppendingVoiceNote] = useState(false);
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
   const guardrailClass =
@@ -396,6 +398,52 @@ export default function JobReviewPage(): React.JSX.Element {
     }
   }
 
+  async function appendVoiceNote(): Promise<void> {
+    if (!job || isAppendingVoiceNote) {
+      return;
+    }
+
+    const nextNote = voiceNoteInput.trim();
+    if (!nextNote) {
+      setLocalError("Voice note text is required.");
+      return;
+    }
+
+    setIsAppendingVoiceNote(true);
+    setLocalError("");
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/voice-note`, {
+        method: "POST",
+        body: JSON.stringify({ voice_note: nextNote }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Voice note append failed (${response.status})`);
+      }
+
+      const payload = await parseApiJson<{
+        raw_transcript: string;
+        extracted_data: Record<string, unknown>;
+      }>(response);
+
+      await db.jobs.update(job.id, {
+        extracted_data: payload.extracted_data,
+      });
+      await db.job_details.update(job.id, {
+        raw_transcript: payload.raw_transcript,
+        extracted_data: payload.extracted_data,
+      });
+
+      setVoiceNoteInput("");
+      setToast("Voice note appended.");
+      await refresh();
+    } catch (voiceError) {
+      setLocalError(voiceError instanceof Error ? voiceError.message : "Unable to append voice note.");
+    } finally {
+      setIsAppendingVoiceNote(false);
+    }
+  }
+
   return (
     <main className="min-h-screen p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
@@ -444,6 +492,27 @@ export default function JobReviewPage(): React.JSX.Element {
             <details className="rounded-xl border border-gray-200 bg-white p-4" open>
               <summary className="cursor-pointer text-sm font-semibold text-gray-900">Voice Note</summary>
               <p className="mt-3 whitespace-pre-wrap text-sm text-gray-600">{job.raw_transcript || "No transcript found."}</p>
+              <div className="mt-4 space-y-2">
+                <label className={MODAL_LABEL_CLASS} htmlFor="append-voice-note">
+                  Append Voice Note
+                </label>
+                <textarea
+                  id="append-voice-note"
+                  value={voiceNoteInput}
+                  onChange={(event) => setVoiceNoteInput(event.target.value)}
+                  placeholder="Add additional site notes..."
+                  className={`${MODAL_INPUT_CLASS} min-h-24 py-2`}
+                />
+                <button
+                  type="button"
+                  onClick={() => void appendVoiceNote()}
+                  disabled={isAppendingVoiceNote}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {isAppendingVoiceNote ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {isAppendingVoiceNote ? "Appending..." : "Append Note"}
+                </button>
+              </div>
             </details>
 
             {invoiceSummary ? (
