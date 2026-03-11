@@ -82,7 +82,7 @@ test.describe("User signup and full end-to-end workflow", () => {
     await page.locator('input[name="password"]').fill(userPassword);
     
     // Explicitly click the sign in button by name
-    const signInButton = page.getByRole("button", { name: /Sign In to SparkOps/i });
+    const signInButton = page.getByRole("button", { name: /Sign In to TradeOps/i });
     await expect(signInButton).toBeVisible();
     await signInButton.click();
 

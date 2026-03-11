@@ -19,7 +19,7 @@ async function loginAsSeededSparky(page: import("@playwright/test").Page): Promi
   await page.goto("/login");
   await page.getByLabel("Email").first().fill(email);
   await page.getByLabel("Password").first().fill(password);
-  await page.getByRole("button", { name: "Sign In to SparkOps" }).click();
+  await page.getByRole("button", { name: "Sign In to TradeOps" }).click();
   await expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 25_000 });
 }
 
