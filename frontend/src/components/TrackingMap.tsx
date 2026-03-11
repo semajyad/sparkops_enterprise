@@ -139,7 +139,7 @@ function LocateMeButton({ current }: { current: Coordinate }): React.JSX.Element
     <button
       type="button"
       onClick={() => map.flyTo([current.lat, current.lng], 14, { animate: true, duration: 0.8 })}
-      className="absolute bottom-6 right-4 z-[400] flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg border border-gray-200 transition hover:bg-gray-50 hover:text-orange-600 active:scale-95"
+      className="absolute bottom-24 right-4 z-[400] flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg border border-gray-200 transition hover:bg-gray-50 hover:text-orange-600 active:scale-95"
       aria-label="Locate me"
     >
       <Locate className="h-6 w-6" />

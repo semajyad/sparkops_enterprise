@@ -128,7 +128,7 @@ export default function AdminPage(): React.JSX.Element {
   const [toast, setToast] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFullName, setInviteFullName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"SPARKY" | "OWNER">("SPARKY");
+  const [inviteRole, setInviteRole] = useState<"EMPLOYEE" | "OWNER">("EMPLOYEE");
   const [inviteTrade, setInviteTrade] = useState<"ELECTRICAL" | "PLUMBING">("ELECTRICAL");
   const [vehicleName, setVehicleName] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
@@ -257,7 +257,7 @@ export default function AdminPage(): React.JSX.Element {
 
       setInviteEmail("");
       setInviteFullName("");
-      setInviteRole("SPARKY");
+      setInviteRole("EMPLOYEE");
 
       const teamResult = await listTeamMembers();
       if (teamResult.success) {
@@ -575,7 +575,7 @@ export default function AdminPage(): React.JSX.Element {
 
   if (authLoading) {
     return (
-      <main className="min-h-screen bg-gray-100 p-6 text-gray-900">
+      <main className="min-h-screen p-6 text-gray-900">
         <p className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
           <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
           Verifying owner session...
@@ -586,7 +586,7 @@ export default function AdminPage(): React.JSX.Element {
 
   if (!isOwner) {
     return (
-      <main className="min-h-screen bg-gray-100 p-6 text-gray-900">
+      <main className="min-h-screen p-6 text-gray-900">
         <section className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-red-50 p-5">
           <p className="text-xs uppercase tracking-[0.2em] text-red-600">Access Denied</p>
           <h1 className="mt-2 text-2xl font-semibold text-gray-900">Owner role required</h1>
@@ -601,16 +601,9 @@ export default function AdminPage(): React.JSX.Element {
   const displayOrganization = sessionIdentity?.organization || "Unknown";
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-6xl rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <header className="rounded-2xl border border-gray-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Admin</h1>
-            </div>
-          </div>
-
-          <label className="mt-4 block max-w-md">
+          <label className="block max-w-md">
             <select
               value={activeSection}
               onChange={(event) => setActiveSection(event.target.value as AdminSection)}
@@ -623,7 +616,6 @@ export default function AdminPage(): React.JSX.Element {
               ))}
             </select>
           </label>
-        </header>
 
         <section className="mt-5">
           {activeSection === "profile" ? (
@@ -707,10 +699,10 @@ export default function AdminPage(): React.JSX.Element {
                   Role
                   <select
                     value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "SPARKY")}
+                    onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "EMPLOYEE")}
                     className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
                   >
-                    <option value="SPARKY">Sparky</option>
+                    <option value="EMPLOYEE">Technician</option>
                     <option value="OWNER">Owner</option>
                   </select>
                 </label>

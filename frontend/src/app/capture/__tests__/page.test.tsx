@@ -153,7 +153,6 @@ describe("Capture page logic", () => {
     });
 
     expect(refreshCounts).toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalledWith("Draft Saved");
   });
 
   it("switches to online sync mode and executes force sync", async () => {
@@ -163,10 +162,8 @@ describe("Capture page logic", () => {
     fireEvent.click(screen.getByRole("button", { name: /^sync pending drafts$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/pending drafts sync complete/i)).toBeTruthy();
+      expect(screen.getByText(/sync complete/i)).toBeTruthy();
     });
-
-    expect(window.alert).toHaveBeenCalledWith(expect.stringMatching(/^Sync Complete:/));
   });
 
   it("shows dedicated force-sync secondary action when online with pending drafts", () => {

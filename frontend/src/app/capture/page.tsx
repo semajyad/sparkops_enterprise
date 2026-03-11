@@ -26,6 +26,8 @@ import { getPrimaryActionState, hasMeaningfulCaptureContent } from "@/app/captur
 
 
 
+import { backgroundSync } from "@/lib/syncService";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 
@@ -148,7 +150,7 @@ export default function CapturePage() {
           }
 
           if (finalTranscript) {
-            setVoiceText((prev) => prev + (prev ? " " : "") + finalTranscript);
+            setVoiceText((prev) => prev ? prev + ' ' + finalTranscript.trim() : finalTranscript.trim());
           }
           setInterimResult(interimTranscript);
         };
@@ -476,19 +478,24 @@ export default function CapturePage() {
 
 
       setStatusMessage("Draft saved offline and queued for sync.");
-
       vibrateSuccess();
-
       await refreshCounts();
 
-      window.alert("Draft Saved");
-
+      if (isOnline) {
+        // Auto trigger sync
+        setStatusMessage("Draft saved. Syncing automatically...");
+        try {
+          const result = await syncPendingDrafts();
+          await backgroundSync();
+          await refreshCounts();
+          setStatusMessage(`Draft saved and synced! (${result.synced} uploaded)`);
+        } catch {
+          setStatusMessage("Draft saved. Auto-sync failed, will retry later.");
+        }
+      }
     } finally {
-
       setIsSavingDraft(false);
-
     }
-
   }
 
 
@@ -511,19 +518,15 @@ export default function CapturePage() {
 
       await refreshCounts();
 
-      setStatusMessage("Pending drafts sync complete.");
+      setStatusMessage(`Sync complete. ${result.synced} drafts uploaded.`);
 
       vibrateSuccess();
 
-      window.alert(`Sync Complete: ${result.synced} drafts uploaded.`);
-
     } catch {
 
-      setStatusMessage("Sync failed. Please try again.");
+      setStatusMessage("Sync failed. Check network connection.");
 
       vibrateError();
-
-      window.alert("Sync Failed: Check network connection.");
 
     } finally {
 
@@ -583,25 +586,12 @@ export default function CapturePage() {
       <div className="pb-8">
 
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
-
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
-          <div>
-
-            <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Capture Console</p>
-
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Field Capture</h1>
-
-          </div>
-
           <span
             className={`absolute right-4 top-4 h-3 w-3 rounded-full ${
               isOnline && pendingCount === 0 ? "bg-green-400" : "bg-orange-400"
             }`}
             aria-label={isOnline && pendingCount === 0 ? "Capture status: healthy" : "Capture status: pending or offline"}
           />
-
-        </header>
 
         <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Voice First</p>

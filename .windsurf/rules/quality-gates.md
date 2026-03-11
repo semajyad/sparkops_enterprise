@@ -15,6 +15,64 @@
 3. Any test suite exceeds timeout limits
 4. E2E golden paths fail
 5. Missing mocks for external dependencies
+6. **Commands hang waiting for user input** (NEW)
+7. **Commands get stuck in infinite loops** (NEW)
+
+---
+
+## Slack Notification System (MANDATORY)
+
+### Automatic User Input Notifications
+**ALWAYS send Slack notifications when user input is required:**
+- File changes have been accepted and system is ready to test
+- Work has been completed and successfully pushed to git
+- Terminal commands require user input
+- Processes are blocked waiting for manual intervention
+- Any operation needs human confirmation
+
+### Notification Triggers
+- **Build Ready**: When file changes are accepted and testing can proceed
+- **Git Push Complete**: When work is completed and successfully pushed to git
+- **Terminal Input**: Password prompts, Y/N confirmations, any interactive prompts
+- **Process Blocks**: Hanging processes, manual intervention requirements
+- **User Input Needed**: Any scenario blocking automated progress
+
+### Implementation
+- **Rule**: `slack-notification-rule.md` automatically triggers notifications
+- **Integration**: Uses configured Slack MCP server
+- **Rate Limiting**: Max 3 notifications per hour to prevent spam
+- **Smart Filtering**: Only notifies when truly needed
+
+---
+
+## �� NON-INTERACTIVE COMMAND ENFORCEMENT (MANDATORY)
+
+### Zero-Tolerance Policy
+**NEVER run commands that halt execution for user confirmation.** All commands must be non-interactive.
+
+### Required Confirmation Flags
+Always append automatic confirmation flags:
+- `-y` or `--yes` for package installations
+- `--force` for destructive operations  
+- `--no-interactive` or `--batch` for batch operations
+- `--skip-confirm` for confirmation prompts
+
+### Forbidden Command Patterns
+❌ **NEVER USE**:
+```bash
+npm install                    # Waits for confirmation
+rm -rf /path/*               # May prompt for confirmation
+docker system prune          # Asks "Are you sure?"
+git clean -fd                # Prompts for confirmation
+```
+
+✅ **ALWAYS USE**:
+```bash
+npm install -y               # Auto-confirm
+rm -rf /path/* --force       # Bypass prompts
+docker system prune -f        # Force cleanup
+git clean -fd --force         # Skip confirmation
+```
 
 ---
 
@@ -48,8 +106,14 @@
 
 ### Critical User Journeys
 1. **Login → Capture → Sync** - Core voice-to-cash workflow
-2. **Offline Resilience** - Save offline, sync when online
-3. **Admin Suite** - Settings, fleet management, reporting
+2. **Signup → Login → Profile** - User onboarding and authentication
+3. **Job Creation → Evidence → Completion** - Full job lifecycle
+
+### Frontend Testing Enforcement (NEW)
+- **ANY frontend change** automatically triggers `frontend-testing-enforcement.md` rule
+- **Signup/Login E2E tests** must pass before completion
+- **Frontend regression suite** must run after any UI changes
+- **Auto-confirmed user system** used for test isolation
 
 ### Test Requirements
 - **Environment**: Staging environment with real data

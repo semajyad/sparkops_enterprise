@@ -97,7 +97,7 @@ export default function MaterialsSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <header className="mb-6 space-y-2">
           <p className="text-xs uppercase tracking-[0.24em] text-orange-600">Settings</p>

@@ -16,12 +16,12 @@ import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncSer
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block";
+const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("DRAFT");
+  const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("IN_PROGRESS");
   const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,10 +348,8 @@ export default function JobsPage(): React.JSX.Element {
     <div className="bg-gray-50">
       <main className="p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
         <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
-        <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Job Manager</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">All Jobs</h1>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <label htmlFor="jobs-search" className="flex flex-1 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
             <Search className="h-4 w-4 text-orange-600" />
             <input
@@ -378,7 +376,7 @@ export default function JobsPage(): React.JSX.Element {
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["DRAFT", "IN_PROGRESS", "DONE"].map((f) => (
+          {["IN_PROGRESS", "DRAFT", "DONE"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS")}

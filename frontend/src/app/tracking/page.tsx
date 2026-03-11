@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Loader2 } from "lucide-react";
+import { Loader2, Navigation } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -452,8 +452,20 @@ export default function TrackingIndexPage(): React.JSX.Element {
     setSelectedJobId(jobId);
   }
 
+  const nextJob = useMemo(() => {
+    if (!user?.id) return null;
+    
+    const candidateJobs = jobs.filter((job) => {
+      // 3. Status To Do / IN_PROGRESS / DRAFT (Pending) - tracked via markerState in map context
+      if (job.markerState === "done") return false;
+      return true;
+    });
+
+    return candidateJobs.length > 0 ? candidateJobs[0] : null;
+  }, [jobs, user?.id]);
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gray-100 text-gray-900">
+    <main className="relative min-h-screen overflow-hidden text-gray-900">
       {isReady ? (
         <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
           <MapComponent
@@ -474,8 +486,19 @@ export default function TrackingIndexPage(): React.JSX.Element {
       )}
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
-        <div className="pointer-events-auto mx-auto w-fit rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-gray-700 shadow-sm backdrop-blur-md">
-          Map Hub
+        <div className="flex flex-col items-center gap-3">
+          <div className="pointer-events-auto w-fit rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-gray-700 shadow-sm backdrop-blur-md">
+            Map Hub
+          </div>
+          {nextJob ? (
+            <button
+              onClick={() => window.open('https://maps.google.com/?daddr=' + encodeURIComponent(nextJob.addressLabel), '_blank')}
+              className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-lg border border-gray-100 transition hover:bg-gray-50 active:scale-95"
+            >
+              <Navigation className="h-4 w-4 text-orange-600" />
+              <span>Next: {nextJob.clientName || "Job"}</span>
+            </button>
+          ) : null}
         </div>
       </section>
   </main>

@@ -18,7 +18,7 @@ function LoginPageContent(): React.JSX.Element {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
           {/* Header */}
@@ -208,7 +208,7 @@ function LoginPageContent(): React.JSX.Element {
 
 export default function LoginPage(): React.JSX.Element {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-100" />}>
+    <Suspense fallback={<div className="min-h-screen" />}>
       <LoginPageContent />
     </Suspense>
   );

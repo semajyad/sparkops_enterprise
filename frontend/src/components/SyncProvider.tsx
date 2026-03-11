@@ -49,8 +49,11 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
 
     setIsSyncing(true);
     try {
-      await Promise.all([syncPendingDrafts(), backgroundSync()]);
+      await syncPendingDrafts();
+      await backgroundSync();
       await refreshCounts();
+    } catch (error) {
+      console.warn("[SyncProvider] Sync failed:", error);
     } finally {
       setIsSyncing(false);
     }
@@ -75,7 +78,6 @@ export function SyncProvider({ children }: SyncProviderProps): React.JSX.Element
 
     void refreshCounts();
     void scheduleBackgroundSync();
-    void backgroundSync();
     void runSync();
 
     const handleOnline = () => {

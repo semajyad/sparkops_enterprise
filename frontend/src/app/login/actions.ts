@@ -104,7 +104,7 @@ export async function signup(formData: FormData) {
 
   if (error) {
     console.error("Server action: Signup failed:", error.message);
-    redirect("/login?error=Signup failed&mode=signup");
+    redirect(`/login?error=${encodeURIComponent(error.message)}&mode=signup`);
   }
 
   console.log("Server action: Signup successful");

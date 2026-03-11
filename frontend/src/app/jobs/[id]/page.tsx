@@ -40,7 +40,7 @@ const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
 
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block";
+const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
 
 function toDateTimeLocal(value: string | null | undefined): string {
   if (!value) {
@@ -393,7 +393,7 @@ export default function JobReviewPage(): React.JSX.Element {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -401,9 +401,9 @@ export default function JobReviewPage(): React.JSX.Element {
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">{job?.extracted_data?.client ?? "Unknown Client"}</h1>
             {job ? <p className="mt-1 text-sm text-gray-500">{formatJobDate(job.created_at)}</p> : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {job ? (
-              <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
+              <span className={`mr-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
                 {normalizeJobStatus(job.status)}
               </span>
             ) : null}
@@ -412,20 +412,20 @@ export default function JobReviewPage(): React.JSX.Element {
                 type="button"
                 onClick={openEditModal}
                 disabled={!job}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                className="text-gray-500 p-2 rounded-full hover:bg-gray-100 transition disabled:opacity-50"
+                aria-label="Edit Job"
               >
-                <Pencil className="h-4 w-4" />
-                Edit
+                <Pencil className="h-5 w-5" />
               </button>
             ) : null}
             <button
               type="button"
               onClick={() => void deleteJob()}
               disabled={isDeleting}
-              className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+              className="text-gray-500 p-2 rounded-full hover:bg-red-50 hover:text-red-600 transition disabled:opacity-50"
+              aria-label="Delete Job"
             >
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Delete
+              {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
             </button>
           </div>
         </header>
@@ -475,38 +475,37 @@ export default function JobReviewPage(): React.JSX.Element {
 
             <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Detected Items</h2>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-left text-gray-500">
-                      <th className="px-2 py-2 font-medium">Type</th>
-                      <th className="px-2 py-2 font-medium">Description</th>
-                      <th className="px-2 py-2 font-medium">Qty / Hrs</th>
-                      <th className="px-2 py-2 font-medium">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lineItems.map((item, index) => {
-                      const qty = parseNumeric(item.qty || 0);
-                      const lineTotal = parseNumeric(item.line_total || 0);
-                      const unitPrice = parseNumeric(item.unit_price || 0);
-                      const inferredValue = lineTotal > 0 ? lineTotal : qty * unitPrice;
-                      return (
-                        <tr key={`${item.description ?? "item"}-${index}`} className="border-b border-gray-200 last:border-0">
-                          <td className="px-2 py-2 text-gray-700">{String(item.type ?? "LABOR").toUpperCase()}</td>
-                          <td className="px-2 py-2 text-gray-900">{item.description ?? "Unnamed"}</td>
-                          <td className="px-2 py-2 text-gray-600">{qty.toFixed(2)}</td>
-                          <td className="px-2 py-2 text-gray-600">{inferredValue > 0 ? `$${inferredValue.toFixed(2)}` : "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <div className="mt-3 space-y-3">
+                {Array.isArray((job.extracted_data as Record<string, unknown>)?.detected_items) && ((job.extracted_data as Record<string, unknown>).detected_items as unknown[]).length > 0 ? (
+                  ((job.extracted_data as Record<string, unknown>).detected_items as Record<string, unknown>[]).map((item, idx: number) => {
+                    const priceRaw = Number(item.total_price);
+                    const qtyRaw = Number(item.quantity);
+                    const isCurrency = !Number.isNaN(priceRaw);
+                    const formattedTotal = isCurrency ? `$${priceRaw.toFixed(2)}` : String(item.total_price || "--");
+                    const formattedQty = !Number.isNaN(qtyRaw) ? String(qtyRaw) : String(item.quantity || "1");
 
-              {lineItems.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-500">No line items were extracted for this job draft yet.</p>
-              ) : null}
+                    return (
+                      <div key={idx} className="flex flex-col gap-1 rounded-xl border border-gray-100 bg-gray-50 p-3 shadow-sm md:grid md:grid-cols-12 md:items-center md:gap-4 md:bg-white md:p-2 md:shadow-none">
+                        {/* Mobile: Top Row / Desktop: Col 1 */}
+                        <div className="md:col-span-6 flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                          <span className="inline-block w-fit rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-700 md:w-16 md:text-center">
+                            {String(item.type || "OTHER")}
+                          </span>
+                          <span className="text-sm font-bold text-gray-900 md:font-medium">{String(item.description || "Unknown Item")}</span>
+                        </div>
+
+                        {/* Mobile: Bottom Row / Desktop: Cols 2-3 */}
+                        <div className="flex justify-between md:col-span-6 md:grid md:grid-cols-6 md:gap-4 text-xs md:text-sm text-gray-500 md:text-gray-900 mt-1 md:mt-0">
+                          <span className="md:col-span-2 text-left">Qty: {formattedQty}</span>
+                          <span className="md:col-span-4 text-right font-medium text-gray-900 md:font-normal">{formattedTotal}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="py-4 text-center text-sm text-gray-400">No items detected</p>
+                )}
+              </div>
             </section>
 
             <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">

@@ -71,20 +71,24 @@ export default function DashboardPage(): React.JSX.Element {
     const now = new Date();
     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    const activeDrafts = visibleJobs.filter((job) => normalizeJobStatus(job.status) === "DRAFT").length;
-    const pendingSync = visibleJobs.filter((job) => normalizeJobStatus(job.status) === "SYNCING").length;
-    const completedToday = visibleJobs.filter((job) => {
-      if (normalizeJobStatus(job.status) !== "DONE") {
-        return false;
-      }
+    const scheduledToday = visibleJobs.filter((job) => {
       const candidateDate = job.date_scheduled || job.created_at;
       return String(candidateDate).slice(0, 10) === todayKey;
+    });
+
+    const scheduledTodayCount = scheduledToday.length;
+    const inProgressCount = scheduledToday.filter((job) => normalizeJobStatus(job.status) === "IN_PROGRESS").length;
+    const completedCount = scheduledToday.filter((job) => {
+      const status = normalizeJobStatus(job.status);
+      return status === "COMPLETED" || status === "DONE";
     }).length;
+    const pendingDraftsCount = visibleJobs.filter((job) => normalizeJobStatus(job.status) === "DRAFT").length;
 
     return [
-      { label: "Active Drafts", value: activeDrafts },
-      { label: "Pending Sync", value: pendingSync },
-      { label: "Completed Today", value: completedToday },
+      { label: "Scheduled Today", value: scheduledTodayCount },
+      { label: "In Progress", value: inProgressCount },
+      { label: "Completed", value: completedCount },
+      { label: "Pending Drafts", value: pendingDraftsCount },
     ];
   }, [visibleJobs]);
   const recentActivity = useMemo(() => {
@@ -146,7 +150,7 @@ export default function DashboardPage(): React.JSX.Element {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
         <p className="text-xs uppercase tracking-[0.26em] text-orange-600">Command Center</p>
 
@@ -206,11 +210,11 @@ export default function DashboardPage(): React.JSX.Element {
         {visibleJobs.length > 0 ? (
           <>
             {!ownerFieldFocus ? (
-              <section className="mt-6 grid gap-4 sm:grid-cols-2">
+              <section className="mt-6 grid grid-cols-2 gap-4">
                 {pulseCards.map((metric) => (
-                  <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{metric.label}</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{metric.value}</p>
+                  <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <p className="text-xs uppercase text-gray-500 font-bold">{metric.label}</p>
+                    <p className="mt-2 text-4xl font-bold text-gray-900">{metric.value}</p>
                   </article>
                 ))}
               </section>

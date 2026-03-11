@@ -88,7 +88,7 @@ export default function LadderPage(): React.JSX.Element {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 text-gray-900 sm:p-6 md:p-10">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:p-10">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
