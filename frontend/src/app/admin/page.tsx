@@ -55,6 +55,15 @@ type VehicleRecord = {
   updated_at: string;
 };
 
+type BillingEntitlements = {
+  subscription_status: string;
+  licensed_seats: number;
+  active_users: number;
+  pending_invites: number;
+  total_allocated: number;
+  can_add_member: boolean;
+};
+
 type AdminSection = "profile" | "team" | "company" | "fleet";
 
 const OWNER_TAB_STORAGE_KEY = "tradeops_owner_admin_tab";
@@ -122,6 +131,7 @@ export default function AdminPage(): React.JSX.Element {
   const [isSavingVehicle, setIsSavingVehicle] = useState(false);
   const [isConnectingXero, setIsConnectingXero] = useState(false);
   const [isTeamLoading, setIsTeamLoading] = useState(false);
+  const [billingEntitlements, setBillingEntitlements] = useState<BillingEntitlements | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
@@ -187,11 +197,17 @@ export default function AdminPage(): React.JSX.Element {
     setIsTeamLoading(true);
     setError(null);
     try {
-      const [settingsResponse, vehiclesResponse, teamResult] = await Promise.all([
+      const [settingsResponse, vehiclesResponse, teamResult, billingResponse] = await Promise.all([
         apiFetch(`${API_BASE_URL}/api/admin/settings`, { cache: "no-store" }),
         apiFetch(`${API_BASE_URL}/api/admin/vehicles`, { cache: "no-store" }),
         listTeamMembers(),
+        apiFetch(`${API_BASE_URL}/api/admin/billing/entitlements`, { cache: "no-store" }),
       ]);
+
+      if (billingResponse.ok) {
+        const billingPayload = await parseApiJson<BillingEntitlements>(billingResponse);
+        setBillingEntitlements(billingPayload);
+      }
 
       if (settingsResponse.ok) {
         const settingsPayload = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(settingsResponse);
@@ -574,14 +590,7 @@ export default function AdminPage(): React.JSX.Element {
   }
 
   if (authLoading) {
-    return (
-      <main className="min-h-screen p-6 text-gray-900">
-        <p className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
-          <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
-          Verifying owner session...
-        </p>
-      </main>
-    );
+    return <></>;
   }
 
   if (!isOwner) {
@@ -627,20 +636,6 @@ export default function AdminPage(): React.JSX.Element {
                 <p className="text-sm text-gray-600">Role: OWNER</p>
               </section>
 
-              <section className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-xl border border-gray-200 bg-white p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Mode</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">Field Operator</p>
-                </article>
-                <article className="rounded-xl border border-gray-200 bg-white p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Driving</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">{ladderEnabled ? "Enabled" : "Disabled"}</p>
-                </article>
-                <article className="rounded-xl border border-gray-200 bg-white p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Account</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">Ready</p>
-                </article>
-              </section>
 
               <div>
                 <button
@@ -730,6 +725,14 @@ export default function AdminPage(): React.JSX.Element {
               <div className="grid gap-4 md:grid-cols-2">
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Team</h2>
+                  {billingEntitlements ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      <span className={billingEntitlements.can_add_member ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                        {Math.max(0, billingEntitlements.licensed_seats - billingEntitlements.total_allocated)} seat{Math.max(0, billingEntitlements.licensed_seats - billingEntitlements.total_allocated) !== 1 ? "s" : ""} remaining
+                      </span>
+                      {" "}of {billingEntitlements.licensed_seats} licensed
+                    </p>
+                  ) : null}
                   {isTeamLoading ? <p className="mt-3 text-sm text-gray-500">Loading team...</p> : null}
                   {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-3 text-sm text-gray-500">No team members yet.</p> : null}
                   <ul className="mt-3 space-y-2">

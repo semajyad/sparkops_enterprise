@@ -1,8 +1,8 @@
 "use client";
 
-import { Download, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Download, Loader2, Mic, Pencil, Square, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useRef, type FormEvent } from "react";
 
 import { updateJob } from "@/app/actions/updateJob";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
@@ -106,8 +106,13 @@ export default function JobReviewPage(): React.JSX.Element {
   const [editLatitude, setEditLatitude] = useState<number | null>(null);
   const [editLongitude, setEditLongitude] = useState<number | null>(null);
   const [editScheduledDate, setEditScheduledDate] = useState("");
-  const [voiceNoteInput, setVoiceNoteInput] = useState("");
   const [isAppendingVoiceNote, setIsAppendingVoiceNote] = useState(false);
+  const [isRecordingNote, setIsRecordingNote] = useState(false);
+  const [appendedCount, setAppendedCount] = useState(0);
+  const noteMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const noteStreamRef = useRef<MediaStream | null>(null);
+  const noteRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const [noteInterim, setNoteInterim] = useState("");
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
   const guardrailClass =
@@ -398,49 +403,140 @@ export default function JobReviewPage(): React.JSX.Element {
     }
   }
 
-  async function appendVoiceNote(): Promise<void> {
-    if (!job || isAppendingVoiceNote) {
+  async function appendVoiceNoteText(text: string): Promise<void> {
+    if (!job || !text.trim()) {
       return;
     }
-
-    const nextNote = voiceNoteInput.trim();
-    if (!nextNote) {
-      setLocalError("Voice note text is required.");
-      return;
-    }
-
     setIsAppendingVoiceNote(true);
     setLocalError("");
     try {
       const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/voice-note`, {
         method: "POST",
-        body: JSON.stringify({ voice_note: nextNote }),
+        body: JSON.stringify({ voice_note: text.trim() }),
       });
       if (!response.ok) {
         const body = await response.text();
         throw new Error(body || `Voice note append failed (${response.status})`);
       }
-
       const payload = await parseApiJson<{
         raw_transcript: string;
         extracted_data: Record<string, unknown>;
       }>(response);
-
-      await db.jobs.update(job.id, {
-        extracted_data: payload.extracted_data,
-      });
+      await db.jobs.update(job.id, { extracted_data: payload.extracted_data });
       await db.job_details.update(job.id, {
         raw_transcript: payload.raw_transcript,
         extracted_data: payload.extracted_data,
       });
-
-      setVoiceNoteInput("");
+      setAppendedCount((c) => c + 1);
       setToast("Voice note appended.");
       await refresh();
     } catch (voiceError) {
       setLocalError(voiceError instanceof Error ? voiceError.message : "Unable to append voice note.");
     } finally {
       setIsAppendingVoiceNote(false);
+    }
+  }
+
+  async function startNoteRecording(): Promise<void> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setLocalError("Microphone not supported on this device.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      noteStreamRef.current = stream;
+      const chunks: Blob[] = [];
+      const recorder = MediaRecorder.isTypeSupported("audio/webm")
+        ? new MediaRecorder(stream, { mimeType: "audio/webm" })
+        : new MediaRecorder(stream);
+
+      if (typeof window !== "undefined") {
+        const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognitionConstructor) {
+          const recognition = new SpeechRecognitionConstructor();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          let finalText = "";
+          recognition.onresult = (event: SpeechRecognitionEvent) => {
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const r = event.results[i];
+              if (r?.isFinal) {
+                finalText += (r[0]?.transcript ?? "");
+              } else if (r) {
+                interim += (r[0]?.transcript ?? "");
+              }
+            }
+            setNoteInterim(interim);
+            recorder.onstop = async () => {
+              recognition.stop();
+              setNoteInterim("");
+              const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+              stream.getTracks().forEach((t) => t.stop());
+              noteStreamRef.current = null;
+              if (finalText.trim()) {
+                await appendVoiceNoteText(finalText.trim());
+              } else if (blob.size > 0) {
+                setToast("Recording captured (no speech detected).");
+              }
+            };
+          };
+          noteRecognitionRef.current = recognition;
+          recognition.start();
+        }
+      }
+
+      recorder.ondataavailable = (e: BlobEvent) => { if (e.data.size > 0) chunks.push(e.data); };
+      if (!recorder.onstop) {
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          stream.getTracks().forEach((t) => t.stop());
+          noteStreamRef.current = null;
+          if (blob.size > 0) {
+            setToast("Recording captured (no speech transcribed).");
+          }
+        };
+      }
+
+      noteMediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingNote(true);
+    } catch {
+      setLocalError("Microphone access denied or unavailable.");
+    }
+  }
+
+  function stopNoteRecording(): void {
+    if (noteMediaRecorderRef.current && noteMediaRecorderRef.current.state !== "inactive") {
+      noteMediaRecorderRef.current.stop();
+    }
+    setIsRecordingNote(false);
+  }
+
+  async function downloadComplianceDocs(): Promise<void> {
+    if (!job || !isValidJobUuid(job.id)) {
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/certificate.pdf`);
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Compliance download failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `tradeops-certificate-${job.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Failed to download compliance document.");
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -492,26 +588,42 @@ export default function JobReviewPage(): React.JSX.Element {
             <details className="rounded-xl border border-gray-200 bg-white p-4" open>
               <summary className="cursor-pointer text-sm font-semibold text-gray-900">Voice Note</summary>
               <p className="mt-3 whitespace-pre-wrap text-sm text-gray-600">{job.raw_transcript || "No transcript found."}</p>
-              <div className="mt-4 space-y-2">
-                <label className={MODAL_LABEL_CLASS} htmlFor="append-voice-note">
-                  Append Voice Note
-                </label>
-                <textarea
-                  id="append-voice-note"
-                  value={voiceNoteInput}
-                  onChange={(event) => setVoiceNoteInput(event.target.value)}
-                  placeholder="Add additional site notes..."
-                  className={`${MODAL_INPUT_CLASS} min-h-24 py-2`}
-                />
-                <button
-                  type="button"
-                  onClick={() => void appendVoiceNote()}
-                  disabled={isAppendingVoiceNote}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {isAppendingVoiceNote ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {isAppendingVoiceNote ? "Appending..." : "Append Note"}
-                </button>
+              {noteInterim ? (
+                <p className="mt-2 text-sm italic text-gray-400">{noteInterim}</p>
+              ) : null}
+              <div className="mt-4 flex items-center gap-3">
+                {!isRecordingNote ? (
+                  <button
+                    type="button"
+                    onClick={() => void startNoteRecording()}
+                    disabled={isAppendingVoiceNote}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-orange-500/80 bg-orange-50 text-orange-600 shadow transition hover:bg-orange-100 disabled:opacity-50"
+                    aria-label="Record voice note"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopNoteRecording}
+                    className="inline-flex h-12 w-12 animate-pulse items-center justify-center rounded-full border border-red-500/80 bg-red-50 text-red-600 shadow transition hover:bg-red-100"
+                    aria-label="Stop recording"
+                  >
+                    <Square className="h-5 w-5 fill-current" />
+                  </button>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-sm font-medium text-gray-700">
+                    {isRecordingNote ? "Recording... tap to stop" : "Tap to add voice note"}
+                  </p>
+                  {isAppendingVoiceNote ? (
+                    <p className="flex items-center gap-1 text-xs text-orange-600">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Appending...
+                    </p>
+                  ) : appendedCount > 0 ? (
+                    <p className="text-xs text-green-600">✓ {appendedCount} note{appendedCount > 1 ? "s" : ""} appended</p>
+                  ) : null}
+                </div>
               </div>
             </details>
 
@@ -591,6 +703,18 @@ export default function JobReviewPage(): React.JSX.Element {
                 >
                   {isPushingToXero ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Push to Xero
+                </button>
+              ) : null}
+
+              {normalizeJobStatus(job.status) === "DONE" ? (
+                <button
+                  type="button"
+                  onClick={() => void downloadComplianceDocs()}
+                  disabled={isDownloading}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Download Compliance Docs
                 </button>
               ) : null}
 

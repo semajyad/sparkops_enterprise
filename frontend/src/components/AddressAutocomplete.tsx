@@ -44,11 +44,7 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
-  
-
-  
-  return token;
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
 }
 
 type AddressAutocompleteProps = {
@@ -132,79 +128,46 @@ export function AddressAutocomplete({
   const suppressFetchRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  console.log("[AddressAutocomplete] Component mounted with props:", { id, value, placeholder });
-
   const debouncedFetch = useMemo(
     () =>
       debounce((value: string) => {
-        console.log("[AddressAutocomplete] === DEBOUNCED FETCH START ===");
-        console.log("[AddressAutocomplete] debouncedFetch called with value:", value);
-        console.log("[AddressAutocomplete] suppressFetchRef.current:", suppressFetchRef.current);
-        
         if (suppressFetchRef.current) {
-          console.log("[AddressAutocomplete] Fetch suppressed");
           suppressFetchRef.current = false;
           return;
         }
 
         const query = value.trim();
-        console.log("[AddressAutocomplete] Query length:", query.length);
-        console.log("[AddressAutocomplete] Query content:", `"${query}"`);
-        
         if (query.length < 3) {
-          console.log("[AddressAutocomplete] Query too short, returning");
           return;
         }
 
         const mapboxToken = getMapboxToken().trim();
-        console.log("[AddressAutocomplete] Retrieved token length:", mapboxToken.length);
-        console.log("[AddressAutocomplete] Retrieved token exists:", !!mapboxToken);
-        
         if (!mapboxToken) {
-          console.log("[AddressAutocomplete] ❌ NO TOKEN - skipping address lookup");
           return;
         }
 
-        console.log("[AddressAutocomplete] ✅ TOKEN FOUND - proceeding with API call");
-
         const fetchSuggestions = async (): Promise<void> => {
-          console.log("[AddressAutocomplete] === API CALL START ===");
           setIsLoading(true);
           try {
             const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
-            console.log("[AddressAutocomplete] Calling Mapbox geocoder", {
-              query,
-              url: mapboxUrl,
-              tokenLength: mapboxToken.length,
-            });
-            
             const mapboxResponse = await fetch(mapboxUrl, {
               method: "GET",
               headers: { Accept: "application/json" },
             });
 
-            console.log("[AddressAutocomplete] Mapbox response status:", mapboxResponse.status);
-            console.log("[AddressAutocomplete] Mapbox response ok:", mapboxResponse.ok);
-
             if (!mapboxResponse.ok) {
               const errorText = await mapboxResponse.text();
-              console.log("[AddressAutocomplete] Error response body:", errorText);
               throw new Error(`Address lookup failed (${mapboxResponse.status}): ${errorText}`);
             }
 
             const payload = (await mapboxResponse.json()) as MapboxResponse;
-            console.log("[AddressAutocomplete] Mapbox geocoding response", payload);
-            
             if (!payload || !Array.isArray(payload.features)) {
-              console.warn("[AddressAutocomplete] Invalid payload from Mapbox", payload);
               setSuggestions([]);
               setOpen(false);
               return;
             }
-            
+
             const rows = payload.features;
-            console.log("[AddressAutocomplete] Features count:", rows.length);
-            
             if (rows.length === 0) {
               console.warn("[AddressAutocomplete] Mapbox returned an empty features array for query:", query);
             }
@@ -215,7 +178,6 @@ export function AddressAutocomplete({
                 const lng = typeof coordinates?.[0] === "number" ? coordinates[0] : null;
                 const lat = typeof coordinates?.[1] === "number" ? coordinates[1] : null;
                 if (lat === null || lng === null) {
-                  console.log("[AddressAutocomplete] Skipping feature - invalid coordinates");
                   return null;
                 }
 
@@ -223,7 +185,6 @@ export function AddressAutocomplete({
                 const text = sanitizeAddressComponent(feature.text);
                 const label = placeName || buildMapboxLabel(feature);
                 if (!label || label === "Unknown address") {
-                  console.log("[AddressAutocomplete] Skipping feature - invalid label");
                   return null;
                 }
 
@@ -238,23 +199,18 @@ export function AddressAutocomplete({
               })
               .filter((row): row is AddressSuggestion => Boolean(row));
 
-            console.log("[AddressAutocomplete] Mapped suggestions count:", mapped.length);
-            console.log("[AddressAutocomplete] Setting suggestions:", mapped.map(s => s.place_name));
-
             setSuggestions(mapped);
             setOpen(mapped.length > 0);
           } catch (error) {
-            console.error("[AddressAutocomplete] ❌ API CALL FAILED:", error);
+            console.error("[AddressAutocomplete] lookup failed:", error);
             setSuggestions([]);
             setOpen(false);
           } finally {
             setIsLoading(false);
-            console.log("[AddressAutocomplete] === API CALL END ===");
           }
         };
 
         void fetchSuggestions();
-        console.log("[AddressAutocomplete] === DEBOUNCED FETCH END ===");
       }, 300),
     []
   );
@@ -324,11 +280,6 @@ export function AddressAutocomplete({
                 type="button"
                 onClick={() => {
                   suppressFetchRef.current = true;
-                  console.log("[AddressAutocomplete] Selected suggestion", {
-                    place_name: suggestion.place_name,
-                    lat: suggestion.lat,
-                    lng: suggestion.lng,
-                  });
                   onChange(suggestion.place_name);
                   onSelect({
                     ...suggestion,

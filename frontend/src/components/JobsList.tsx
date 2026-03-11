@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { JobListItem } from "@/lib/jobs";
 
 interface JobsListProps {
@@ -64,41 +64,34 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
                   {job.compliance_status.replace("_", " ")}
                 </span>
               )}
-              <div className="mt-2 flex gap-2 justify-end">
-                {onComplete && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onComplete(job.id);
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition"
-                  >
-                    Complete
-                  </button>
-                )}
-                <Link
-                  href={`/jobs/${job.id}/safety-checkin`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition"
-                >
-                  Start Job / Safety Check-in
-                </Link>
-                {onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onDelete(job.id);
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
+              {(onComplete || onDelete) ? (
+                <div className="mt-2 flex gap-2 justify-end">
+                  {onComplete && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onComplete(job.id);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition"
+                    >
+                      Complete
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDelete(job.id);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
         </Link>

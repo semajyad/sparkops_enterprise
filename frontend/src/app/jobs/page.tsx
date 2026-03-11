@@ -75,9 +75,6 @@ export default function JobsPage(): React.JSX.Element {
     }
   }, [isCreateOpen, location]);
 
-  useEffect(() => {
-    console.log(`[AUTH-TRACE] Page: User ${user ? "found" : "missing"} route=/jobs`);
-  }, [user]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -381,7 +378,7 @@ export default function JobsPage(): React.JSX.Element {
   }, [jobs, search, filter, timeframe]);
 
   return (
-    <main className="p-4 pb-24 text-gray-900 bg-gray-50 sm:p-6 md:p-10">
+    <main className="min-h-screen p-4 pb-24 text-gray-900 bg-gray-50 sm:p-6 md:p-10">
       <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-gray-50 p-6 shadow-sm md:p-8">
 
         <div className="flex flex-col sm:flex-row gap-3">

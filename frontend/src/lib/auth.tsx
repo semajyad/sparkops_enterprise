@@ -66,7 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return storedMode === "FIELD" || storedMode === "ADMIN" ? storedMode : "FIELD";
   });
   const [loading, setLoading] = useState(true);
-  const [roleLoading, setRoleLoading] = useState(true);
+  const hasCachedRole = typeof window !== "undefined" && (window.localStorage.getItem(ROLE_STORAGE_KEY) === "OWNER" || window.localStorage.getItem(ROLE_STORAGE_KEY) === "EMPLOYEE");
+  const [roleLoading, setRoleLoading] = useState(!hasCachedRole);
   const effectiveMode: AppMode = role === "OWNER" ? mode : "FIELD";
 
   const setMode = useCallback(
@@ -239,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organizationDefaultTrade,
         mode: effectiveMode,
         setMode,
-        loading: loading || roleLoading,
+        loading: loading,
       }}
     >
       {children}

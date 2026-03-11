@@ -731,23 +731,6 @@ class AffiliateSummaryRow(BaseModel):
     pending_commission_nzd: Decimal
 
 
-class SafetyPlanGenerateRequest(BaseModel):
-    """Voice transcript payload for pre-job SSSP generation."""
-
-    transcript: str = Field(min_length=5, max_length=8000)
-    acknowledge: bool = False
-
-
-class SafetyPlanGenerateResponse(BaseModel):
-    """Generated SSSP payload and optional downloadable PDF URL."""
-
-    id: UUID
-    job_id: UUID
-    trade: str
-    acknowledged: bool
-    plan_json: dict[str, Any]
-    pdf_url: str | None = None
-
 
 class VehicleCreateRequest(BaseModel):
     """Owner payload to create a fleet vehicle."""
@@ -2429,23 +2412,27 @@ def _refresh_xero_access_token(integration: Integration) -> dict[str, Any]:
     return token_payload
 
 
+def _xero_redirect_uri() -> str:
+    """Return the Xero OAuth redirect URI, consistent between connect and callback."""
+    configured = os.getenv("XERO_REDIRECT_URI", "").strip()
+    if configured:
+        return configured
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_NAME"):
+        return "https://sparkopsstagingbackend-staging.up.railway.app/api/integrations/xero/callback"
+    return "http://localhost:8000/api/integrations/xero/callback"
+
+
 @app.get("/api/v1/integrations/xero/connect", response_model=XeroConnectResponse)
 @app.get("/api/integrations/xero/connect", response_model=XeroConnectResponse)
 def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> XeroConnectResponse:
     """Build the OAuth2 authorization URL for Xero connect."""
 
     client_id = _xero_env_value("XERO_CLIENT_ID")
-    
-    # Dynamic redirect URI based on deployment environment
-    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_NAME"):
-        # Running on Railway (staging/production)
-        redirect_uri = os.getenv("XERO_REDIRECT_URI", "https://sparkopsstagingbackend-staging.up.railway.app/api/integrations/xero/callback")
-    else:
-        # Running locally
-        redirect_uri = os.getenv("XERO_REDIRECT_URI", "http://localhost:8000/api/integrations/xero/callback")
-    
-    scope_string = "openid profile email offline_access accounting.transactions accounting.contacts"
-    print("XERO SCOPE:", scope_string)
+    redirect_uri = _xero_redirect_uri()
+    scope_string = os.getenv(
+        "XERO_SCOPES",
+        "openid profile email offline_access accounting.transactions accounting.contacts",
+    ).strip()
     state = _build_xero_state(current_user.organization_id)
     encoded_scope = quote(scope_string, safe="")
 
@@ -2485,7 +2472,7 @@ def connect_xero_callback(
         {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": _xero_env_value("XERO_REDIRECT_URI"),
+            "redirect_uri": _xero_redirect_uri(),
         }
     )
 
@@ -2868,92 +2855,6 @@ def delete_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get
 
     return JobDeleteResponse(status="deleted", id=job_id)
 
-
-@app.post("/api/v1/jobs/{job_id}/safety-plan", response_model=SafetyPlanGenerateResponse)
-@app.post("/api/jobs/{job_id}/safety-plan", response_model=SafetyPlanGenerateResponse)
-def generate_job_safety_plan(
-    job_id: UUID,
-    payload: SafetyPlanGenerateRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-) -> SafetyPlanGenerateResponse:
-    """Generate and persist pre-job Site Specific Safety Plan from voice transcript."""
-
-    with Session(ENGINE) as session:
-        draft = session.get(JobDraft, job_id)
-        if draft is None:
-            raise HTTPException(status_code=404, detail="Job draft not found.")
-
-        _assert_job_write_access(draft, current_user)
-
-        from services.sssp import generate_site_safety_plan
-
-        plan_json = generate_site_safety_plan(
-            transcript=payload.transcript.strip(),
-            trade=_normalize_trade(draft.required_trade),
-        )
-        now = datetime.now(timezone.utc)
-        row = SafetyPlan(
-            job_id=draft.id,
-            organization_id=current_user.organization_id,
-            user_id=current_user.id,
-            trade=_normalize_trade(draft.required_trade),
-            source_transcript=payload.transcript.strip(),
-            plan_json=plan_json,
-            acknowledged=bool(payload.acknowledge),
-            created_at=now,
-            acknowledged_at=now if payload.acknowledge else None,
-        )
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-
-        extracted = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
-        extracted["pre_job_safety_plan"] = {
-            "id": str(row.id),
-            "acknowledged": row.acknowledged,
-            "created_at": row.created_at.isoformat(),
-        }
-        draft.extracted_data = extracted
-        session.add(draft)
-        session.commit()
-
-        return SafetyPlanGenerateResponse(
-            id=row.id,
-            job_id=draft.id,
-            trade=row.trade,
-            acknowledged=row.acknowledged,
-            plan_json=row.plan_json,
-            pdf_url=f"/api/jobs/{draft.id}/safety-plan/{row.id}.pdf",
-        )
-
-
-@app.get("/api/jobs/{job_id}/safety-plan/{plan_id}.pdf")
-def download_job_safety_plan_pdf(
-    job_id: UUID,
-    plan_id: UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-) -> StreamingResponse:
-    """Generate and return PDF for a previously generated SSSP."""
-
-    with Session(ENGINE) as session:
-        draft = session.get(JobDraft, job_id)
-        if draft is None:
-            raise HTTPException(status_code=404, detail="Job draft not found.")
-        _assert_job_write_access(draft, current_user)
-
-        plan = session.get(SafetyPlan, plan_id)
-        if plan is None or plan.job_id != draft.id or plan.organization_id != current_user.organization_id:
-            raise HTTPException(status_code=404, detail="Safety plan not found.")
-
-    from services.pdf import generate_sssp_pdf
-
-    pdf_bytes = generate_sssp_pdf(job_data=draft, trade=plan.trade, plan_json=plan.plan_json)
-    filename = f"tradeops-sssp-{job_id}-{plan_id}.pdf"
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 @app.post("/api/v1/jobs/{job_id}/complete", response_model=JobCompleteResponse)

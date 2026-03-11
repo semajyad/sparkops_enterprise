@@ -114,6 +114,7 @@ export default function CapturePage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
+  const [recordingCount, setRecordingCount] = useState(0);
 
   const primaryActionState = getPrimaryActionState({
     isOnline,
@@ -328,7 +329,7 @@ export default function CapturePage() {
 
         recordingStreamRef.current = null;
 
-
+        setRecordingCount((prev) => prev + 1);
 
         try {
 
@@ -472,6 +473,7 @@ export default function CapturePage() {
       setReceiptBase64("");
 
       setReceiptPreview("");
+      setRecordingCount(0);
 
       if (audioPreviewUrl) {
 
@@ -634,6 +636,13 @@ export default function CapturePage() {
           </div>
 
           <p className="mt-3 text-sm text-gray-600">{isRecording ? "Recording... tap to stop" : "Ready. Tap to start"}</p>
+
+          {recordingCount > 0 && !isRecording ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              {recordingCount} recording{recordingCount > 1 ? "s" : ""} appended
+            </div>
+          ) : null}
 
           {audioPreviewUrl ? (
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-left">
