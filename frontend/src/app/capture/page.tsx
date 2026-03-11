@@ -150,7 +150,13 @@ export default function CapturePage() {
           }
 
           if (finalTranscript) {
-            setVoiceText((prev) => prev ? prev + ' ' + finalTranscript.trim() : finalTranscript.trim());
+            setVoiceText((prev) => {
+              const current = prev.trim();
+              const addition = finalTranscript.trim();
+              if (!current) return addition;
+              if (current.endsWith(addition)) return current;
+              return current + " "+ addition;
+            });
           }
           setInterimResult(interimTranscript);
         };
