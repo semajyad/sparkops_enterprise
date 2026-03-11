@@ -37,7 +37,15 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ 
+  children,
+  initialRole = null,
+  initialMode = "FIELD"
+}: { 
+  children: React.ReactNode;
+  initialRole?: AppRole;
+  initialMode?: AppMode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = useMemo(() => {
@@ -50,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole>(() => {
+    if (initialRole === "OWNER" || initialRole === "EMPLOYEE") {
+      return initialRole;
+    }
     if (typeof window === "undefined") {
       return null;
     }
@@ -59,6 +70,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [trade, setTrade] = useState<AppTrade>("ELECTRICAL");
   const [organizationDefaultTrade, setOrganizationDefaultTrade] = useState<AppTrade>("ELECTRICAL");
   const [mode, setModeState] = useState<AppMode>(() => {
+    if (initialMode === "FIELD" || initialMode === "ADMIN") {
+      return initialMode;
+    }
     if (typeof window === "undefined") {
       return "FIELD";
     }
@@ -66,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return storedMode === "FIELD" || storedMode === "ADMIN" ? storedMode : "FIELD";
   });
   const [loading, setLoading] = useState(true);
-  const hasCachedRole = typeof window !== "undefined" && (window.localStorage.getItem(ROLE_STORAGE_KEY) === "OWNER" || window.localStorage.getItem(ROLE_STORAGE_KEY) === "EMPLOYEE");
+  const hasCachedRole = initialRole !== null || (typeof window !== "undefined" && (window.localStorage.getItem(ROLE_STORAGE_KEY) === "OWNER" || window.localStorage.getItem(ROLE_STORAGE_KEY) === "EMPLOYEE"));
   const [roleLoading, setRoleLoading] = useState(!hasCachedRole);
   const effectiveMode: AppMode = role === "OWNER" ? mode : "FIELD";
 
@@ -78,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setModeState(next);
       if (typeof window !== "undefined") {
         window.localStorage.setItem(MODE_STORAGE_KEY, next);
+        document.cookie = `${MODE_STORAGE_KEY}=${next}; path=/; max-age=31536000; SameSite=Lax`;
       }
     },
     [role],
@@ -126,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrganizationDefaultTrade("ELECTRICAL");
         if (typeof window !== "undefined") {
           window.localStorage.removeItem(ROLE_STORAGE_KEY);
+          document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         }
         return;
       }
@@ -202,6 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRole(normalized);
           if (typeof window !== "undefined") {
             window.localStorage.setItem(ROLE_STORAGE_KEY, normalized);
+            document.cookie = `${ROLE_STORAGE_KEY}=${normalized}; path=/; max-age=31536000; SameSite=Lax`;
           }
         } else {
           if (!cachedRole) {
@@ -210,6 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setOrganizationDefaultTrade("ELECTRICAL");
             if (typeof window !== "undefined") {
               window.localStorage.removeItem(ROLE_STORAGE_KEY);
+              document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
             }
           }
         }
@@ -220,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrganizationDefaultTrade("ELECTRICAL");
           if (typeof window !== "undefined") {
             window.localStorage.removeItem(ROLE_STORAGE_KEY);
+            document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
           }
         }
       } finally {

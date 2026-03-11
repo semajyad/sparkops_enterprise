@@ -10,6 +10,7 @@ import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import {
   deleteVehicleFromCache,
   getAdminSettingsCache,
@@ -121,6 +122,7 @@ function initialsFromName(fullName: string): string {
 
 export default function AdminPage(): React.JSX.Element {
   const { loading: authLoading, role, user } = useAuth();
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>("profile");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
   const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
@@ -668,59 +670,82 @@ export default function AdminPage(): React.JSX.Element {
 
           {activeSection === "team" ? (
             <div className="mt-4 space-y-4">
-              <form className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2" onSubmit={(event) => void onInviteSubmit(event)}>
-                <label className="text-sm text-gray-700 sm:col-span-2">
-                  Email
-                  <input
-                    type="email"
-                    required
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                    placeholder="tech@tradeops.co.nz"
-                  />
-                </label>
-                <label className="text-sm text-gray-700">
-                  Full Name
-                  <input
-                    required
-                    value={inviteFullName}
-                    onChange={(event) => setInviteFullName(event.target.value)}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
-                    placeholder="Sam Sparks"
-                  />
-                </label>
-                <label className="text-sm text-gray-700">
-                  Role
-                  <select
-                    value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value === "OWNER" ? "OWNER" : "EMPLOYEE")}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+              {!billingEntitlements ? (
+                <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+                  <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-orange-600" />
+                  Loading entitlement status...
+                </div>
+              ) : billingEntitlements.can_add_member ? (
+                <form className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2" onSubmit={(event) => void onInviteSubmit(event)}>
+                  <label className="text-sm text-gray-700 sm:col-span-2">
+                    Email Address
+                    <input
+                      type="email"
+                      required
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="sparky@example.com"
+                      className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
+                      disabled={isInviting || isTeamLoading}
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700 sm:col-span-2">
+                    Full Name
+                    <input
+                      type="text"
+                      required
+                      value={inviteFullName}
+                      onChange={(event) => setInviteFullName(event.target.value)}
+                      placeholder="Jane Doe"
+                      className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-400 focus:border-orange-600 focus:outline-none"
+                      disabled={isInviting || isTeamLoading}
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Role
+                    <select
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value as "EMPLOYEE" | "OWNER")}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+                      disabled={isInviting || isTeamLoading}
+                    >
+                      <option value="EMPLOYEE">Field Tech (Employee)</option>
+                      <option value="OWNER">Admin (Owner)</option>
+                    </select>
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Team Member Trade
+                    <select
+                      value={inviteTrade}
+                      onChange={(event) => setInviteTrade(event.target.value === "PLUMBING" ? "PLUMBING" : "ELECTRICAL")}
+                      className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+                      disabled={isInviting || isTeamLoading}
+                    >
+                      <option value="ELECTRICAL">Electrical</option>
+                      <option value="PLUMBING">Plumbing</option>
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={isInviting || isTeamLoading}
+                    className="mt-2 min-h-11 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60 sm:col-span-2"
                   >
-                    <option value="EMPLOYEE">Technician</option>
-                    <option value="OWNER">Owner</option>
-                  </select>
-                </label>
-                <label className="text-sm text-gray-700">
-                  Team Member Trade
-                  <select
-                    value={inviteTrade}
-                    onChange={(event) => setInviteTrade(event.target.value === "PLUMBING" ? "PLUMBING" : "ELECTRICAL")}
-                    className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 focus:border-orange-600 focus:outline-none"
+                    {isInviting ? "Sending Invite..." : "Send Invite Link"}
+                  </button>
+                </form>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
+                  <p className="text-sm font-medium text-orange-900">Seat Limit Reached</p>
+                  <p className="text-xs text-orange-700">You are using {billingEntitlements.total_allocated} of your {billingEntitlements.licensed_seats} licensed seats.</p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/billing")}
+                    className="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl bg-orange-600 px-5 text-sm font-semibold text-white transition hover:bg-orange-700"
                   >
-                    <option value="ELECTRICAL">Electrical</option>
-                    <option value="PLUMBING">Plumbing</option>
-                  </select>
-                </label>
-                <button
-                  type="submit"
-                  disabled={isInviting}
-                  className="sm:col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
-                >
-                  {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Add User
-                </button>
-              </form>
+                    Purchase Additional Seats
+                  </button>
+                </div>
+              )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <section className="rounded-xl border border-gray-200 bg-white p-4">

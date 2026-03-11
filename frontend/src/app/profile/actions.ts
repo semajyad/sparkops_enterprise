@@ -67,14 +67,45 @@ async function getOwnerProfileContext(): Promise<
     return { success: false, message: "Session expired. Please sign in again." };
   }
 
-  const { data: profile, error: profileError } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, role, organization_id")
     .eq("id", user.id)
     .single<ProfileRow>();
 
   if (profileError || !profile) {
-    return { success: false, message: "Unable to resolve your organization profile." };
+    // Auto-heal missing profile
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAdmin = getSupabaseAdmin() as any;
+      let newOrgId = crypto.randomUUID();
+      const metadataOrg = typeof user.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
+      
+      const { data: newOrg } = await supabaseAdmin.from("organizations").insert({
+        id: newOrgId,
+        name: metadataOrg || "My Organization",
+      }).select("id").single();
+      
+      if (newOrg) {
+        newOrgId = newOrg.id;
+        const { data: newProfile } = await supabaseAdmin.from("profiles").insert({
+          id: user.id,
+          organization_id: newOrgId,
+          role: "OWNER",
+        }).select("id, role, organization_id").single();
+        
+        if (newProfile) {
+          profile = newProfile as ProfileRow;
+          profileError = null;
+        }
+      }
+    } catch {
+      // Ignore and fall through to error
+    }
+
+    if (!profile) {
+      return { success: false, message: "Unable to resolve your organization profile." };
+    }
   }
 
   const organizationId = typeof profile.organization_id === "string" ? profile.organization_id.trim() : "";

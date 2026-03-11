@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { GlobalSyncStatusDot } from "@/components/GlobalSyncStatusDot";
 import { MobileNav } from "@/components/MobileNav";
 import { SyncProvider } from "@/components/SyncProvider";
@@ -46,17 +47,21 @@ export const viewport: Viewport = {
   themeColor: "#f59e0b",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const initialRole = cookieStore.get("tradeops_user_role")?.value ?? null;
+  const initialMode = cookieStore.get("tradeops_owner_mode")?.value ?? "FIELD";
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 pb-20 overflow-x-hidden`}
       >
-        <AuthProvider>
+        <AuthProvider initialRole={initialRole as "OWNER" | "EMPLOYEE" | null} initialMode={initialMode as "FIELD" | "ADMIN"}>
           <UserModeProvider>
             <SyncProvider>
               {children}

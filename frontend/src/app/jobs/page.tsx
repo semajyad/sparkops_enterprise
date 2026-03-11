@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createJob } from "@/app/actions/createJob";
@@ -14,9 +14,7 @@ import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
-const MODAL_INPUT_CLASS =
-  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-0.5";
+const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-1 min-h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 

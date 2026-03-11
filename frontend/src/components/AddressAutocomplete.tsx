@@ -138,6 +138,8 @@ export function AddressAutocomplete({
 
         const query = value.trim();
         if (query.length < 3) {
+          setSuggestions([]);
+          setOpen(false);
           return;
         }
 
@@ -156,8 +158,9 @@ export function AddressAutocomplete({
             });
 
             if (!mapboxResponse.ok) {
-              const errorText = await mapboxResponse.text();
-              throw new Error(`Address lookup failed (${mapboxResponse.status}): ${errorText}`);
+              setSuggestions([]);
+              setOpen(false);
+              return;
             }
 
             const payload = (await mapboxResponse.json()) as MapboxResponse;
@@ -169,7 +172,9 @@ export function AddressAutocomplete({
 
             const rows = payload.features;
             if (rows.length === 0) {
-              console.warn("[AddressAutocomplete] Mapbox returned an empty features array for query:", query);
+              setSuggestions([]);
+              setOpen(false);
+              return;
             }
 
             const mapped = rows
@@ -184,7 +189,9 @@ export function AddressAutocomplete({
                 const placeName = sanitizeAddressComponent(feature.place_name);
                 const text = sanitizeAddressComponent(feature.text);
                 const label = placeName || buildMapboxLabel(feature);
-                if (!label || label === "Unknown address") {
+                
+                // Extremely strict validation: Do not allow blank or 'Unknown address' to flash
+                if (!label || label === "Unknown address" || label.trim() === "") {
                   return null;
                 }
 
@@ -201,8 +208,7 @@ export function AddressAutocomplete({
 
             setSuggestions(mapped);
             setOpen(mapped.length > 0);
-          } catch (error) {
-            console.error("[AddressAutocomplete] lookup failed:", error);
+          } catch {
             setSuggestions([]);
             setOpen(false);
           } finally {

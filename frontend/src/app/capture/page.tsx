@@ -77,12 +77,12 @@ export default function CapturePage() {
 
 
   const [voiceText, setVoiceText] = useState("");
+
   const [interimResult, setInterimResult] = useState("");
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const [audioBlob, setAudioBlob] = useState<string>("");
-
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const [isRecording, setIsRecording] = useState(false);
 
@@ -90,86 +90,143 @@ export default function CapturePage() {
 
   const [receiptPreview, setReceiptPreview] = useState<string>("");
 
-  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string>("");
-
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState("");
+
   const [safetyChips, setSafetyChips] = useState<Array<{ type: string; value?: string | null; unit?: string | null; result?: string | null }>>([]);
+
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+
   const [jobHours, setJobHours] = useState<number>(0);
+
   const [jobMinutes, setJobMinutes] = useState<number>(0);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const recordingStreamRef = useRef<MediaStream | null>(null);
 
   const reduceMotion = useReducedMotion();
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
-  const [timerSeconds, setTimerSeconds] = useState(0);
+
   const [recordingCount, setRecordingCount] = useState(0);
 
   const primaryActionState = getPrimaryActionState({
+
     isOnline,
+
     pendingCount,
+
     isSavingDraft,
+
     isSyncingNow,
+
     isRecording,
+
     voiceText,
+
     audioBlob,
+
     receiptBase64,
+
   });
 
 
 
+
+
   useEffect(() => {
+
     if (typeof window !== "undefined") {
+
       const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+
       if (SpeechRecognitionConstructor) {
+
         const recognition = new SpeechRecognitionConstructor();
+
         recognition.continuous = true;
+
         recognition.interimResults = true;
 
+
+
         recognition.onresult = (event: SpeechRecognitionEvent) => {
+
           let finalTranscript = "";
+
           let interimTranscript = "";
 
+
+
           for (let i = event.resultIndex; i < event.results.length; ++i) {
+
             const result = event.results[i];
+
             if (result && result.isFinal) {
+
               finalTranscript += result[0]?.transcript || "";
+
             } else if (result) {
+
               interimTranscript += result[0]?.transcript || "";
+
             }
+
           }
+
+
 
           if (finalTranscript) {
+
             setVoiceText((prev) => {
+
               const current = prev.trim();
+
               const addition = finalTranscript.trim();
+
               if (!current) return addition;
+
               if (current.endsWith(addition)) return current;
-              return current + " "+ addition;
+
+              return current + " " + addition;
+
             });
+
           }
+
           setInterimResult(interimTranscript);
+
         };
+
+
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+
           console.warn("Speech recognition error", event.error);
+
         };
 
+
+
         recognitionRef.current = recognition;
+
       }
+
     }
+
   }, []);
+
+
+
+
 
   async function uploadAudioToSave(audioBase64: string): Promise<void> {
 
@@ -199,6 +256,8 @@ export default function CapturePage() {
 
 
 
+
+
     if (!response.ok) {
 
       const body = await response.text();
@@ -213,7 +272,11 @@ export default function CapturePage() {
 
     };
 
+
+
     const tests = Array.isArray(payload.extracted_data?.safety_tests) ? payload.extracted_data?.safety_tests : [];
+
+
 
     setSafetyChips(
 
@@ -239,17 +302,13 @@ export default function CapturePage() {
 
     return () => {
 
-      if (audioPreviewUrl) {
-
-        URL.revokeObjectURL(audioPreviewUrl);
-
-      }
-
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
 
     };
 
-  }, [audioPreviewUrl]);
+  }, []);
+
+
 
 
 
@@ -287,8 +346,6 @@ export default function CapturePage() {
 
       const chunks: Blob[] = [];
 
-      setAudioChunks([]);
-
 
 
       recorder.ondataavailable = (event: BlobEvent) => {
@@ -296,8 +353,6 @@ export default function CapturePage() {
         if (event.data.size > 0) {
 
           chunks.push(event.data);
-
-          setAudioChunks((prev) => [...prev, event.data]);
 
         }
 
@@ -312,18 +367,6 @@ export default function CapturePage() {
         const base64 = await fileToBase64(blob);
 
         setAudioBlob(base64);
-
-
-
-        if (audioPreviewUrl) {
-
-          URL.revokeObjectURL(audioPreviewUrl);
-
-        }
-
-        setAudioPreviewUrl(URL.createObjectURL(blob));
-
-
 
         recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
 
@@ -356,9 +399,13 @@ export default function CapturePage() {
       vibrateLight();
 
       try {
+
         recognitionRef.current?.start();
+
       } catch (e) {
+
         console.warn("Speech recognition failed to start", e);
+
       }
 
       setStatusMessage("Recording in progress...");
@@ -378,21 +425,34 @@ export default function CapturePage() {
 
 
   function stopRecording(): void {
+
     if (!mediaRecorder.current || mediaRecorder.current.state === "inactive") {
+
       return;
+
     }
+
     mediaRecorder.current.stop();
+
     vibrateSuccess();
-    
+
     try {
+
       recognitionRef.current?.stop();
+
       setInterimResult("");
+
     } catch {
+
       // ignore
+
     }
 
     setIsRecording(false);
+
   }
+
+
 
   async function handleAttachmentFile(event: ChangeEvent<HTMLInputElement>, kind: "photo" | "screenshot" | "file"): Promise<void> {
 
@@ -468,25 +528,16 @@ export default function CapturePage() {
 
       setAudioBlob("");
 
-      setAudioChunks([]);
-
       setReceiptBase64("");
 
       setReceiptPreview("");
+
       setRecordingCount(0);
 
-      if (audioPreviewUrl) {
-
-        URL.revokeObjectURL(audioPreviewUrl);
-
-      }
-
-      setAudioPreviewUrl("");
-
-
-
       setStatusMessage("Draft saved offline and queued for sync.");
+
       vibrateSuccess();
+
       await refreshCounts();
 
       if (isOnline) {
@@ -576,18 +627,6 @@ export default function CapturePage() {
 
   }, []);
 
-  useEffect(() => {
-    if (!isTimerRunning || timerStartedAt === null) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setTimerSeconds(Math.max(0, Math.floor((Date.now() - timerStartedAt) / 1000)));
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isTimerRunning, timerStartedAt]);
-
   return (
 
     <main className="bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-10">
@@ -641,14 +680,6 @@ export default function CapturePage() {
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
               <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
               {recordingCount} recording{recordingCount > 1 ? "s" : ""} appended
-            </div>
-          ) : null}
-
-          {audioPreviewUrl ? (
-            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-left">
-              <p className="mb-2 text-xs text-gray-600">Playback Preview</p>
-              <audio controls src={audioPreviewUrl} className="w-full" />
-              <p className="mt-2 text-xs text-gray-500">Captured chunks: {audioChunks.length}</p>
             </div>
           ) : null}
 

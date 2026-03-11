@@ -2468,13 +2468,22 @@ def connect_xero_callback(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Xero state organization id is invalid.") from exc
 
-    token_payload = _xero_token_exchange(
-        {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": _xero_redirect_uri(),
-        }
-    )
+    try:
+        token_payload = _xero_token_exchange(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": _xero_redirect_uri(),
+            }
+        )
+    except Exception as exc:
+        error_msg = str(exc)
+        if "unauthorized_client" in error_msg and "Invalid scope" in error_msg:
+            raise HTTPException(
+                status_code=400,
+                detail="Xero App Configuration Error: The requested scopes are not enabled for your Xero app. Please check your Xero Developer Portal and ensure the app has the required scopes enabled (e.g. accounting.transactions)."
+            )
+        raise HTTPException(status_code=502, detail=f"Xero token exchange failed: {error_msg}")
 
     access_token = str(token_payload.get("access_token") or "").strip()
     refresh_token = str(token_payload.get("refresh_token") or "").strip()
