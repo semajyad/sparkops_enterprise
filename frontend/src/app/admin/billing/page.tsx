@@ -17,7 +17,7 @@ type BillingEntitlements = {
 };
 
 export default function AdminBillingPage(): React.JSX.Element {
-  const { session, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const [entitlements, setEntitlements] = useState<BillingEntitlements | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,14 +95,9 @@ export default function AdminBillingPage(): React.JSX.Element {
 
   useEffect(() => {
     if (!authLoading) {
-      if (session) {
-        void refresh();
-      } else {
-        setLoading(false);
-        setError("Unable to resolve your organization profile.");
-      }
+      void refresh();
     }
-  }, [authLoading, session]);
+  }, [authLoading]);
 
   const isSubscribed = entitlements?.subscription_status === "ACTIVE";
   const seatPercentage = Math.min(100, Math.round(((entitlements?.total_allocated ?? 0) / (entitlements?.licensed_seats ?? 1)) * 100));
