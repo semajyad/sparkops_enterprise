@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return storedMode === "FIELD" || storedMode === "ADMIN" ? storedMode : "FIELD";
   });
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(true);
   const effectiveMode: AppMode = role === "OWNER" ? mode : "FIELD";
 
   const setMode = useCallback(
@@ -154,19 +155,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function loadRole(): Promise<void> {
+      setRoleLoading(true);
       if (!session?.access_token) {
         setRole(null);
         if (typeof window !== "undefined") {
           window.localStorage.removeItem(ROLE_STORAGE_KEY);
         }
+        setRoleLoading(false);
         return;
       }
 
       // Fast path for optimistic UI - set role from localStorage immediately
+      let cachedRole: AppRole = null;
       if (typeof window !== "undefined") {
-        const cachedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
-        if (cachedRole === "OWNER" || cachedRole === "EMPLOYEE") {
-          setRole(cachedRole as AppRole);
+        const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
+        if (storedRole === "OWNER" || storedRole === "EMPLOYEE") {
+          cachedRole = storedRole as AppRole;
+          setRole(cachedRole);
         }
       }
 
@@ -176,7 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!response.ok) {
-          setRole(null);
+          if (!cachedRole) {
+            setRole(null);
+          }
           return;
         }
 
@@ -196,6 +203,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.localStorage.setItem(ROLE_STORAGE_KEY, normalized);
           }
         } else {
+          if (!cachedRole) {
+            setRole(null);
+            setTrade("ELECTRICAL");
+            setOrganizationDefaultTrade("ELECTRICAL");
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem(ROLE_STORAGE_KEY);
+            }
+          }
+        }
+      } catch {
+        if (!cachedRole) {
           setRole(null);
           setTrade("ELECTRICAL");
           setOrganizationDefaultTrade("ELECTRICAL");
@@ -203,13 +221,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.localStorage.removeItem(ROLE_STORAGE_KEY);
           }
         }
-      } catch {
-        setRole(null);
-        setTrade("ELECTRICAL");
-        setOrganizationDefaultTrade("ELECTRICAL");
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(ROLE_STORAGE_KEY);
-        }
+      } finally {
+        setRoleLoading(false);
       }
     }
 
@@ -226,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organizationDefaultTrade,
         mode: effectiveMode,
         setMode,
-        loading,
+        loading: loading || roleLoading,
       }}
     >
       {children}
