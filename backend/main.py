@@ -84,7 +84,20 @@ from database import engine as database_engine
 
 from dependencies import AuthenticatedUser, get_current_user, require_owner
 
-from models.database import Integration, Invite, JobDraft, Material, OrganizationSettings, SafetyTest, Vehicle, create_db_and_tables
+from models.database import (
+    Affiliate,
+    Commission,
+    Integration,
+    Invite,
+    JobDraft,
+    Material,
+    OrganizationSettings,
+    Referral,
+    SafetyPlan,
+    SafetyTest,
+    Vehicle,
+    create_db_and_tables,
+)
 
 
 
@@ -94,6 +107,13 @@ from routers.twilio import router as twilio_router
 
 from app.api.test import router as test_router
 
+from services.billing import (
+    BillingError,
+    create_checkout_session,
+    create_customer_portal_session,
+    retrieve_subscription,
+    verify_webhook_signature,
+)
 from services.math_utils import (
 
     InvoiceMathLine,
@@ -583,6 +603,10 @@ class OrganizationSettingsResponse(BaseModel):
     terms_and_conditions: str | None = None
     bank_account_name: str | None = None
     bank_account_number: str | None = None
+    subscription_status: str = "INACTIVE"
+    licensed_seats: int = 1
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
     updated_at: datetime
 
 
@@ -631,6 +655,88 @@ class XeroPushInvoiceResponse(BaseModel):
     provider: str
     job_id: UUID
     invoice_payload: dict[str, Any]
+
+
+class StripeCheckoutRequest(BaseModel):
+    """Request payload for creating Stripe checkout sessions."""
+
+    success_url: str = Field(min_length=5, max_length=2000)
+    cancel_url: str = Field(min_length=5, max_length=2000)
+    quantity: int = Field(default=1, ge=1, le=200)
+
+
+class StripeCheckoutResponse(BaseModel):
+    """Checkout session response with hosted URL."""
+
+    session_id: str
+    url: str
+
+
+class StripePortalRequest(BaseModel):
+    """Request payload for Stripe customer portal session."""
+
+    return_url: str = Field(min_length=5, max_length=2000)
+
+
+class StripePortalResponse(BaseModel):
+    """Customer portal response with hosted URL."""
+
+    url: str
+
+
+class BillingEntitlementsResponse(BaseModel):
+    """Seat/billing entitlement snapshot for team management gating."""
+
+    subscription_status: str
+    licensed_seats: int
+    active_users: int
+    pending_invites: int
+    total_allocated: int
+    can_add_member: bool
+
+
+class ReferralCaptureRequest(BaseModel):
+    """Capture referral attribution during signup."""
+
+    email: str = Field(min_length=3, max_length=320)
+    referral_code: str = Field(min_length=2, max_length=64)
+    organization_id: UUID | None = None
+
+
+class ReferralCaptureResponse(BaseModel):
+    """Referral capture response payload."""
+
+    status: str
+    referral_id: UUID
+
+
+class AffiliateSummaryRow(BaseModel):
+    """Affiliate performance summary row for owner reporting."""
+
+    affiliate_id: UUID
+    name: str
+    referral_code: str
+    referrals: int
+    converted: int
+    pending_commission_nzd: Decimal
+
+
+class SafetyPlanGenerateRequest(BaseModel):
+    """Voice transcript payload for pre-job SSSP generation."""
+
+    transcript: str = Field(min_length=5, max_length=8000)
+    acknowledge: bool = False
+
+
+class SafetyPlanGenerateResponse(BaseModel):
+    """Generated SSSP payload and optional downloadable PDF URL."""
+
+    id: UUID
+    job_id: UUID
+    trade: str
+    acknowledged: bool
+    plan_json: dict[str, Any]
+    pdf_url: str | None = None
 
 
 class VehicleCreateRequest(BaseModel):

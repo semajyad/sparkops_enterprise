@@ -165,6 +165,11 @@ class OrganizationSettings(SQLModel, table=True):
     bank_account_number: str | None = Field(default=None, max_length=128)
     tax_rate: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.1500"))
     standard_markup: Decimal = Field(sa_column=Column(Numeric(6, 4), nullable=False, server_default="0.2000"))
+    stripe_customer_id: str | None = Field(default=None, max_length=255)
+    stripe_subscription_id: str | None = Field(default=None, max_length=255)
+    stripe_subscription_item_id: str | None = Field(default=None, max_length=255)
+    subscription_status: str = Field(default="INACTIVE", max_length=32)
+    licensed_seats: int = Field(default=1, nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
@@ -216,6 +221,69 @@ class Integration(SQLModel, table=True):
     expires_at: datetime | None = Field(default=None, nullable=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Affiliate(SQLModel, table=True):
+    """Bookkeeper/partner affiliate profile with referral code."""
+
+    __tablename__ = "affiliates"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(max_length=255)
+    email: str = Field(index=True, max_length=320)
+    referral_code: str = Field(index=True, max_length=64)
+    payout_details: str | None = Field(default=None, max_length=1000)
+    is_active: bool = Field(default=True, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Referral(SQLModel, table=True):
+    """Captured referral attribution for organization onboarding and conversion."""
+
+    __tablename__ = "referrals"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    affiliate_id: UUID = Field(index=True, nullable=False)
+    organization_id: UUID | None = Field(default=None, index=True, nullable=True)
+    referred_email: str = Field(index=True, max_length=320)
+    referral_code: str = Field(max_length=64)
+    status: str = Field(default="PENDING", max_length=32)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    converted_at: datetime | None = Field(default=None, nullable=True)
+
+
+class Commission(SQLModel, table=True):
+    """Recurring commission ledger for affiliate-attributed subscriptions."""
+
+    __tablename__ = "commissions"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    referral_id: UUID = Field(index=True, nullable=False)
+    affiliate_id: UUID = Field(index=True, nullable=False)
+    organization_id: UUID = Field(index=True, nullable=False)
+    amount_nzd: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    currency: str = Field(default="NZD", max_length=8)
+    status: str = Field(default="PENDING", max_length=32)
+    stripe_invoice_id: str | None = Field(default=None, max_length=255)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class SafetyPlan(SQLModel, table=True):
+    """Pre-job Site Specific Safety Plan captured from voice check-in."""
+
+    __tablename__ = "safety_plans"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    job_id: UUID = Field(index=True, nullable=False)
+    organization_id: UUID = Field(index=True, nullable=False)
+    user_id: UUID = Field(index=True, nullable=False)
+    trade: str = Field(max_length=32)
+    source_transcript: str = Field(sa_column=Column(Text, nullable=False))
+    plan_json: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    acknowledged: bool = Field(default=False, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    acknowledged_at: datetime | None = Field(default=None, nullable=True)
 
 
 def get_database_url() -> str:
@@ -356,6 +424,11 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(6,4) NOT NULL DEFAULT 0.1500,
                     ADD COLUMN IF NOT EXISTS standard_markup NUMERIC(6,4) NOT NULL DEFAULT 0.2000,
+                    ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS stripe_subscription_item_id VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(32) NOT NULL DEFAULT 'INACTIVE',
+                    ADD COLUMN IF NOT EXISTS licensed_seats INTEGER NOT NULL DEFAULT 1,
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     """
                     )
@@ -407,6 +480,77 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                         lat NUMERIC(9,6) NOT NULL,
                         lng NUMERIC(9,6) NOT NULL,
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.affiliates (
+                        id UUID PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        email VARCHAR(320) NOT NULL,
+                        referral_code VARCHAR(64) NOT NULL,
+                        payout_details VARCHAR(1000),
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.referrals (
+                        id UUID PRIMARY KEY,
+                        affiliate_id UUID NOT NULL,
+                        organization_id UUID,
+                        referred_email VARCHAR(320) NOT NULL,
+                        referral_code VARCHAR(64) NOT NULL,
+                        status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        converted_at TIMESTAMPTZ
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.commissions (
+                        id UUID PRIMARY KEY,
+                        referral_id UUID NOT NULL,
+                        affiliate_id UUID NOT NULL,
+                        organization_id UUID NOT NULL,
+                        amount_nzd NUMERIC(10,2) NOT NULL,
+                        currency VARCHAR(8) NOT NULL DEFAULT 'NZD',
+                        status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                        stripe_invoice_id VARCHAR(255),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS public.safety_plans (
+                        id UUID PRIMARY KEY,
+                        job_id UUID NOT NULL,
+                        organization_id UUID NOT NULL,
+                        user_id UUID NOT NULL,
+                        trade VARCHAR(32) NOT NULL,
+                        source_transcript TEXT NOT NULL,
+                        plan_json JSON NOT NULL,
+                        acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        acknowledged_at TIMESTAMPTZ
                     )
                     """
                 )

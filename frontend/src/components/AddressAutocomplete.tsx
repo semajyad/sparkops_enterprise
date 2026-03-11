@@ -44,10 +44,7 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  // Use the correct method that we verified works
-  const token = typeof window !== 'undefined' 
-    ? ((window as unknown as { __NEXT_DATA__?: { env?: { NEXT_PUBLIC_MAPBOX_TOKEN?: string } } }).__NEXT_DATA__)?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? ''
-    : process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
   
 
   
