@@ -16,9 +16,9 @@ import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncSer
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
+const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-0.5";
 const MODAL_INPUT_SMALL_CLASS =
-  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+  "mt-1 min-h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
@@ -415,7 +415,7 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+          <section className="my-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
               <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
               <button
@@ -428,8 +428,8 @@ export default function JobsPage(): React.JSX.Element {
               </button>
             </div>
 
-            <form className="flex flex-col overflow-y-auto px-5 py-4 shrink" onSubmit={onCreateManualJob}>
-              <div className="grid gap-5">
+            <form className="flex flex-col overflow-y-auto px-5 py-3 shrink" onSubmit={onCreateManualJob}>
+              <div className="grid gap-3">
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
