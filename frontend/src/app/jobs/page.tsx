@@ -347,9 +347,8 @@ export default function JobsPage(): React.JSX.Element {
   }, [jobs, search, filter, timeframe]);
 
   return (
-    <div className="bg-gray-50">
-      <main className="p-4 pb-24 text-gray-900 sm:p-6 md:p-10">
-        <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+    <main className="p-4 pb-24 text-gray-900 bg-white sm:p-6 md:p-10">
+      <section className="mx-auto w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
 
         <div className="flex flex-col sm:flex-row gap-3">
           <label htmlFor="jobs-search" className="flex flex-1 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-500">
@@ -522,7 +521,6 @@ export default function JobsPage(): React.JSX.Element {
         </div>
       ) : null}
       </main>
-    </div>
   );
 }
 
