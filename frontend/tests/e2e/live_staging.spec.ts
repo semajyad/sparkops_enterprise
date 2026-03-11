@@ -123,7 +123,7 @@ test.describe("Live staging auth and onboarding", () => {
     await page.goto(`/jobs/${mockJobId}`);
 
     await expect(page).toHaveURL(/\/jobs\//);
-    await expect(page.getByText("Evidence Locker")).toBeVisible();
+    await expect(page.getByText("Voice Note")).toBeVisible();
   });
 
   test("performance: jobs local interactions stay under 100ms", async ({ page }) => {

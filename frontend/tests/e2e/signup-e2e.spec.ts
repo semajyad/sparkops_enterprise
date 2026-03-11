@@ -105,7 +105,7 @@ test.describe("User signup and full end-to-end workflow", () => {
 
     // Step 4: Navigate to capture page to create first job
     await page.goto("/capture");
-    await expect(page.getByRole("heading", { level: 1, name: /Capture/i })).toBeVisible();
+    await expect(page.getByText(/Voice First/i)).toBeVisible();
 
     // Step 5: Create a job using voice notes
     const jobDescription = "Client is ACME Corp. Complete electrical installation of new lighting fixtures in commercial building. 4 hours labor plus materials.";
@@ -132,7 +132,7 @@ test.describe("User signup and full end-to-end workflow", () => {
 
     // Step 8: Navigate to jobs page to verify job was created
     await page.goto("/jobs");
-    await expect(page.getByRole("heading", { level: 1, name: /Jobs/i })).toBeVisible();
+    await expect(page.getByPlaceholder("Search by client")).toBeVisible();
 
     // DEBUG: log page text
     const jobsPageText = await page.locator("main").innerText();

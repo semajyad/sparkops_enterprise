@@ -18,10 +18,10 @@
           - text: jimmybobday@gmail.com
       - generic [ref=e17]:
         - generic [ref=e18]: Password
-        - textbox "Password" [active] [ref=e19]:
+        - textbox "Password" [ref=e19]:
           - /placeholder: ••••••••
           - text: Samdoggy1!
-      - button "Sign In to TradeOps" [ref=e20]
+      - button "Sign In to TradeOps" [active] [ref=e20]
   - generic [ref=e25] [cursor=pointer]:
     - button "Open Next.js Dev Tools" [ref=e26]:
       - img [ref=e27]

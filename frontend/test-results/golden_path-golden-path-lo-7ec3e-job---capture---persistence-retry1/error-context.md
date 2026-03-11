@@ -2,27 +2,105 @@
 
 ```yaml
 - generic [ref=e1]:
-  - generic [ref=e4]:
-    - generic [ref=e5]:
-      - heading "TradeOps" [level=1] [ref=e7]
-      - paragraph [ref=e8]: Welcome
-      - paragraph [ref=e9]: Sign in or create your TradeOps account.
-    - generic [ref=e10]:
-      - button "Login" [ref=e11]
-      - button "Sign Up" [ref=e12]
-    - generic [ref=e13]:
-      - generic [ref=e14]:
-        - generic [ref=e15]: Email
-        - textbox "Email" [ref=e16]:
-          - /placeholder: you@example.com
-          - text: jimmybobday@gmail.com
-      - generic [ref=e17]:
-        - generic [ref=e18]: Password
-        - textbox "Password" [active] [ref=e19]:
-          - /placeholder: ••••••••
-          - text: Samdoggy1!
-      - button "Sign In to TradeOps" [ref=e20]
-  - button "Open Next.js Dev Tools" [ref=e26] [cursor=pointer]:
-    - img [ref=e27]
-  - alert [ref=e30]
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - textbox [ref=e10]:
+            - /placeholder: Search by client or date (e.g. Mar 8)
+        - combobox [ref=e11]:
+          - option "Today"
+          - option "Yesterday"
+          - option "Tomorrow"
+          - option "This Week"
+          - option "Next Week"
+          - option "Last Week"
+          - option "All Time" [selected]
+      - generic [ref=e12]:
+        - button "To Do" [ref=e13]
+        - button "Drafts" [ref=e14]
+        - button "Completed" [ref=e15]
+      - paragraph [ref=e16]: No jobs found for your search.
+    - button "Create new job" [ref=e17]:
+      - img [ref=e18]
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - heading "New Job" [level=2] [ref=e22]
+        - button "Close create job form" [ref=e23]: ×
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - text: Client Name
+          - textbox "Client Name" [ref=e27]:
+            - /placeholder: ACME Properties
+            - text: Golden Path Client
+        - generic [ref=e28]:
+          - text: Job Title / Description
+          - textbox "Job Title / Description" [ref=e29]:
+            - /placeholder: Switchboard inspection and repairs
+            - text: Switchboard Repair
+        - generic [ref=e30]:
+          - text: Address
+          - generic [ref=e31]:
+            - textbox "Address 21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand 21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand 21 Churchill Road, Judea, Tauranga 3110, New Zealand 21 Churchill Street, Whakatāne 3120, New Zealand 21 Churchill Street, Waipukurau 4200, New Zealand" [active] [ref=e32]:
+              - /placeholder: Start typing an address
+              - text: 21 Churchill Road
+            - list [ref=e33]:
+              - listitem [ref=e34]:
+                - button "21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand" [ref=e35]:
+                  - img [ref=e36]
+                  - generic [ref=e39]: 21 Churchill Road, Murrays Bay, Auckland 0630, New Zealand
+              - listitem [ref=e40]:
+                - button "21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand" [ref=e41]:
+                  - img [ref=e42]
+                  - generic [ref=e45]: 21 Churchill Road, Cockle Bay, Auckland 2014, New Zealand
+              - listitem [ref=e46]:
+                - button "21 Churchill Road, Judea, Tauranga 3110, New Zealand" [ref=e47]:
+                  - img [ref=e48]
+                  - generic [ref=e51]: 21 Churchill Road, Judea, Tauranga 3110, New Zealand
+              - listitem [ref=e52]:
+                - button "21 Churchill Street, Whakatāne 3120, New Zealand" [ref=e53]:
+                  - img [ref=e54]
+                  - generic [ref=e57]: 21 Churchill Street, Whakatāne 3120, New Zealand
+              - listitem [ref=e58]:
+                - button "21 Churchill Street, Waipukurau 4200, New Zealand" [ref=e59]:
+                  - img [ref=e60]
+                  - generic [ref=e63]: 21 Churchill Street, Waipukurau 4200, New Zealand
+        - generic [ref=e64]:
+          - text: Scheduled Date & Time
+          - textbox "Scheduled Date & Time" [ref=e65]
+        - button "Create Job" [ref=e66]
+  - navigation [ref=e67]:
+    - link "Home" [ref=e68] [cursor=pointer]:
+      - /url: /home
+      - img [ref=e69]
+      - text: Home
+    - link "Jobs" [ref=e72] [cursor=pointer]:
+      - /url: /jobs
+      - img [ref=e73]
+      - text: Jobs
+    - link "Capture" [ref=e76] [cursor=pointer]:
+      - /url: /capture
+      - img [ref=e77]
+      - text: Capture
+    - link "Map" [ref=e80] [cursor=pointer]:
+      - /url: /map
+      - img [ref=e81]
+      - text: Map
+    - link "Profile" [ref=e84] [cursor=pointer]:
+      - /url: /profile
+      - img [ref=e85]
+      - text: Profile
+  - generic [ref=e92] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e93]:
+      - img [ref=e94]
+    - generic [ref=e97]:
+      - button "Open issues overlay" [ref=e98]:
+        - generic [ref=e99]:
+          - generic [ref=e100]: "0"
+          - generic [ref=e101]: "1"
+        - generic [ref=e102]: Issue
+      - button "Collapse issues badge" [ref=e103]:
+        - img [ref=e104]
+  - alert [ref=e106]
 ```
