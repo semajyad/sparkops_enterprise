@@ -558,6 +558,13 @@ class JobCompleteRequest(BaseModel):
     client_email: str | None = Field(default=None, max_length=255)
 
 
+class JobVoiceNoteAppendRequest(BaseModel):
+    """Append-only voice-note payload for an existing job."""
+
+    voice_note: str | None = Field(default=None, max_length=8000)
+    audio_url: str | None = Field(default=None, max_length=2000)
+
+
 class JobCompleteResponse(BaseModel):
     """Response payload after successful compliance completion and send."""
 
@@ -2756,6 +2763,63 @@ def get_job_draft(job_id: UUID, current_user: AuthenticatedUser = Depends(get_cu
             certificate_pdf_url=draft.certificate_pdf_url,
             created_at=draft.created_at,
         )
+
+
+@app.post("/api/jobs/{job_id}/voice-note")
+def append_job_voice_note(
+    job_id: UUID,
+    payload: JobVoiceNoteAppendRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Append voice-note content to an existing job draft via UPDATE semantics."""
+
+    next_note = payload.voice_note.strip() if isinstance(payload.voice_note, str) else ""
+    next_audio_url = payload.audio_url.strip() if isinstance(payload.audio_url, str) else ""
+    if not next_note and not next_audio_url:
+        raise HTTPException(status_code=400, detail="Provide voice_note or audio_url.")
+
+    with Session(ENGINE) as session:
+        draft = session.get(JobDraft, job_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Job draft not found.")
+
+        _assert_job_write_access(draft, current_user)
+
+        extracted = draft.extracted_data if isinstance(draft.extracted_data, dict) else {}
+
+        if next_note:
+            existing_transcript = str(draft.raw_transcript or "").strip()
+            if not existing_transcript:
+                draft.raw_transcript = next_note
+            elif existing_transcript.endswith(next_note):
+                draft.raw_transcript = existing_transcript
+            else:
+                draft.raw_transcript = f"{existing_transcript}\n{next_note}"
+
+            existing_notes_raw = extracted.get("voice_notes")
+            existing_notes = existing_notes_raw if isinstance(existing_notes_raw, list) else []
+            if next_note not in existing_notes:
+                extracted["voice_notes"] = [*existing_notes, next_note]
+            else:
+                extracted["voice_notes"] = existing_notes
+
+        if next_audio_url:
+            existing_audio_raw = extracted.get("voice_note_audio_urls")
+            existing_audio_urls = existing_audio_raw if isinstance(existing_audio_raw, list) else []
+            if next_audio_url not in existing_audio_urls:
+                extracted["voice_note_audio_urls"] = [*existing_audio_urls, next_audio_url]
+            else:
+                extracted["voice_note_audio_urls"] = existing_audio_urls
+
+        draft.extracted_data = extracted
+        session.add(draft)
+        session.commit()
+        session.refresh(draft)
+
+    return {
+        "raw_transcript": draft.raw_transcript,
+        "extracted_data": draft.extracted_data if isinstance(draft.extracted_data, dict) else {},
+    }
 
 
 @app.delete("/api/jobs/{job_id}", response_model=JobDeleteResponse)
