@@ -450,7 +450,10 @@ test,data"""
         mock_invite.id = uuid4()
         mock_invite.organization_id = uuid4()
         mock_invite.email = "test@example.com"
+        mock_invite.full_name = "Test User"
         mock_invite.role = "MEMBER"
+        mock_invite.status = "PENDING"
+        mock_invite.invited_by_user_id = uuid4()
         mock_invite.created_at = datetime.now(timezone.utc)
         mock_invite.accepted_at = None
         
@@ -459,7 +462,10 @@ test,data"""
         assert response.id == mock_invite.id
         assert response.organization_id == mock_invite.organization_id
         assert response.email == "test@example.com"
+        assert response.full_name == "Test User"
         assert response.role == "MEMBER"
+        assert response.status == "PENDING"
+        assert response.invited_by_user_id == mock_invite.invited_by_user_id
 
     def test_to_org_settings_response(self):
         """Test converting organization settings to response."""
@@ -469,19 +475,31 @@ test,data"""
         mock_settings = Mock()
         mock_settings.organization_id = uuid4()
         mock_settings.logo_url = "https://example.com/logo.png"
-        mock_settings.brand_color = "#FF0000"
-        mock_settings.company_name = "Test Company"
-        mock_settings.contact_email = "contact@test.com"
+        mock_settings.business_name = "Test Business"
+        mock_settings.website_url = "https://example.com"
+        mock_settings.gst_number = "123-456-789"
+        mock_settings.default_trade = "ELECTRICAL"
+        mock_settings.terms_and_conditions = "Terms"
+        mock_settings.bank_account_name = "Test Account"
+        mock_settings.bank_account_number = "12-3456-1234567-00"
         mock_settings.tax_rate = 15.0
         mock_settings.standard_markup = 20.0
+        mock_settings.licensed_seats = 1
+        mock_settings.subscription_status = "ACTIVE"
+        mock_settings.plan_type = "BASE"
+        mock_settings.trial_started_at = None
+        mock_settings.trial_ends_at = None
+        mock_settings.stripe_customer_id = None
+        mock_settings.stripe_subscription_id = None
+        mock_settings.updated_at = datetime.now(timezone.utc)
         
         response = _to_org_settings_response(mock_settings)
         
         assert response.organization_id == mock_settings.organization_id
         assert response.logo_url == "https://example.com/logo.png"
-        assert response.brand_color == "#FF0000"
-        assert response.company_name == "Test Company"
-        assert response.contact_email == "contact@test.com"
+        assert response.business_name == "Test Business"
+        assert response.website_url == "https://example.com"
+        assert response.gst_number == "123-456-789"
         assert response.tax_rate == 15.0
         assert response.standard_markup == 20.0
 
@@ -493,22 +511,19 @@ test,data"""
         mock_vehicle = Mock()
         mock_vehicle.id = uuid4()
         mock_vehicle.organization_id = uuid4()
-        mock_vehicle.make = "Toyota"
-        mock_vehicle.model = "Hilux"
-        mock_vehicle.year = 2023
+        mock_vehicle.name = "Toyota Hilux"
         mock_vehicle.plate = "ABC123"
-        mock_vehicle.vin = "12345678901234567"
+        mock_vehicle.notes = "Company truck"
         mock_vehicle.created_at = datetime.now(timezone.utc)
+        mock_vehicle.updated_at = datetime.now(timezone.utc)
         
         response = _to_vehicle_response(mock_vehicle)
         
         assert response.id == mock_vehicle.id
         assert response.organization_id == mock_vehicle.organization_id
-        assert response.make == "Toyota"
-        assert response.model == "Hilux"
-        assert response.year == 2023
+        assert response.name == "Toyota Hilux"
         assert response.plate == "ABC123"
-        assert response.vin == "12345678901234567"
+        assert response.notes == "Company truck"
 
     def test_build_auth_me_response(self):
         """Test building auth me response."""

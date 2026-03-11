@@ -283,7 +283,10 @@ Test Material 2,meter,25.75"""
         mock_invite.id = uuid4()
         mock_invite.organization_id = uuid4()
         mock_invite.email = "test@example.com"
+        mock_invite.full_name = "Test User"
         mock_invite.role = "MEMBER"
+        mock_invite.status = "ACCEPTED"
+        mock_invite.invited_by_user_id = uuid4()
         mock_invite.created_at = datetime.now(timezone.utc)
         mock_invite.accepted_at = datetime.now(timezone.utc)
         
@@ -296,21 +299,39 @@ Test Material 2,meter,25.75"""
         """Test converting org settings with optional fields."""
         from main import _to_org_settings_response
         from uuid import uuid4
-        
+
         mock_settings = Mock()
         mock_settings.organization_id = uuid4()
         mock_settings.logo_url = None
-        mock_settings.brand_color = None
-        mock_settings.company_name = "Test Company"
+        mock_settings.business_name = "Test Business"
         mock_settings.contact_email = "contact@test.com"
+        mock_settings.website_url = None
+        mock_settings.gst_number = None
+        mock_settings.default_trade = None
+        mock_settings.terms_and_conditions = None
+        mock_settings.bank_account_name = None
+        mock_settings.bank_account_number = None
         mock_settings.tax_rate = 15.0
         mock_settings.standard_markup = 20.0
-        
+        mock_settings.licensed_seats = 1
+        mock_settings.subscription_status = "ACTIVE"
+        mock_settings.plan_type = "BASE"
+        mock_settings.trial_started_at = None
+        mock_settings.trial_ends_at = None
+        mock_settings.stripe_customer_id = None
+        mock_settings.stripe_subscription_id = None
+        mock_settings.updated_at = datetime.now(timezone.utc)
+
         response = _to_org_settings_response(mock_settings)
-        
-        assert response.organization_id == mock_settings.organization_id
+
         assert response.logo_url is None
-        assert response.brand_color is None
+        assert response.website_url is None
+        assert response.gst_number is None
+        assert response.terms_and_conditions is None
+        assert response.bank_account_name is None
+        assert response.bank_account_number is None
+        assert response.business_name == "Test Business"
+        assert response.default_trade == "ELECTRICAL"
 
     def test_to_vehicle_response_with_optional_fields(self):
         """Test converting vehicle with optional fields."""
@@ -320,18 +341,17 @@ Test Material 2,meter,25.75"""
         mock_vehicle = Mock()
         mock_vehicle.id = uuid4()
         mock_vehicle.organization_id = uuid4()
-        mock_vehicle.make = "Toyota"
-        mock_vehicle.model = "Hilux"
-        mock_vehicle.year = 2023
-        mock_vehicle.plate = None  # Optional field
-        mock_vehicle.vin = None   # Optional field
+        mock_vehicle.name = "Toyota Hilux"
+        mock_vehicle.plate = ""  # Empty string instead of None since it's required
+        mock_vehicle.notes = "Test notes"
         mock_vehicle.created_at = datetime.now(timezone.utc)
+        mock_vehicle.updated_at = datetime.now(timezone.utc)
         
         response = _to_vehicle_response(mock_vehicle)
         
         assert response.id == mock_vehicle.id
-        assert response.plate is None
-        assert response.vin is None
+        assert response.plate == ""
+        assert response.notes == "Test notes"
 
     def test_build_auth_me_response_with_all_fields(self):
         """Test building auth me response with all fields."""
@@ -342,6 +362,8 @@ Test Material 2,meter,25.75"""
         mock_user.id = uuid4()
         mock_user.email = "test@example.com"
         mock_user.role = "OWNER"
+        mock_user.trade = "ELECTRICAL"
+        mock_user.organization_default_trade = "ELECTRICAL"
         mock_user.organization_id = uuid4()
         mock_user.full_name = "Test User"
         
