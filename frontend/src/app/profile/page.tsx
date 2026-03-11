@@ -287,21 +287,6 @@ export default function ProfilePage(): React.JSX.Element {
           </div>
         </div>
 
-        <section className="mt-4 grid gap-3 sm:grid-cols-3">
-          <article className="rounded-xl border border-gray-200 bg-white p-3">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Mode</p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">Field Operator</p>
-          </article>
-          <article className="rounded-xl border border-gray-200 bg-white p-3">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Driving</p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">{ladderEnabled ? "Enabled" : "Disabled"}</p>
-          </article>
-          <article className="rounded-xl border border-gray-200 bg-white p-3">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Account</p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">Ready</p>
-          </article>
-        </section>
-
         <div className="mt-4">
           <button
             type="button"
