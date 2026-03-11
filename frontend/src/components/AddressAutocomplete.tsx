@@ -44,59 +44,16 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  // Try multiple ways to access the Mapbox token
-  let token = '';
-  let tokenSource = '';
+  // Use the correct method that we verified works
+  const token = typeof window !== 'undefined' 
+    ? (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? ''
+    : process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
   
-  console.log("[AddressAutocomplete] === TOKEN DEBUG START ===");
-  
-  if (typeof window !== 'undefined') {
-    console.log("[AddressAutocomplete] Browser environment detected");
-    
-    // Check window.__NEXT_DATA__
-    if ((window as any).__NEXT_DATA__) {
-      console.log("[AddressAutocomplete] window.__NEXT_DATA__ exists");
-      console.log("[AddressAutocomplete] __NEXT_DATA__.env keys:", Object.keys((window as any).__NEXT_DATA__.env || {}));
-      token = (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
-      tokenSource = 'window.__NEXT_DATA__.env.NEXT_PUBLIC_MAPBOX_TOKEN';
-      console.log("[AddressAutocomplete] Token from __NEXT_DATA__:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
-    } else {
-      console.log("[AddressAutocomplete] window.__NEXT_DATA__ does NOT exist");
-    }
-    
-    // Check process.env (if available)
-    if (!token && typeof process !== 'undefined' && process.env) {
-      console.log("[AddressAutocomplete] process.env exists");
-      token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
-      tokenSource = 'process.env.NEXT_PUBLIC_MAPBOX_TOKEN';
-      console.log("[AddressAutocomplete] Token from process.env:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
-    } else if (!token) {
-      console.log("[AddressAutocomplete] process.env does NOT exist or is empty");
-    }
-    
-    // Check all window properties for token
-    if (!token) {
-      console.log("[AddressAutocomplete] Checking all window properties...");
-      Object.keys(window).forEach(key => {
-        if (key.toLowerCase().includes('mapbox') || key.toLowerCase().includes('token')) {
-          console.log(`[AddressAutocomplete] Found window.${key}:`, (window as any)[key]);
-        }
-      });
-    }
-    
-  } else {
-    console.log("[AddressAutocomplete] Server environment detected");
-    token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
-    tokenSource = 'process.env.NEXT_PUBLIC_MAPBOX_TOKEN (server)';
-    console.log("[AddressAutocomplete] Token from server:", token ? `EXISTS (${token.length} chars)` : 'MISSING');
-  }
-  
-  console.log("[AddressAutocomplete] === TOKEN DEBUG RESULTS ===");
-  console.log("[AddressAutocomplete] Final token source:", tokenSource);
-  console.log("[AddressAutocomplete] Final token exists:", !!token);
-  console.log("[AddressAutocomplete] Final token length:", token.length);
-  console.log("[AddressAutocomplete] Final token value:", token ? token.substring(0, 10) + '...' : 'NONE');
-  console.log("[AddressAutocomplete] === TOKEN DEBUG END ===");
+  console.log("[AddressAutocomplete] Token access test:");
+  console.log("- Browser environment:", typeof window !== 'undefined');
+  console.log("- __NEXT_DATA__ exists:", !!(window as any).__NEXT_DATA__);
+  console.log("- Token exists:", !!token);
+  console.log("- Token length:", token.length);
   
   return token;
 }
