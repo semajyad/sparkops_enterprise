@@ -380,7 +380,7 @@ export default function ProfilePage(): React.JSX.Element {
                     />
                   </label>
                 </div>
-                <div className="flex items-center justify-end gap-2 border-t border-gray-200 bg-white px-5 py-3">
+                <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3">
                   <button
                     type="button"
                     onClick={() => setIsEditOpen(false)}
