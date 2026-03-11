@@ -1,4 +1,4 @@
-﻿"""TradeOps Sprint 1 API entrypoint.
+"""TradeOps Sprint 1 API entrypoint.
 
 
 
@@ -1903,10 +1903,9 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
             "response_type": "code",
             "client_id": client_id,
             "redirect_uri": redirect_uri,
-            "scope": scope,
             "state": state,
         }
-    )
+    ) + f"&scope={scope.replace(' ', '%20')}"
     return XeroConnectResponse(
         provider="XERO",
         auth_url=f"https://login.xero.com/identity/connect/authorize?{auth_query}",

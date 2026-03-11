@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sessionUserId = data.session?.user?.id ?? null;
       const verifiedUserId = userData.user?.id ?? null;
       if (sessionUserId && verifiedUserId && sessionUserId !== verifiedUserId) {
+        await clearAuthState();
         setSession(null);
         setUser(null);
         setRole(null);

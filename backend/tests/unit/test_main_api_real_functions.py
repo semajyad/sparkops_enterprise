@@ -278,6 +278,8 @@ class TestMainAPIRealFunctions:
         mock_user = Mock()
         mock_user.organization_id = "org-123"
         mock_user.role = "OWNER"
+        mock_user.trade = "ELECTRICAL"
+        mock_user.organization_default_trade = "ELECTRICAL"
         
         # Should not raise exception
         _assert_job_write_access(mock_draft, mock_user)
@@ -306,6 +308,8 @@ class TestMainAPIRealFunctions:
         mock_user = Mock()
         mock_user.organization_id = "org-123"
         mock_user.role = "OWNER"
+        mock_user.trade = "ELECTRICAL"
+        mock_user.organization_default_trade = "ELECTRICAL"
         
         with pytest.raises(HTTPException) as exc_info:
             _assert_job_write_access(mock_draft, mock_user)
@@ -515,7 +519,10 @@ test,data"""
         mock_user.id = uuid4()
         mock_user.email = "test@example.com"
         mock_user.role = "OWNER"
+        mock_user.trade = "ELECTRICAL"
+        mock_user.organization_default_trade = "ELECTRICAL"
         mock_user.organization_id = uuid4()
+        mock_user.full_name = "Test User"
         
         response = _build_auth_me_response(mock_user)
         

@@ -46,12 +46,12 @@ type MapboxResponse = {
 function getMapboxToken(): string {
   // Use the correct method that we verified works
   const token = typeof window !== 'undefined' 
-    ? (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? ''
+    ? ((window as unknown as { __NEXT_DATA__?: { env?: { NEXT_PUBLIC_MAPBOX_TOKEN?: string } } }).__NEXT_DATA__)?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? ''
     : process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
   
   console.log("[AddressAutocomplete] Token access test:");
   console.log("- Browser environment:", typeof window !== 'undefined');
-  console.log("- __NEXT_DATA__ exists:", !!(window as any).__NEXT_DATA__);
+  console.log("- __NEXT_DATA__ exists:", !!((window as unknown as { __NEXT_DATA__?: { env?: { NEXT_PUBLIC_MAPBOX_TOKEN?: string } } }).__NEXT_DATA__));
   console.log("- Token exists:", !!token);
   console.log("- Token length:", token.length);
   
