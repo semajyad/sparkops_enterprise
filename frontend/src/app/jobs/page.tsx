@@ -17,6 +17,8 @@ const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_INPUT_CLASS =
   "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
+const MODAL_INPUT_SMALL_CLASS =
+  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
@@ -413,7 +415,7 @@ export default function JobsPage(): React.JSX.Element {
 
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+          <section className="my-auto flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
               <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
               <button
@@ -435,7 +437,7 @@ export default function JobsPage(): React.JSX.Element {
                     required
                     value={clientName}
                     onChange={(event) => setClientName(event.target.value)}
-                    className={MODAL_INPUT_CLASS}
+                    className={MODAL_INPUT_SMALL_CLASS}
                     placeholder="ACME Properties"
                   />
                 </label>
@@ -447,7 +449,7 @@ export default function JobsPage(): React.JSX.Element {
                     required
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
-                    className={MODAL_INPUT_CLASS}
+                    className={MODAL_INPUT_SMALL_CLASS}
                     placeholder="Switchboard inspection and repairs"
                   />
                 </label>
@@ -468,7 +470,7 @@ export default function JobsPage(): React.JSX.Element {
                       setLongitude(selection.lng);
                     }}
                     placeholder="Start typing an address"
-                    className={MODAL_INPUT_CLASS}
+                    className={MODAL_INPUT_SMALL_CLASS}
                   />
                 </label>
 
@@ -482,7 +484,7 @@ export default function JobsPage(): React.JSX.Element {
                       <select
                         value={assignedToUserId}
                         onChange={(event) => setAssignedToUserId(event.target.value)}
-                        className={MODAL_INPUT_CLASS}
+                        className={MODAL_INPUT_SMALL_CLASS}
                       >
                         <option value={user?.id ?? ""}>Me</option>
                         {teamMembers
@@ -504,7 +506,7 @@ export default function JobsPage(): React.JSX.Element {
                     type="datetime-local"
                     value={scheduledDate}
                     onChange={(event) => setScheduledDate(event.target.value)}
-                    className={MODAL_INPUT_CLASS}
+                    className={MODAL_INPUT_SMALL_CLASS}
                   />
                 </label>
                 <button
