@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
 
@@ -16,9 +17,10 @@ type BillingEntitlements = {
 };
 
 export default function AdminBillingPage(): React.JSX.Element {
+  const { session, loading: authLoading } = useAuth();
   const [entitlements, setEntitlements] = useState<BillingEntitlements | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -92,54 +94,115 @@ export default function AdminBillingPage(): React.JSX.Element {
   }
 
   useEffect(() => {
-    void refresh();
-  }, []);
+    if (!authLoading) {
+      if (session) {
+        void refresh();
+      } else {
+        setLoading(false);
+        setError("Unable to resolve your organization profile.");
+      }
+    }
+  }, [authLoading, session]);
+
+  const isSubscribed = entitlements?.subscription_status === "ACTIVE";
+  const seatPercentage = Math.min(100, Math.round(((entitlements?.total_allocated ?? 0) / (entitlements?.licensed_seats ?? 1)) * 100));
 
   return (
-    <main className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
-      <p className="mt-1 text-sm text-gray-600">Base owner subscription plus paid technician seat licenses.</p>
-
-      <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-        <p className="text-sm text-gray-700">
-          Status: <span className="font-semibold text-gray-900">{entitlements?.subscription_status ?? "UNKNOWN"}</span>
-        </p>
-        <p className="text-sm text-gray-700">
-          Licensed seats: <span className="font-semibold text-gray-900">{entitlements?.licensed_seats ?? 1}</span>
-        </p>
-        <p className="text-sm text-gray-700">
-          Seat allocation: <span className="font-semibold text-gray-900">{entitlements?.total_allocated ?? 0}</span> in use ({entitlements?.active_users ?? 0} active + {entitlements?.pending_invites ?? 0} pending)
-        </p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void beginCheckout("base")}
-            disabled={loading}
-            className="min-h-11 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:border-orange-500 hover:text-orange-600 disabled:opacity-60"
-          >
-            Subscribe Base Plan
-          </button>
-          <button
-            type="button"
-            onClick={() => void beginCheckout("seats")}
-            disabled={loading}
-            className="min-h-11 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
-          >
-            Buy Technician Seat
-          </button>
-          <button
-            type="button"
-            onClick={() => void openPortal()}
-            disabled={loading}
-            className="min-h-11 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:border-orange-500 hover:text-orange-600 disabled:opacity-60"
-          >
-            Open Billing Portal
-          </button>
+    <main className="min-h-screen w-full bg-gray-50 p-4 sm:p-6 md:p-8">
+      <div className="mx-auto w-full max-w-4xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
+          <p className="mt-1 text-sm text-gray-600">Base owner subscription plus paid technician seat licenses.</p>
         </div>
-      </section>
 
-      {error ? <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {loading || authLoading ? (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="h-[250px] animate-pulse rounded-2xl bg-gray-200 shadow-sm" />
+            <div className="h-[250px] animate-pulse rounded-2xl bg-gray-200 shadow-sm" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="flex flex-col justify-between rounded-2xl bg-white p-6 shadow-sm">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Base Plan</h2>
+                <div className="mt-3">
+                  {isSubscribed ? (
+                    <span className="inline-flex items-center rounded-full bg-green-500 px-2.5 py-0.5 text-xs font-semibold text-white">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="inline-flex animate-pulse items-center rounded-full bg-red-500 px-2.5 py-0.5 text-xs font-semibold text-white">
+                      {entitlements?.subscription_status === "PAST_DUE" ? "PAST DUE" : "INACTIVE"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="mt-6">
+                {!isSubscribed ? (
+                  <button
+                    type="button"
+                    onClick={() => void beginCheckout("base")}
+                    disabled={loading}
+                    className="w-full rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-60"
+                  >
+                    Subscribe Base Plan
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void openPortal()}
+                    disabled={loading}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Manage Subscription
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl bg-white p-6 shadow-sm">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Technician Licenses</h2>
+                <div className="mt-4">
+                  <div className="mb-2 flex justify-between text-sm font-medium text-gray-700">
+                    <span>{entitlements?.total_allocated ?? 0} / {entitlements?.licensed_seats ?? 1} Seats In Use</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div 
+                      className="h-full rounded-full bg-orange-600 transition-all duration-500" 
+                      style={{ width: `${seatPercentage}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {entitlements?.active_users ?? 0} active, {entitlements?.pending_invites ?? 0} pending
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => void beginCheckout("seats")}
+                  disabled={loading}
+                  className="w-full rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-60"
+                >
+                  Buy Technician Seat
+                </button>
+                <p className="mt-2 text-center text-xs text-gray-500">
+                  Your card will be charged a pro-rated amount for the remainder of this billing cycle.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
+
