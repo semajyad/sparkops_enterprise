@@ -44,10 +44,30 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "";
+  // Try multiple ways to access the Mapbox token
+  let token = '';
+  
+  if (typeof window !== 'undefined') {
+    // Browser environment - try Next.js injected env vars
+    token = (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+    
+    // Fallback: check if it's available directly (Next.js should inject this)
+    if (!token && typeof process !== 'undefined' && process.env) {
+      token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+    }
+  } else {
+    // Server environment
+    token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+  }
+  
   console.log("[AddressAutocomplete] getMapboxToken() called, token exists:", !!token, "token length:", token.length);
-  // Also log the raw env var for debugging
-  console.log("[AddressAutocomplete] Raw NEXT_PUBLIC_MAPBOX_TOKEN:", process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
+  console.log("[AddressAutocomplete] Environment source:", typeof window !== 'undefined' ? 'browser' : 'server');
+  
+  // For debugging - show what we actually have
+  if (typeof window !== 'undefined') {
+    console.log("[AddressAutocomplete] window.__NEXT_DATA__:", (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_MAPBOX_TOKEN);
+  }
+  
   return token;
 }
 
