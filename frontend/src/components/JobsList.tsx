@@ -77,6 +77,15 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
                     Complete
                   </button>
                 )}
+                <Link
+                  href={`/jobs/${job.id}/safety-checkin`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition"
+                >
+                  Start Job / Safety Check-in
+                </Link>
                 {onDelete && (
                   <button
                     onClick={(e) => {

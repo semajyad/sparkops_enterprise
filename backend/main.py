@@ -36,7 +36,7 @@ except ImportError:
 import base64
 
 import io
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.error import HTTPError
 from urllib.request import Request as UrlRequest, urlopen
 
@@ -152,7 +152,7 @@ app.add_middleware(
     ],
     allow_credentials=True,
 
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
     allow_headers=["Content-Type", "Authorization", "X-Twilio-Signature"],
 
@@ -611,7 +611,10 @@ class OrganizationSettingsResponse(BaseModel):
     bank_account_name: str | None = None
     bank_account_number: str | None = None
     subscription_status: str = "INACTIVE"
+    plan_type: str = "BASE"
     licensed_seats: int = 1
+    trial_started_at: datetime | None = None
+    trial_ends_at: datetime | None = None
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
     updated_at: datetime
@@ -1647,7 +1650,10 @@ def _to_org_settings_response(settings: OrganizationSettings) -> OrganizationSet
         bank_account_name=settings.bank_account_name,
         bank_account_number=settings.bank_account_number,
         subscription_status=(settings.subscription_status or "INACTIVE").upper(),
+        plan_type=(settings.plan_type or "BASE").upper(),
         licensed_seats=max(1, int(settings.licensed_seats or 1)),
+        trial_started_at=settings.trial_started_at,
+        trial_ends_at=settings.trial_ends_at,
         stripe_customer_id=settings.stripe_customer_id,
         stripe_subscription_id=settings.stripe_subscription_id,
         updated_at=settings.updated_at,
@@ -1660,11 +1666,23 @@ def _ensure_org_settings(session: Session, organization_id: UUID, default_trade:
         settings = OrganizationSettings(organization_id=organization_id)
         settings.default_trade = _normalize_trade(default_trade)
         settings.subscription_status = "INACTIVE"
+        settings.plan_type = "BASE"
         settings.licensed_seats = 1
+        settings.trial_started_at = datetime.now(timezone.utc)
+        settings.trial_ends_at = datetime.now(timezone.utc) + timedelta(days=14)
         session.add(settings)
         session.commit()
         session.refresh(settings)
     return settings
+
+
+def _has_active_subscription_or_trial(settings: OrganizationSettings) -> bool:
+    status = str(settings.subscription_status or "INACTIVE").upper()
+    if status in {"ACTIVE", "TRIALING"}:
+        return True
+    if settings.trial_ends_at and settings.trial_ends_at >= datetime.now(timezone.utc):
+        return True
+    return False
 
 
 def _billing_entitlements(session: Session, organization_id: UUID) -> BillingEntitlementsResponse:
@@ -1788,6 +1806,14 @@ def list_invites(current_user: AuthenticatedUser = Depends(require_owner)) -> li
 @app.post("/api/invites", response_model=InviteResponse)
 def create_invite(payload: InviteCreateRequest, current_user: AuthenticatedUser = Depends(require_owner)) -> InviteResponse:
     with Session(ENGINE) as session:
+        settings = _ensure_org_settings(session, current_user.organization_id, current_user.organization_default_trade)
+        if not _has_active_subscription_or_trial(settings):
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    "Subscription inactive and trial expired. Activate your base plan in Billing to continue."
+                ),
+            )
         entitlements = _billing_entitlements(session, current_user.organization_id)
         if not entitlements.can_add_member:
             raise HTTPException(
@@ -2418,9 +2444,10 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
         # Running locally
         redirect_uri = os.getenv("XERO_REDIRECT_URI", "http://localhost:8000/api/integrations/xero/callback")
     
-    # Use the exact required scope string with proper encoding
-    scope = "openid profile email offline_access accounting.transactions accounting.contacts"
+    scope_string = "openid profile email offline_access accounting.transactions accounting.contacts"
+    print("XERO SCOPE:", scope_string)
     state = _build_xero_state(current_user.organization_id)
+    encoded_scope = quote(scope_string, safe="")
 
     auth_query = urlencode(
         {
@@ -2429,7 +2456,7 @@ def connect_xero(current_user: AuthenticatedUser = Depends(require_owner)) -> Xe
             "redirect_uri": redirect_uri,
             "state": state,
         }
-    ) + f"&scope={scope.replace(' ', '%20')}"
+    ) + f"&scope={encoded_scope}"
     return XeroConnectResponse(
         provider="XERO",
         auth_url=f"https://login.xero.com/identity/connect/authorize?{auth_query}",

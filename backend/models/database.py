@@ -169,7 +169,10 @@ class OrganizationSettings(SQLModel, table=True):
     stripe_subscription_id: str | None = Field(default=None, max_length=255)
     stripe_subscription_item_id: str | None = Field(default=None, max_length=255)
     subscription_status: str = Field(default="INACTIVE", max_length=32)
+    plan_type: str = Field(default="BASE", max_length=32)
     licensed_seats: int = Field(default=1, nullable=False)
+    trial_started_at: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=True)
+    trial_ends_at: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=14), nullable=True)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 
@@ -428,7 +431,10 @@ def create_db_and_tables(engine: Optional[Engine] = None) -> Engine:
                     ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS stripe_subscription_item_id VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(32) NOT NULL DEFAULT 'INACTIVE',
+                    ADD COLUMN IF NOT EXISTS plan_type VARCHAR(32) NOT NULL DEFAULT 'BASE',
                     ADD COLUMN IF NOT EXISTS licensed_seats INTEGER NOT NULL DEFAULT 1,
+                    ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ,
+                    ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
                     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     """
                     )

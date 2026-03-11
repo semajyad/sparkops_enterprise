@@ -11,6 +11,8 @@ type AuthMode = "login" | "signup";
 
 function LoginPageContent(): React.JSX.Element {
   const searchParams = useSearchParams();
+  const referralFromUrl = (searchParams.get("ref") ?? "").trim().toUpperCase();
+
   const initialMode: AuthMode = searchParams.get("mode") === "signup" ? "signup" : "login";
   const authMessage = searchParams.get("message");
   const authError = searchParams.get("error");
@@ -178,6 +180,20 @@ function LoginPageContent(): React.JSX.Element {
                   <option value="ELECTRICAL">Electrician</option>
                   <option value="PLUMBING">Plumbing</option>
                 </select>
+              </div>
+
+              <div>
+                <label htmlFor="signup-referral-code" className="mb-2 block text-sm font-medium text-gray-700">
+                  Referral / Promo Code (Optional)
+                </label>
+                <input
+                  id="signup-referral-code"
+                  name="referral_code"
+                  type="text"
+                  defaultValue={referralFromUrl}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                  placeholder="BOOKKEEPER123"
+                />
               </div>
 
               <button
