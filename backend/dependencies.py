@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -143,9 +143,7 @@ def _decode_supabase_jwt(token: str) -> SupabaseJwtClaims:
 
 def _provision_fallback_profile(session: Session, user_id: UUID, claims: SupabaseJwtClaims) -> tuple[UUID, str, str | None]:
     full_name = _claim_full_name(claims)
-
-    # Generate a random organization_id for the fallback profile
-    organization_id = UUID('00000000-0000-0000-0000-000000000001')  # Fixed fallback org ID
+    organization_id = uuid4()
 
     session.exec(
         text(
@@ -154,7 +152,8 @@ def _provision_fallback_profile(session: Session, user_id: UUID, claims: Supabas
             VALUES (:id, :organization_id, 'OWNER', :full_name)
             ON CONFLICT (id) DO UPDATE SET
                 full_name = EXCLUDED.full_name,
-                organization_id = EXCLUDED.organization_id
+                organization_id = EXCLUDED.organization_id,
+                role = COALESCE(public.profiles.role, 'OWNER')
             """
         ),
         params={"id": str(user_id), "organization_id": str(organization_id), "full_name": full_name},
@@ -232,10 +231,14 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
                     profile_trade = _normalize_trade(profile_trade_raw)
                 else:
                     organization_id_raw, role, full_name = row
-                organization_id = UUID(str(organization_id_raw))
-                role_normalized = str(role or "").upper()
-                if not isinstance(full_name, str) or not full_name.strip():
-                    full_name = _claim_full_name(claims)
+                if organization_id_raw is None:
+                    logger.warning("Profile missing organization_id for user_id=%s; provisioning fallback profile", user_id)
+                    organization_id, role_normalized, full_name = _provision_fallback_profile(session, user_id, claims)
+                else:
+                    organization_id = UUID(str(organization_id_raw))
+                    role_normalized = str(role or "").upper()
+                    if not isinstance(full_name, str) or not full_name.strip():
+                        full_name = _claim_full_name(claims)
 
             organization_default_trade = _resolve_org_default_trade(session, organization_id)
             claim_trade = _claim_trade(claims)

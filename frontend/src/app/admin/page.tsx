@@ -445,22 +445,12 @@ export default function AdminPage(): React.JSX.Element {
   }
 
   async function saveSettings(): Promise<void> {
-    console.log("🔧 Save Company: Starting save process");
-    setIsSavingSettings(true);
-    setError(null);
-
-    // Check authentication status first
-    const supabase = createSupabaseClient();
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log("🔧 Save Company: Auth session", { session, sessionError });
-    
-    if (!session) {
-      console.error("🔧 Save Company: No active session");
-      setError("No active session. Please log in again.");
-      setToast("No active session. Please log in again.");
-      setIsSavingSettings(false);
+    if (isSavingSettings) {
       return;
     }
+    setIsSavingSettings(true);
+    setError(null);
+    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
 
     try {
       const optimisticSettings: AdminSettings = {
@@ -477,47 +467,35 @@ export default function AdminPage(): React.JSX.Element {
         xero_tenant_id: settings.xero_tenant_id,
       };
 
-      console.log("🔧 Save Company: Optimistic settings", optimisticSettings);
-
       setSettings(optimisticSettings);
       await setAdminSettingsCache(optimisticSettings);
 
       // Remove xero_tenant_id from payload as it might not be updatable
-      const { xero_tenant_id: _xeroTenantId, ...payloadWithoutXero } = optimisticSettings;
+      const payloadWithoutXero = { ...optimisticSettings };
+      delete payloadWithoutXero.xero_tenant_id;
       const finalPayload = {
         ...payloadWithoutXero,
         tax_rate: typeof optimisticSettings.tax_rate === "number" ? optimisticSettings.tax_rate / 100 : null,
         standard_markup: optimisticSettings.standard_markup,
       };
 
-      console.log("🔧 Save Company: Sending payload", finalPayload);
-
       // Add timeout to prevent hanging
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
-      console.log("🔧 Save Company: Making API call to", `${API_BASE_URL}/api/admin/settings`);
-      
       const response = await apiFetch(`${API_BASE_URL}/api/admin/settings`, {
         method: "PUT",
         body: JSON.stringify(finalPayload),
         signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
-      
-      console.log("🔧 Save Company: Response status", response.status);
-      console.log("🔧 Save Company: Response headers", Object.fromEntries(response.headers.entries()));
-      
+
       if (!response.ok) {
         const body = await response.text();
-        console.error("🔧 Save Company: Response error", body);
         throw new Error(body || `Unable to save settings (${response.status}).`);
       }
 
       const payload_response = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(response);
-      console.log("🔧 Save Company: Response payload", payload_response);
-      
+
       const canonical: AdminSettings = {
         logo_url: payload_response.logo_url,
         website_url: payload_response.website_url,
@@ -531,28 +509,27 @@ export default function AdminPage(): React.JSX.Element {
         bank_account_number: payload_response.bank_account_number,
         xero_tenant_id: payload_response.xero_tenant_id,
       };
-      
-      console.log("🔧 Save Company: Canonical settings", canonical);
-      
+
       setSettings(canonical);
       await setAdminSettingsCache(canonical);
       setToast("Admin settings saved.");
     } catch (saveError) {
-      console.error("🔧 Save Company: Error occurred", saveError);
       let errorMessage = "Failed to save admin settings.";
-      
+
       if (saveError instanceof Error) {
-        if (saveError.name === 'AbortError') {
+        if (saveError.name === "AbortError") {
           errorMessage = "Save operation timed out. Please try again.";
         } else {
           errorMessage = saveError.message;
         }
       }
-      
+
       setError(errorMessage);
       setToast(errorMessage);
     } finally {
-      console.log("🔧 Save Company: Finally block - setting loading to false");
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
       setIsSavingSettings(false);
     }
   }
