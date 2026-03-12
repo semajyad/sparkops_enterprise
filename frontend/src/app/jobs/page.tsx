@@ -322,7 +322,6 @@ export default function JobsPage(): React.JSX.Element {
         })
       );
       await queueJobCreate(payload);
-      await backgroundSync();
 
       setClientName("");
       setJobTitle("");
@@ -334,6 +333,7 @@ export default function JobsPage(): React.JSX.Element {
       setCustomerEmail("");
       setCustomerMobile("");
       setIsCreateOpen(false);
+      void backgroundSync().catch(() => {});
     } catch (createError) {
       const rawMessage = createError instanceof Error ? createError.message : "";
       if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
