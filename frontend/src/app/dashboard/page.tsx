@@ -109,6 +109,10 @@ export default function DashboardPage(): React.JSX.Element {
 
       try {
         void backgroundSync().catch((syncError) => {
+          const rawMessage = syncError instanceof Error ? syncError.message : "";
+          if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
+            return;
+          }
           setError(toRenderableErrorMessage(syncError, "Unable to refresh dashboard data."));
         });
         const sessionIdentityResponse = await fetch("/api/auth/session", {
@@ -131,6 +135,10 @@ export default function DashboardPage(): React.JSX.Element {
           setIsSessionExpired(true);
           setError(null);
         } else {
+          const rawMessage = loadError instanceof Error ? loadError.message : "";
+          if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
+            return;
+          }
           setError(toRenderableErrorMessage(loadError, "Unable to load dashboard pulse."));
         }
       } finally {

@@ -23,7 +23,7 @@ const MODAL_INPUT_SMALL_CLASS =
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
-  const { jobs: globalJobs, teamMembers: globalTeamMembers, refreshCoreData } = useGlobalData();
+  const { jobs: globalJobs, teamMembers: globalTeamMembers, organizationId: currentOrgId, refreshCoreData } = useGlobalData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("IN_PROGRESS");
   const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
@@ -190,7 +190,14 @@ export default function JobsPage(): React.JSX.Element {
         if (cancelled) {
           return;
         }
-        const provisionMessage = toRenderableErrorMessage(provisionError, "Auto-provisioning organization failed.") ?? "Auto-provisioning organization failed.";
+        const rawMessage = provisionError instanceof Error ? provisionError.message : "";
+        if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
+          return;
+        }
+        const provisionMessage = toRenderableErrorMessage(provisionError, "Auto-provisioning organization failed.");
+        if (!provisionMessage) {
+          return;
+        }
         setAutoProvisionFailed(true);
         setError(provisionMessage);
       }
@@ -276,7 +283,12 @@ export default function JobsPage(): React.JSX.Element {
         scheduled_date: scheduledIso,
         customer_email: customerEmail.trim() || null,
         customer_mobile: customerMobile.trim() || null,
+        organization_id: currentOrgId,
       };
+
+      if (!payload.organization_id) {
+        throw new Error("Organization setup is incomplete. Please complete setup before creating jobs.");
+      }
 
       await createJob({
         id: payload.client_generated_id,
@@ -291,6 +303,7 @@ export default function JobsPage(): React.JSX.Element {
         scheduled_date: payload.scheduled_date,
         customer_email: payload.customer_email,
         customer_mobile: payload.customer_mobile,
+        organization_id: payload.organization_id,
       });
 
       await putJobInCache(
@@ -326,7 +339,14 @@ export default function JobsPage(): React.JSX.Element {
       setCustomerMobile("");
       setIsCreateOpen(false);
     } catch (createError) {
-      const message = toRenderableErrorMessage(createError, "Unable to create manual job.") ?? "Unable to create manual job.";
+      const rawMessage = createError instanceof Error ? createError.message : "";
+      if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
+        return;
+      }
+      const message = toRenderableErrorMessage(createError, "Unable to create manual job.");
+      if (!message) {
+        return;
+      }
       setAutoProvisionFailed(message.toLowerCase().includes("auto-provision"));
       setError(message);
     } finally {

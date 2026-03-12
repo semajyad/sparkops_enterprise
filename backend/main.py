@@ -36,7 +36,7 @@ except ImportError:
 import base64
 
 import io
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urljoin
 from urllib.error import HTTPError
 from urllib.request import Request as UrlRequest, urlopen
 
@@ -2550,8 +2550,9 @@ def connect_xero_callback(
         session.add(record)
         session.commit()
 
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
-    return RedirectResponse(url=f"{frontend_url}/admin?xero=success", status_code=302)
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    redirect_url = urljoin(frontend_url.rstrip("/") + "/", "admin/company?xero=success")
+    return RedirectResponse(url=redirect_url, status_code=302)
 
 
 @app.post("/api/v1/integrations/xero/push-invoice", response_model=XeroPushInvoiceResponse)
