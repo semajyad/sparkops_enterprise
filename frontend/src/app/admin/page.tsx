@@ -451,8 +451,19 @@ export default function AdminPage(): React.JSX.Element {
     setIsSavingSettings(true);
     setError(null);
     let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+    let failsafeId: ReturnType<typeof window.setTimeout> | null = null;
 
     try {
+      const persistSettingsCache = (nextSettings: AdminSettings): void => {
+        void setAdminSettingsCache(nextSettings).catch(() => {});
+      };
+
+      failsafeId = window.setTimeout(() => {
+        setError("Save operation timed out. Please try again.");
+        setToast("Save operation timed out. Please try again.");
+        setIsSavingSettings(false);
+      }, 15000);
+
       const optimisticSettings: AdminSettings = {
         logo_url: toNullable(toInput(settings.logo_url)),
         website_url: toNullable(toInput(settings.website_url)),
@@ -468,7 +479,7 @@ export default function AdminPage(): React.JSX.Element {
       };
 
       setSettings(optimisticSettings);
-      await setAdminSettingsCache(optimisticSettings);
+      persistSettingsCache(optimisticSettings);
 
       // Remove xero_tenant_id from payload as it might not be updatable
       const payloadWithoutXero = { ...optimisticSettings };
@@ -481,13 +492,19 @@ export default function AdminPage(): React.JSX.Element {
 
       // Add timeout to prevent hanging
       const controller = new AbortController();
-      timeoutId = window.setTimeout(() => controller.abort(), 8000);
-
-      const response = await apiFetch(`${API_BASE_URL}/api/admin/settings`, {
-        method: "PUT",
-        body: JSON.stringify(finalPayload),
-        signal: controller.signal,
-      });
+      const response = await Promise.race([
+        apiFetch(`${API_BASE_URL}/api/admin/settings`, {
+          method: "PUT",
+          body: JSON.stringify(finalPayload),
+          signal: controller.signal,
+        }),
+        new Promise<Response>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            controller.abort();
+            reject(new Error("Save operation timed out. Please try again."));
+          }, 8000);
+        }),
+      ]);
 
       if (!response.ok) {
         const body = await response.text();
@@ -511,7 +528,7 @@ export default function AdminPage(): React.JSX.Element {
       };
 
       setSettings(canonical);
-      await setAdminSettingsCache(canonical);
+      persistSettingsCache(canonical);
       setToast("Admin settings saved.");
     } catch (saveError) {
       let errorMessage = "Failed to save admin settings.";
@@ -530,6 +547,9 @@ export default function AdminPage(): React.JSX.Element {
       if (timeoutId) {
         window.clearTimeout(timeoutId);
       }
+      if (failsafeId) {
+        window.clearTimeout(failsafeId);
+      }
       setIsSavingSettings(false);
     }
   }
@@ -547,16 +567,24 @@ export default function AdminPage(): React.JSX.Element {
 
     setError(null);
     setIsUploadingLogo(true);
+    let uploadTimeoutId: ReturnType<typeof window.setTimeout> | null = null;
     try {
       const supabase = createSupabaseClient();
       const fileExtension = file.name.split(".").pop()?.toLowerCase() ?? "png";
       const safeUserId = user?.id ?? "owner";
       const path = `logos/${safeUserId}/${Date.now()}.${fileExtension}`;
 
-      const { error: uploadError } = await supabase.storage.from("organization-assets").upload(path, file, {
-        upsert: true,
-        contentType: file.type,
-      });
+      const { error: uploadError } = await Promise.race([
+        supabase.storage.from("organization-assets").upload(path, file, {
+          upsert: true,
+          contentType: file.type,
+        }),
+        new Promise<{ error: Error | null }>((_, reject) => {
+          uploadTimeoutId = window.setTimeout(() => {
+            reject(new Error("Logo upload timed out. Please try again."));
+          }, 12000);
+        }),
+      ]);
       if (uploadError) {
         throw new Error(uploadError.message || "Logo upload failed.");
       }
@@ -568,6 +596,9 @@ export default function AdminPage(): React.JSX.Element {
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Failed to upload logo.");
     } finally {
+      if (uploadTimeoutId) {
+        window.clearTimeout(uploadTimeoutId);
+      }
       setIsUploadingLogo(false);
       event.currentTarget.value = "";
     }
@@ -1087,8 +1118,8 @@ export default function AdminPage(): React.JSX.Element {
                 disabled={isSavingSettings || isUploadingLogo}
                 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
               >
-                {isSavingSettings || isUploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Save Company
+                {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {isSavingSettings ? "Saving Company..." : isUploadingLogo ? "Uploading Logo..." : "Save Company"}
               </button>
             </div>
           ) : null}
