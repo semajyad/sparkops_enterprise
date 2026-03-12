@@ -125,7 +125,7 @@ function initialsFromName(fullName: string): string {
 
 export default function AdminPage(): React.JSX.Element {
   const { loading: authLoading, roleLoading, role, user } = useAuth();
-  const { teamMembers: globalTeamMembers, hasBootstrapped } = useGlobalData();
+  const { teamMembers: globalTeamMembers, isLoading: globalDataLoading } = useGlobalData();
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>("profile");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
@@ -601,8 +601,12 @@ export default function AdminPage(): React.JSX.Element {
     }
   }
 
-  if (authLoading || roleLoading || !hasBootstrapped) {
-    return <></>;
+  if (authLoading || roleLoading || globalDataLoading) {
+    return (
+      <div className="flex h-[50vh] w-full items-center justify-center">
+        <div className="text-gray-500 animate-pulse">Verifying access...</div>
+      </div>
+    );
   }
 
   if (!isOwner) {

@@ -17,6 +17,7 @@ type GlobalDataContextValue = {
   jobs: JobListItem[];
   teamMembers: CachedTeamMember[];
   lastKnownLocation: { lat: number; lng: number } | null;
+  isLoading: boolean;
   hasBootstrapped: boolean;
   refreshCoreData: () => Promise<void>;
 };
@@ -27,6 +28,7 @@ const GlobalDataContext = createContext<GlobalDataContextValue>({
   jobs: [],
   teamMembers: [],
   lastKnownLocation: null,
+  isLoading: true,
   hasBootstrapped: false,
   refreshCoreData: async () => undefined,
 });
@@ -55,8 +57,10 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
   const [lastKnownLocation, setLastKnownLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
-  const resolvedRole: AppRole = role ?? cachedRole;
+  const [profileResolvedRole, setProfileResolvedRole] = useState<AppRole>(null);
+  const resolvedRole: AppRole = role ?? profileResolvedRole ?? cachedRole;
 
   const loadCachedData = useCallback(async (): Promise<void> => {
     const [jobRows, cachedTeam, cachedMap] = await Promise.all([
@@ -81,13 +85,22 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
     await Promise.all([
       backgroundSync().catch(() => undefined),
       (async () => {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("organization_id")
+          .select("organization_id, role")
           .eq("id", userId)
-          .maybeSingle<{ organization_id: string | null }>();
+          .maybeSingle<{ organization_id: string | null; role: string | null }>();
+        if (profileError) {
+          throw profileError;
+        }
         const nextOrganizationId = typeof profile?.organization_id === "string" ? profile.organization_id.trim() : "";
         setOrganizationId(nextOrganizationId || null);
+        const normalizedRole = typeof profile?.role === "string" ? profile.role.trim().toUpperCase() : "";
+        if (normalizedRole === "OWNER" || normalizedRole === "EMPLOYEE") {
+          setProfileResolvedRole(normalizedRole as AppRole);
+        } else {
+          setProfileResolvedRole("OWNER");
+        }
       })(),
       role === "OWNER"
         ? (async () => {
@@ -118,12 +131,20 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
     let cancelled = false;
 
     async function bootstrap(): Promise<void> {
-      await loadCachedData();
-      if (cancelled) {
-        return;
+      try {
+        await loadCachedData();
+        if (cancelled) {
+          return;
+        }
+        setHasBootstrapped(true);
+        await refreshCoreData();
+      } catch (error) {
+        console.error("Failed to hydrate global state:", error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-      setHasBootstrapped(true);
-      await refreshCoreData();
     }
 
     void bootstrap();
@@ -139,10 +160,11 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
       jobs,
       teamMembers,
       lastKnownLocation,
+      isLoading,
       hasBootstrapped,
       refreshCoreData,
     }),
-    [resolvedRole, organizationId, jobs, teamMembers, lastKnownLocation, hasBootstrapped, refreshCoreData],
+    [resolvedRole, organizationId, jobs, teamMembers, lastKnownLocation, isLoading, hasBootstrapped, refreshCoreData],
   );
 
   return <GlobalDataContext.Provider value={value}>{children}</GlobalDataContext.Provider>;
