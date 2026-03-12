@@ -11,6 +11,7 @@ export type CreateJobInput = {
   latitude: number | null;
   longitude: number | null;
   assigned_to_user_id: string | null;
+  organization_id?: string | null;
   required_trade: "ELECTRICAL" | "PLUMBING" | "ANY";
   scheduled_date: string | null;
   customer_email?: string | null;
@@ -25,13 +26,24 @@ export async function createJob(input: CreateJobInput): Promise<void> {
     throw new Error("Not authenticated");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", user.id)
-    .single<{ organization_id: string | null }>();
+  let organizationId = typeof input.organization_id === "string" ? input.organization_id.trim() : "";
+  if (!organizationId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single<{ organization_id: string | null }>();
 
-  const organizationId = profile?.organization_id ?? null;
+    if (profileError) {
+      throw new Error(`Unable to resolve organization_id: ${profileError.message}`);
+    }
+
+    organizationId = typeof profile?.organization_id === "string" ? profile.organization_id.trim() : "";
+  }
+
+  if (!organizationId) {
+    throw new Error("Unable to create job: missing organization_id for authenticated user.");
+  }
 
   const { error } = await supabase.from("jobs").upsert(
     {
@@ -48,7 +60,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       customer_email: input.customer_email ?? null,
       customer_mobile: input.customer_mobile ?? null,
       status: "SYNCING",
-      ...(organizationId ? { organization_id: organizationId } : {}),
+      organization_id: organizationId,
     },
     { onConflict: "id" },
   );
