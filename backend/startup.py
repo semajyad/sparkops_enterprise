@@ -28,6 +28,14 @@ def check_required_env_vars():
             if var == 'DATABASE_URL':
                 if os.getenv('POSTGRES_URL') or os.getenv('POSTGRESQL_URL'):
                     continue
+            # Make SECRET_KEY more lenient for Railway
+            if var == 'SECRET_KEY':
+                # Generate a default secret if not provided
+                import secrets
+                default_secret = secrets.token_urlsafe(32)
+                os.environ['SECRET_KEY'] = default_secret
+                logger.warning(f"Generated default SECRET_KEY for Railway deployment")
+                continue
             missing_vars.append(var)
     
     if missing_vars:

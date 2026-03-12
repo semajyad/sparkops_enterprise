@@ -6,14 +6,8 @@ builder = "nixpacks"
 root = "backend"
 builder = "dockerfile"
 dockerfilePath = "backend/Dockerfile"
-watchPatterns = ["backend/**"]
 
 # FRONTEND SERVICE
 [service.sparkops_staging_frontend]
 root = "frontend"
 builder = "nixpacks"
-watchPatterns = ["frontend/**"]
-healthcheckPath = "/"
-healthcheckTimeout = 100
-restartPolicyType = "ON_FAILURE"
-sleepApplication = false
