@@ -18,6 +18,23 @@ export type CreateJobInput = {
   customer_mobile?: string | null;
 };
 
+async function autoProvisionOrganization(): Promise<string> {
+  const response = await fetch("/api/organization/auto-provision", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `Auto-provision failed (${response.status})`);
+  }
+
+  const payload = (await response.json()) as { organization_id?: string | null };
+  return typeof payload.organization_id === "string" ? payload.organization_id.trim() : "";
+}
+
 export async function createJob(input: CreateJobInput): Promise<void> {
   const supabase = createSupabaseClient();
 
@@ -42,7 +59,16 @@ export async function createJob(input: CreateJobInput): Promise<void> {
   }
 
   if (!organizationId) {
-    throw new Error("Organization setup is incomplete. Please finish profile setup before creating a job.");
+    try {
+      organizationId = await autoProvisionOrganization();
+    } catch (provisionError) {
+      const detail = provisionError instanceof Error ? provisionError.message : "Unknown error";
+      throw new Error(`Auto-provisioning organization failed. Please complete setup manually. (${detail})`);
+    }
+  }
+
+  if (!organizationId) {
+    throw new Error("Auto-provisioning organization failed. Please complete setup manually.");
   }
 
   const { error } = await supabase.from("jobs").upsert(

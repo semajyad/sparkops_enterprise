@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,10 +13,11 @@ import { useAuth } from "@/lib/auth";
 import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
-const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-0.5";
+const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
@@ -41,6 +43,7 @@ export default function JobsPage(): React.JSX.Element {
   const [customerMobile, setCustomerMobile] = useState("");
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [autoProvisionFailed, setAutoProvisionFailed] = useState(false);
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
@@ -182,6 +185,63 @@ export default function JobsPage(): React.JSX.Element {
       setAssignedToUserId(user.id);
     }
   }, [assignedToUserId, isOwner, teamMembers, user?.id]);
+
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) {
+      return;
+    }
+
+    let cancelled = false;
+    async function ensureOrganizationProvisioned(): Promise<void> {
+      try {
+        const supabase = createSupabaseClient();
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("organization_id")
+          .eq("id", userId)
+          .maybeSingle<{ organization_id: string | null }>();
+
+        if (profileError) {
+          throw new Error(profileError.message);
+        }
+
+        const organizationId = typeof profile?.organization_id === "string" ? profile.organization_id.trim() : "";
+        if (organizationId) {
+          if (!cancelled) {
+            setAutoProvisionFailed(false);
+          }
+          return;
+        }
+
+        const response = await fetch("/api/organization/auto-provision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(body || `Auto-provision failed (${response.status})`);
+        }
+
+        if (!cancelled) {
+          setAutoProvisionFailed(false);
+        }
+      } catch (provisionError) {
+        if (cancelled) {
+          return;
+        }
+        const provisionMessage = toRenderableErrorMessage(provisionError, "Auto-provisioning organization failed.") ?? "Auto-provisioning organization failed.";
+        setAutoProvisionFailed(true);
+        setError(provisionMessage);
+      }
+    }
+
+    void ensureOrganizationProvisioned();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
   const hasResolvedCache = Array.isArray(cachedJobs);
@@ -330,7 +390,9 @@ export default function JobsPage(): React.JSX.Element {
       setCustomerMobile("");
       setIsCreateOpen(false);
     } catch (createError) {
-      setError(toRenderableErrorMessage(createError, "Unable to create manual job."));
+      const message = toRenderableErrorMessage(createError, "Unable to create manual job.") ?? "Unable to create manual job.";
+      setAutoProvisionFailed(message.toLowerCase().includes("auto-provision"));
+      setError(message);
     } finally {
       setIsCreating(false);
       createInFlightRef.current = false;
@@ -445,7 +507,19 @@ export default function JobsPage(): React.JSX.Element {
         </div>
 
         {isJobsLoading ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
-        {error ? <p className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+        {error ? (
+          <div className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">
+            <p>{error}</p>
+            {autoProvisionFailed ? (
+              <Link
+                href="/admin/company"
+                className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+              >
+                Complete Setup
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
         {toast ? <p className="mt-4 rounded-xl border border-green-500/50 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
 
         {!isJobsLoading && !isRevalidating && filteredJobs.length === 0 ? (
@@ -467,27 +541,19 @@ export default function JobsPage(): React.JSX.Element {
       {isCreateOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <section className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setIsCreateOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
-              aria-label="Close create job form"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-            <h2 className="text-base font-semibold text-gray-900">New Job</h2>
-            <button
-              type="submit"
-              form="new-job-form"
-              disabled={isCreating}
-              className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
-            >
-              {isCreating ? "Creating..." : "Create"}
-            </button>
-          </div>
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 pb-3">
+              <h2 className="text-base font-semibold text-gray-900">New Job</h2>
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
+                aria-label="Close create job form"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
 
-          <form id="new-job-form" className="grid grid-cols-2 gap-2 px-3 py-3" onSubmit={onCreateManualJob}>
+            <form id="new-job-form" className="grid grid-cols-2 gap-4 px-4 py-4" onSubmit={onCreateManualJob}>
                 <label className={`${MODAL_LABEL_CLASS} col-span-2`}>
                   Client Name
                   <input
@@ -535,7 +601,7 @@ export default function JobsPage(): React.JSX.Element {
                 <input type="hidden" name="latitude" value={latitude ?? ""} />
                 <input type="hidden" name="longitude" value={longitude ?? ""} />
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2 grid grid-cols-2 gap-4">
                   <label className={MODAL_LABEL_CLASS}>
                     Customer Email
                     <input
@@ -558,7 +624,7 @@ export default function JobsPage(): React.JSX.Element {
                   </label>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2 grid grid-cols-2 gap-4">
                   {isOwner ? (
                     <label className={MODAL_LABEL_CLASS}>
                       Assign To
@@ -591,6 +657,15 @@ export default function JobsPage(): React.JSX.Element {
                   </label>
                 </div>
 
+                <div className="col-span-2 mt-2 border-t border-gray-200 pt-4">
+                  <button
+                    type="submit"
+                    disabled={isCreating}
+                    className="w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                  >
+                    {isCreating ? "Creating..." : "Create Job"}
+                  </button>
+                </div>
             </form>
           </section>
         </div>

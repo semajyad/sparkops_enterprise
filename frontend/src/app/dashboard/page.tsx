@@ -108,17 +108,15 @@ export default function DashboardPage(): React.JSX.Element {
       setProfileName(null);
 
       try {
-        const [syncResult, sessionIdentityResponse] = await Promise.all([
-          backgroundSync(),
-          fetch("/api/auth/session", {
-            cache: "no-store",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }),
-        ]);
-
-        void syncResult;
+        void backgroundSync().catch((syncError) => {
+          setError(toRenderableErrorMessage(syncError, "Unable to refresh dashboard data."));
+        });
+        const sessionIdentityResponse = await fetch("/api/auth/session", {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
 
         if (sessionIdentityResponse.ok) {
           const identityPayload = (await sessionIdentityResponse.json()) as {
@@ -210,17 +208,18 @@ export default function DashboardPage(): React.JSX.Element {
                   return s === "COMPLETED" || s === "DONE";
                 }).length;
                 const timeSaved = (completedTotal * 0.5).toFixed(1);
+                const timeSavedLabel = completedTotal === 0 ? "0 Hours" : `${timeSaved} Hours`;
                 const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
                 const jobsToday = visibleJobs.filter((j) => String(j.date_scheduled || j.created_at).slice(0, 10) === todayKey).length;
                 return (
                   <>
-                    <article className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm col-span-1">
+                    <article className="bg-gray-100 border border-gray-200 rounded-xl p-4 shadow-sm col-span-1">
                       <p className="text-xs uppercase text-gray-500 font-bold tracking-wide">Jobs Today</p>
                       <p className="mt-2 text-4xl font-bold text-gray-900">{jobsToday}</p>
                     </article>
-                    <article className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm col-span-1">
-                      <p className="text-xs uppercase text-orange-600 font-bold tracking-wide">Time Saved</p>
-                      <p className="mt-2 text-4xl font-bold text-orange-700">{timeSaved}h</p>
+                    <article className="bg-gray-100 border border-gray-200 rounded-xl p-4 shadow-sm col-span-1">
+                      <p className="text-xs uppercase text-gray-500 font-bold tracking-wide">Time Saved</p>
+                      <p className="mt-2 text-4xl font-bold text-gray-900">{timeSavedLabel}</p>
                       <p className="mt-1 text-[11px] text-orange-500">{completedTotal} jobs × 0.5h</p>
                     </article>
                   </>
