@@ -20,6 +20,18 @@ type AddressSuggestion = {
   lng: number;
 };
 
+function createManualSuggestion(query: string): AddressSuggestion {
+  const normalized = query.trim();
+  return {
+    id: `manual-${normalized.toLowerCase()}`,
+    text: normalized,
+    place_name: normalized,
+    address: normalized,
+    lat: Number.NaN,
+    lng: Number.NaN,
+  };
+}
+
 type MapboxFeature = {
   id: string;
   place_type?: string[];
@@ -146,6 +158,9 @@ export function AddressAutocomplete({
 
         const mapboxToken = getMapboxToken().trim();
         if (!mapboxToken) {
+          const fallback = createManualSuggestion(query);
+          setSuggestions([fallback]);
+          setOpen(true);
           return;
         }
 
@@ -159,22 +174,25 @@ export function AddressAutocomplete({
             });
 
             if (!mapboxResponse.ok) {
-              setSuggestions([]);
-              setOpen(false);
+              const fallback = createManualSuggestion(query);
+              setSuggestions([fallback]);
+              setOpen(true);
               return;
             }
 
             const payload = (await mapboxResponse.json()) as MapboxResponse;
             if (!payload || !Array.isArray(payload.features)) {
-              setSuggestions([]);
-              setOpen(false);
+              const fallback = createManualSuggestion(query);
+              setSuggestions([fallback]);
+              setOpen(true);
               return;
             }
 
             const rows = payload.features;
             if (rows.length === 0) {
-              setSuggestions([]);
-              setOpen(false);
+              const fallback = createManualSuggestion(query);
+              setSuggestions([fallback]);
+              setOpen(true);
               return;
             }
 
@@ -206,11 +224,13 @@ export function AddressAutocomplete({
               })
               .filter((row): row is AddressSuggestion => Boolean(row));
 
-            setSuggestions(mapped);
-            setOpen(mapped.length > 0);
+            const resolved = mapped.length > 0 ? mapped : [createManualSuggestion(query)];
+            setSuggestions(resolved);
+            setOpen(resolved.length > 0);
           } catch {
-            setSuggestions([]);
-            setOpen(false);
+            const fallback = createManualSuggestion(query);
+            setSuggestions([fallback]);
+            setOpen(true);
           } finally {
             setIsLoading(false);
           }
