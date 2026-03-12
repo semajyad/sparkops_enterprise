@@ -1738,52 +1738,61 @@ def upsert_organization_settings(
 ) -> OrganizationSettingsResponse:
     """Create/update owner organization's branding and billing profile."""
 
-    with Session(ENGINE) as session:
-        settings = session.get(OrganizationSettings, current_user.organization_id)
-        if settings is None:
-            settings = OrganizationSettings(organization_id=current_user.organization_id)
+    try:
+        with Session(ENGINE) as session:
+            # Use a shorter timeout for the session
+            session.execute(text("SET statement_timeout = 10000"))  # 10 second timeout
+            
+            settings = session.get(OrganizationSettings, current_user.organization_id)
+            if settings is None:
+                settings = OrganizationSettings(organization_id=current_user.organization_id)
 
-        settings.logo_url = payload.logo_url
-        settings.website_url = payload.website_url
-        settings.business_name = payload.business_name
-        settings.gst_number = payload.gst_number
-        settings.default_trade = _normalize_trade(payload.default_trade, default=settings.default_trade)
+            settings.logo_url = payload.logo_url
+            settings.website_url = payload.website_url
+            settings.business_name = payload.business_name
+            settings.gst_number = payload.gst_number
+            settings.default_trade = _normalize_trade(payload.default_trade, default=settings.default_trade)
 
-        if payload.tax_rate is not None:
-            settings.tax_rate = payload.tax_rate
-        if payload.standard_markup is not None:
-            settings.standard_markup = payload.standard_markup
+            if payload.tax_rate is not None:
+                settings.tax_rate = payload.tax_rate
+            if payload.standard_markup is not None:
+                settings.standard_markup = payload.standard_markup
 
-        settings.terms_and_conditions = (
-            payload.terms_and_conditions.strip()
-            if isinstance(payload.terms_and_conditions, str) and payload.terms_and_conditions.strip()
-            else None
-        )
-        settings.bank_account_name = (
-            payload.bank_account_name.strip()
-            if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip()
-            else None
-        )
-        settings.bank_account_number = (
-            payload.bank_account_number.strip()
-            if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip()
-            else None
-        )
-        settings.updated_at = datetime.now(timezone.utc)
+            settings.terms_and_conditions = (
+                payload.terms_and_conditions.strip()
+                if isinstance(payload.terms_and_conditions, str) and payload.terms_and_conditions.strip()
+                else None
+            )
+            settings.bank_account_name = (
+                payload.bank_account_name.strip()
+                if isinstance(payload.bank_account_name, str) and payload.bank_account_name.strip()
+                else None
+            )
+            settings.bank_account_number = (
+                payload.bank_account_number.strip()
+                if isinstance(payload.bank_account_number, str) and payload.bank_account_number.strip()
+                else None
+            )
+            settings.updated_at = datetime.now(timezone.utc)
 
-        session.add(settings)
-        session.commit()
-        session.refresh(settings)
+            session.add(settings)
+            session.commit()
+            session.refresh(settings)
 
-        xero_integration = session.exec(
-            select(Integration)
-            .where(Integration.organization_id == current_user.organization_id)
-            .where(Integration.provider == "XERO")
-            .limit(1)
-        ).first()
-        xero_tenant_id = xero_integration.tenant_id if xero_integration else None
+            xero_integration = session.exec(
+                select(Integration)
+                .where(Integration.organization_id == current_user.organization_id)
+                .where(Integration.provider == "XERO")
+                .limit(1)
+            ).first()
+            xero_tenant_id = xero_integration.tenant_id if xero_integration else None
 
-        return _to_org_settings_response(settings, xero_tenant_id=xero_tenant_id)
+            return _to_org_settings_response(settings, xero_tenant_id=xero_tenant_id)
+            
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error in upsert_organization_settings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 
 @app.get("/api/v1/admin/billing/entitlements", response_model=BillingEntitlementsResponse)
