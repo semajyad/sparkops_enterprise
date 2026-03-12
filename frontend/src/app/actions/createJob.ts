@@ -19,6 +19,20 @@ export type CreateJobInput = {
 
 export async function createJob(input: CreateJobInput): Promise<void> {
   const supabase = createSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single<{ organization_id: string | null }>();
+
+  const organizationId = profile?.organization_id ?? null;
+
   const { error } = await supabase.from("jobs").upsert(
     {
       id: input.id,
@@ -34,6 +48,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       customer_email: input.customer_email ?? null,
       customer_mobile: input.customer_mobile ?? null,
       status: "SYNCING",
+      ...(organizationId ? { organization_id: organizationId } : {}),
     },
     { onConflict: "id" },
   );

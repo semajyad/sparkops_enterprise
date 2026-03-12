@@ -207,9 +207,39 @@ export default function DashboardPage(): React.JSX.Element {
           </section>
         ) : null}
 
-        {visibleJobs.length > 0 ? (
+        {loading ? (
+          <section className="mt-6 grid grid-cols-2 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[88px] animate-pulse rounded-xl bg-gray-200" />
+            ))}
+          </section>
+        ) : null}
+
+        {!loading && visibleJobs.length > 0 ? (
           <>
             <section className="mt-6 grid grid-cols-2 gap-4">
+              {(() => {
+                const completedTotal = visibleJobs.filter((j) => {
+                  const s = normalizeJobStatus(j.status);
+                  return s === "COMPLETED" || s === "DONE";
+                }).length;
+                const timeSaved = (completedTotal * 0.5).toFixed(1);
+                const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+                const jobsToday = visibleJobs.filter((j) => String(j.date_scheduled || j.created_at).slice(0, 10) === todayKey).length;
+                return (
+                  <>
+                    <article className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm col-span-1">
+                      <p className="text-xs uppercase text-gray-500 font-bold tracking-wide">Jobs Today</p>
+                      <p className="mt-2 text-4xl font-bold text-gray-900">{jobsToday}</p>
+                    </article>
+                    <article className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm col-span-1">
+                      <p className="text-xs uppercase text-orange-600 font-bold tracking-wide">Time Saved</p>
+                      <p className="mt-2 text-4xl font-bold text-orange-700">{timeSaved}h</p>
+                      <p className="mt-1 text-[11px] text-orange-500">{completedTotal} jobs × 0.5h</p>
+                    </article>
+                  </>
+                );
+              })()}
               {pulseCards.map((metric) => (
                 <article key={metric.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <p className="text-xs uppercase text-gray-500 font-bold">{metric.label}</p>

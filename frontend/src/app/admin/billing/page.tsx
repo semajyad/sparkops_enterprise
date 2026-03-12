@@ -21,6 +21,7 @@ export default function AdminBillingPage(): React.JSX.Element {
   const [entitlements, setEntitlements] = useState<BillingEntitlements | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [seatCount, setSeatCount] = useState(1);
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -40,7 +41,8 @@ export default function AdminBillingPage(): React.JSX.Element {
     }
   }
 
-  async function beginCheckout(mode: "base" | "seats"): Promise<void> {
+  async function beginCheckout(mode: "base" | "seats", qty = 1): Promise<void> {
+    void qty;
     setLoading(true);
     setError(null);
     try {
@@ -50,7 +52,7 @@ export default function AdminBillingPage(): React.JSX.Element {
         body: JSON.stringify({
           success_url: `${window.location.origin}/admin/billing?status=success`,
           cancel_url: `${window.location.origin}/admin/billing?status=cancel`,
-          quantity: 1,
+          quantity: mode === "seats" ? seatCount : 1,
         }),
       });
       if (!response.ok) {
@@ -181,13 +183,34 @@ export default function AdminBillingPage(): React.JSX.Element {
               </div>
               
               <div className="mt-6">
+                <div className="mb-3 flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setSeatCount((prev) => Math.max(1, prev - 1))}
+                    disabled={loading || seatCount <= 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-lg font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-40"
+                    aria-label="Decrease seat count"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[2ch] text-center text-xl font-bold text-gray-900">{seatCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSeatCount((prev) => prev + 1)}
+                    disabled={loading}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-lg font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-600 disabled:opacity-40"
+                    aria-label="Increase seat count"
+                  >
+                    +
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => void beginCheckout("seats")}
                   disabled={loading}
                   className="w-full rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-60"
                 >
-                  Buy Technician Seat
+                  Add {seatCount} {seatCount === 1 ? "Seat" : "Seats"}
                 </button>
                 <p className="mt-2 text-center text-xs text-gray-500">
                   Your card will be charged a pro-rated amount for the remainder of this billing cycle.
@@ -196,6 +219,14 @@ export default function AdminBillingPage(): React.JSX.Element {
             </div>
           </div>
         )}
+        {!loading && !authLoading ? (
+          <div className="mt-8 text-right">
+            <p className="text-2xl font-bold text-gray-900">
+              Total Monthly Commitment: ${79 + seatCount * 29}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">Base plan $79 + {seatCount} technician {seatCount === 1 ? "seat" : "seats"} × $29</p>
+          </div>
+        ) : null}
       </div>
     </main>
   );

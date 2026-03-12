@@ -450,22 +450,29 @@ export default function JobsPage(): React.JSX.Element {
       </button>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-2 sm:items-center sm:p-4">
-          <section className="w-full max-w-lg flex-col rounded-xl border border-gray-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b border-gray-200 px-3 py-3 shrink-0">
-              <h2 className="text-base font-semibold text-gray-900">New Job</h2>
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-600 text-lg leading-none"
-                aria-label="Close create job form"
-              >
-                ×
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-y-auto bg-white">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
+              aria-label="Close create job form"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <h2 className="text-base font-semibold text-gray-900">New Job</h2>
+            <button
+              type="submit"
+              form="new-job-form"
+              disabled={isCreating}
+              className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+            >
+              {isCreating ? "Creating..." : "Create"}
+            </button>
+          </div>
 
-            <form className="flex flex-col px-3 py-2" onSubmit={onCreateManualJob}>
-              <div className="grid gap-2">
+          <form id="new-job-form" className="flex flex-col px-4 py-4" onSubmit={onCreateManualJob}>
+            <div className="grid gap-4">
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
@@ -569,16 +576,8 @@ export default function JobsPage(): React.JSX.Element {
                   </label>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="mb-2 w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
-                >
-                  {isCreating ? "Creating Job..." : "Create Job"}
-                </button>
               </div>
             </form>
-          </section>
         </div>
       ) : null}
       </main>

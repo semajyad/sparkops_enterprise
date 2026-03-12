@@ -60,10 +60,14 @@ export async function scheduleBackgroundSync(): Promise<void> {
     return;
   }
 
-  const registration = await navigator.serviceWorker.ready;
-  if ("sync" in registration) {
-    await (registration as ServiceWorkerRegistration & {
-      sync: { register: (tag: string) => Promise<void> };
-    }).sync.register("tradeops-sync");
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    if ("sync" in registration) {
+      await (registration as ServiceWorkerRegistration & {
+        sync: { register: (tag: string) => Promise<void> };
+      }).sync.register("tradeops-sync");
+    }
+  } catch {
+    // Background Sync is disabled or unsupported in this environment — safe to ignore.
   }
 }
