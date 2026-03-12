@@ -2636,6 +2636,19 @@ def create_job_draft(
 ) -> JobDraftResponse:
     """Create a new job draft."""
 
+    def _to_job_draft_response(draft: JobDraft) -> JobDraftResponse:
+        return JobDraftResponse(
+            id=draft.id,
+            raw_transcript=draft.raw_transcript,
+            extracted_data=draft.extracted_data,
+            status=draft.status,
+            date_scheduled=draft.date_scheduled,
+            client_email=draft.client_email,
+            compliance_status=draft.compliance_status,
+            certificate_pdf_url=draft.certificate_pdf_url,
+            created_at=draft.created_at,
+        )
+
     assigned_user_id = current_user.id
     assigned_user_name = current_user.full_name or current_user.email or "Assigned User"
     assigned_user_trade = current_user.trade
@@ -2707,6 +2720,13 @@ def create_job_draft(
     }
 
     with Session(ENGINE) as session:
+        if payload.client_generated_id is not None:
+            existing_draft = session.get(JobDraft, payload.client_generated_id)
+            if existing_draft is not None:
+                if existing_draft.organization_id != current_user.organization_id:
+                    raise HTTPException(status_code=403, detail="Job draft belongs to another organization.")
+                return _to_job_draft_response(existing_draft)
+
         draft_kwargs: dict[str, Any] = {
             "user_id": assigned_user_id,
             "organization_id": current_user.organization_id,
@@ -2724,19 +2744,20 @@ def create_job_draft(
         draft = JobDraft(**draft_kwargs)
 
         session.add(draft)
-        session.commit()
+        try:
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            duplicate_hint = "duplicate key value" in str(exc).lower() or "job_drafts_pkey" in str(exc).lower()
+            if payload.client_generated_id is not None and duplicate_hint:
+                existing_draft = session.get(JobDraft, payload.client_generated_id)
+                if existing_draft is not None:
+                    if existing_draft.organization_id != current_user.organization_id:
+                        raise HTTPException(status_code=403, detail="Job draft belongs to another organization.") from exc
+                    return _to_job_draft_response(existing_draft)
+            raise
         session.refresh(draft)
-        return JobDraftResponse(
-            id=draft.id,
-            raw_transcript=draft.raw_transcript,
-            extracted_data=draft.extracted_data,
-            status=draft.status,
-            date_scheduled=draft.date_scheduled,
-            client_email=draft.client_email,
-            compliance_status=draft.compliance_status,
-            certificate_pdf_url=draft.certificate_pdf_url,
-            created_at=draft.created_at,
-        )
+        return _to_job_draft_response(draft)
 
 
 @app.get("/api/jobs", response_model=list[JobDraftListItemResponse])

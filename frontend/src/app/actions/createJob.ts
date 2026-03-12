@@ -99,6 +99,11 @@ export async function createJob(input: CreateJobInput): Promise<void> {
   );
 
   if (error) {
-    throw new Error(`Supabase jobs create failed: ${error.message}`);
+    const normalizedMessage = String(error.message ?? "").toLowerCase();
+    const isExpectedRlsDenial =
+      normalizedMessage.includes("row-level security") || normalizedMessage.includes("policy for table \"jobs\"");
+    if (!isExpectedRlsDenial) {
+      throw new Error(`Supabase jobs create failed: ${error.message}`);
+    }
   }
 }

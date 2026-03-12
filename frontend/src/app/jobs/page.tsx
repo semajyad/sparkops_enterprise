@@ -286,10 +286,6 @@ export default function JobsPage(): React.JSX.Element {
         organization_id: currentOrgId,
       };
 
-      if (!payload.organization_id) {
-        throw new Error("Organization setup is incomplete. Please complete setup before creating jobs.");
-      }
-
       await createJob({
         id: payload.client_generated_id,
         client_name: payload.client_name,
