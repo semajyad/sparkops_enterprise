@@ -155,7 +155,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const [jobs, setJobs] = useState<MapJob[]>([]);
   const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const recenterSignal = 0;
+  const [recenterSignal, setRecenterSignal] = useState(0);
   const [isLocatingGps, setIsLocatingGps] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return true;
@@ -163,6 +163,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
     return Boolean(navigator.geolocation);
   });
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
+  const hasSnappedToGpsRef = useRef(false);
 
   const visibleStaffLocations = useMemo(() => {
     if (isAdminMode) {
@@ -428,6 +429,10 @@ export default function TrackingIndexPage(): React.JSX.Element {
         const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrent(nextCurrent);
         setIsLocatingGps(false);
+        if (!hasSnappedToGpsRef.current) {
+          hasSnappedToGpsRef.current = true;
+          setRecenterSignal((prev) => prev + 1);
+        }
         void upsertBeacon(nextCurrent);
       },
       () => {
