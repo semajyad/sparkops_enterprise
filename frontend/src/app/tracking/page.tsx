@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Loader2, Navigation } from "lucide-react";
+import { Navigation } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
@@ -151,13 +151,17 @@ function formatTimePill(isoDate: string): string {
 export default function TrackingIndexPage(): React.JSX.Element {
   const { mode, role, user } = useAuth();
   const isAdminMode = role === "OWNER" && mode === "ADMIN";
-  const geolocationUnavailable = typeof window !== "undefined" && !navigator.geolocation;
   const [current, setCurrent] = useState<Coordinate>(DEFAULT_CURRENT);
   const [jobs, setJobs] = useState<MapJob[]>([]);
   const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const recenterSignal = 0;
-  const [isReady, setIsReady] = useState<boolean>(geolocationUnavailable);
+  const [isLocatingGps, setIsLocatingGps] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    return Boolean(navigator.geolocation);
+  });
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
 
   const visibleStaffLocations = useMemo(() => {
@@ -286,7 +290,6 @@ export default function TrackingIndexPage(): React.JSX.Element {
             markerState: "pending" as const,
           })),
         );
-        setIsReady(true);
       } catch {
         // best-effort cache hydration
       }
@@ -424,11 +427,11 @@ export default function TrackingIndexPage(): React.JSX.Element {
       (position) => {
         const nextCurrent = { lat: position.coords.latitude, lng: position.coords.longitude };
         setCurrent(nextCurrent);
-        setIsReady(true);
+        setIsLocatingGps(false);
         void upsertBeacon(nextCurrent);
       },
       () => {
-        setIsReady(true);
+        setIsLocatingGps(false);
       },
       {
         enableHighAccuracy: true,
@@ -467,24 +470,17 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
   return (
     <main className="relative min-h-screen overflow-hidden text-gray-900">
-      {isReady ? (
-        <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
-          <MapComponent
-            current={current}
-            jobs={jobs}
-            staffLocations={visibleStaffLocations}
-            routeLines={routeLines}
-            selectedJobId={selectedJobId}
-            recenterSignal={recenterSignal}
-            onJobSelect={onJobSelect}
-          />
-        </div>
-      ) : (
-        <div className="flex h-[calc(100vh-64px)] w-full items-center justify-center gap-2 text-sm text-gray-700">
-          <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-          Initializing map and GPS...
-        </div>
-      )}
+      <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden">
+        <MapComponent
+          current={current}
+          jobs={jobs}
+          staffLocations={visibleStaffLocations}
+          routeLines={routeLines}
+          selectedJobId={selectedJobId}
+          recenterSignal={recenterSignal}
+          onJobSelect={onJobSelect}
+        />
+      </div>
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6">
         <div className="flex flex-col items-center gap-3">
@@ -521,6 +517,11 @@ export default function TrackingIndexPage(): React.JSX.Element {
           ) : null}
         </div>
       </section>
+      {isLocatingGps ? (
+        <div className="pointer-events-none absolute right-4 top-20 z-[120] rounded-full border border-orange-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-orange-700 shadow-sm sm:right-6">
+          Locating GPS...
+        </div>
+      ) : null}
   </main>
 );
 }

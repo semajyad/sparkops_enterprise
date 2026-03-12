@@ -9,6 +9,7 @@ import { inviteUser, listTeamMembers, updateProfile } from "@/app/profile/action
 import { LadderModeToggle } from "@/components/LadderModeToggle";
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useGlobalData } from "@/lib/global-data";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
@@ -124,6 +125,7 @@ function initialsFromName(fullName: string): string {
 
 export default function AdminPage(): React.JSX.Element {
   const { loading: authLoading, roleLoading, role, user } = useAuth();
+  const { teamMembers: globalTeamMembers } = useGlobalData();
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>("profile");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
@@ -157,6 +159,10 @@ export default function AdminPage(): React.JSX.Element {
   const [isPendingUpdate, startUpdateTransition] = useTransition();
 
   const isOwner = role === "OWNER";
+
+  useEffect(() => {
+    setActiveUsers(globalTeamMembers);
+  }, [globalTeamMembers]);
 
   const hydrateFromDexie = useCallback(async (): Promise<void> => {
     const [cachedSettings, cachedVehicles, cachedTeam] = await Promise.all([getAdminSettingsCache(), listVehiclesFromCache(), getTeamCache()]);
@@ -199,7 +205,6 @@ export default function AdminPage(): React.JSX.Element {
       return;
     }
 
-    setIsTeamLoading(true);
     setError(null);
     try {
       const [settingsResponse, vehiclesResponse, teamResult, billingResponse] = await Promise.all([
@@ -253,8 +258,6 @@ export default function AdminPage(): React.JSX.Element {
       }
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Unable to refresh admin data.");
-    } finally {
-      setIsTeamLoading(false);
     }
   }, [isOwner, roleLoading]);
 
@@ -765,8 +768,7 @@ export default function AdminPage(): React.JSX.Element {
                       {" "}of {billingEntitlements.licensed_seats} licensed
                     </p>
                   ) : null}
-                  {isTeamLoading ? <p className="mt-3 text-sm text-gray-500">Loading team...</p> : null}
-                  {!isTeamLoading && activeUsers.length === 0 ? <p className="mt-3 text-sm text-gray-500">No team members yet.</p> : null}
+                  {activeUsers.length === 0 ? <p className="mt-3 text-sm text-gray-500">No team members yet.</p> : null}
                   <ul className="mt-3 space-y-2">
                     {activeUsers.map((member) => (
                       <li key={member.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
@@ -785,7 +787,7 @@ export default function AdminPage(): React.JSX.Element {
                 </section>
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Pending Invites</h2>
-                  {!isTeamLoading && pendingInvites.length === 0 ? <p className="mt-3 text-sm text-gray-500">No pending invites.</p> : null}
+                  {pendingInvites.length === 0 ? <p className="mt-3 text-sm text-gray-500">No pending invites.</p> : null}
                   <ul className="mt-3 space-y-2">
                     {pendingInvites.map((member) => (
                       <li key={member.id} className="flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
@@ -1060,8 +1062,8 @@ export default function AdminPage(): React.JSX.Element {
         </section>
 
         {isEditOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-            <section className="flex w-full max-w-md flex-col rounded-2xl border border-gray-200 bg-white shadow-xl sm:max-h-[85vh]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <section className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
               <div className="border-b border-gray-200 px-5 py-4">
                 <h2 className="text-lg font-semibold text-gray-900">Edit Profile</h2>
               </div>

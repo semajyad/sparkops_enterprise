@@ -6,6 +6,7 @@ import { GlobalErrorSuppressor } from "@/components/GlobalErrorSuppressor";
 import { MobileNav } from "@/components/MobileNav";
 import { SyncProvider } from "@/components/SyncProvider";
 import { AuthProvider } from "@/lib/auth";
+import { GlobalDataProvider } from "@/lib/global-data";
 import { UserModeProvider } from "@/lib/user-mode";
 import "./globals.css";
 
@@ -63,14 +64,16 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 pb-20 overflow-x-hidden`}
       >
         <AuthProvider initialRole={initialRole as "OWNER" | "EMPLOYEE" | null} initialMode={initialMode as "FIELD" | "ADMIN"}>
-          <UserModeProvider>
-            <SyncProvider>
-              <GlobalErrorSuppressor />
-              {children}
-              <GlobalSyncStatusDot />
-            </SyncProvider>
-            <MobileNav />
-          </UserModeProvider>
+          <GlobalDataProvider>
+            <UserModeProvider>
+              <SyncProvider>
+                <GlobalErrorSuppressor />
+                {children}
+                <GlobalSyncStatusDot />
+              </SyncProvider>
+              <MobileNav />
+            </UserModeProvider>
+          </GlobalDataProvider>
         </AuthProvider>
       </body>
     </html>

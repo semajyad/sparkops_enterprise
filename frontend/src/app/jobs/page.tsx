@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -10,11 +9,12 @@ import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
-import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
+import { putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
+import { useGlobalData } from "@/lib/global-data";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
+import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
@@ -23,10 +23,10 @@ const MODAL_INPUT_SMALL_CLASS =
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
+  const { jobs: globalJobs, teamMembers: globalTeamMembers, refreshCoreData } = useGlobalData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("IN_PROGRESS");
   const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
-  const [isJobsLoading, setIsJobsLoading] = useState(true);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -47,6 +47,10 @@ export default function JobsPage(): React.JSX.Element {
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
+
+  useEffect(() => {
+    setTeamMembers(globalTeamMembers);
+  }, [globalTeamMembers]);
 
   useEffect(() => {
     if (isCreateOpen && !location && navigator.geolocation) {
@@ -90,51 +94,6 @@ export default function JobsPage(): React.JSX.Element {
     }
     return;
   }, []);
-
-  useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
-
-    if (!isOwner) {
-      setAssignedToUserId(user.id);
-      return;
-    }
-
-    let cancelled = false;
-    async function hydrateTeam(): Promise<void> {
-      setIsLoadingTeam(true);
-      const cached = await getTeamCache();
-      if (cancelled) {
-        setIsLoadingTeam(false);
-        return;
-      }
-
-      if (cached) {
-        setTeamMembers(cached.activeUsers);
-      }
-
-      const teamResult = await listTeamMembers();
-      if (cancelled) {
-        setIsLoadingTeam(false);
-        return;
-      }
-
-      if (teamResult.success) {
-        setTeamMembers(teamResult.activeUsers);
-        await setTeamCache({
-          activeUsers: teamResult.activeUsers,
-          pendingInvites: teamResult.pendingInvites,
-        });
-      }
-      setIsLoadingTeam(false);
-    }
-
-    void hydrateTeam();
-    return () => {
-      cancelled = true;
-    };
-  }, [isOwner, user?.id]);
 
   // Refresh team members when modal opens
   useEffect(() => {
@@ -243,34 +202,11 @@ export default function JobsPage(): React.JSX.Element {
     };
   }, [user?.id]);
 
-  const cachedJobs = useLiveQuery(() => db.jobs.orderBy("updated_at").reverse().toArray(), []);
-  const hasResolvedCache = Array.isArray(cachedJobs);
-  const cacheIsEmpty = hasResolvedCache && cachedJobs.length === 0;
-
   useEffect(() => {
-    if (hasResolvedCache) {
-      setIsJobsLoading(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsJobsLoading(false);
-    }, 1800);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [hasResolvedCache]);
-
-  useEffect(() => {
-    if (!hasResolvedCache) {
-      return;
-    }
-
     let cancelled = false;
-    setIsRevalidating(!cacheIsEmpty);
+    setIsRevalidating(true);
     setError(null);
-
-    const syncTask = cacheIsEmpty ? pull() : backgroundSync();
-    void syncTask
+    void refreshCoreData()
       .catch((syncError) => {
         if (!cancelled) {
           setError(toRenderableErrorMessage(syncError, "Unable to refresh jobs."));
@@ -285,11 +221,11 @@ export default function JobsPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [cacheIsEmpty, hasResolvedCache]);
+  }, [refreshCoreData]);
 
   const jobs: JobListItem[] = useMemo(
     () =>
-      (cachedJobs ?? [])
+      globalJobs
         .filter((job) => {
           const extractedAddress =
             typeof job.extracted_data?.address === "string" ? job.extracted_data.address.trim() : "";
@@ -304,7 +240,7 @@ export default function JobsPage(): React.JSX.Element {
           client_name: job.client_name,
           extracted_data: job.extracted_data,
         })),
-    [cachedJobs]
+    [globalJobs]
   );
 
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -506,7 +442,6 @@ export default function JobsPage(): React.JSX.Element {
           ))}
         </div>
 
-        {isJobsLoading ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
         {error ? (
           <div className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">
             <p>{error}</p>
@@ -522,7 +457,7 @@ export default function JobsPage(): React.JSX.Element {
         ) : null}
         {toast ? <p className="mt-4 rounded-xl border border-green-500/50 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
 
-        {!isJobsLoading && !isRevalidating && filteredJobs.length === 0 ? (
+        {!isRevalidating && filteredJobs.length === 0 ? (
           <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found</p>
         ) : null}
 
