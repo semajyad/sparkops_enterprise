@@ -24,6 +24,7 @@ test.describe("Jobs create on staging", () => {
     await page.goto("/jobs", { waitUntil: "domcontentloaded" });
 
     await page.getByRole("button", { name: /Create new job/i }).click();
+    await expect(page.getByRole("heading", { level: 2, name: /New Job/i })).toBeVisible({ timeout: 20_000 });
 
     const uniqueClientName = `Org Setup Debug ${Date.now()}`;
     await page.getByLabel(/Client Name/i).fill(uniqueClientName);

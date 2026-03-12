@@ -61,6 +61,7 @@ export default function JobsPage(): React.JSX.Element {
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [autoProvisionFailed, setAutoProvisionFailed] = useState(false);
+  const [optimisticJobs, setOptimisticJobs] = useState<JobListItem[]>([]);
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
@@ -68,6 +69,15 @@ export default function JobsPage(): React.JSX.Element {
   useEffect(() => {
     setTeamMembers(globalTeamMembers);
   }, [globalTeamMembers]);
+
+  useEffect(() => {
+    setOptimisticJobs((previous) =>
+      previous.filter((optimisticJob) => {
+        const existsInGlobal = globalJobs.some((globalJob) => String(globalJob.id ?? "").trim() === optimisticJob.id);
+        return !existsInGlobal;
+      }),
+    );
+  }, [globalJobs]);
 
   useEffect(() => {
     if (isCreateOpen && !location && navigator.geolocation) {
@@ -248,8 +258,8 @@ export default function JobsPage(): React.JSX.Element {
   }, [refreshCoreData]);
 
   const jobs: JobListItem[] = useMemo(
-    () =>
-      globalJobs
+    () => {
+      const fromGlobal = globalJobs
         .filter((job) => {
           const extractedAddress =
             typeof job.extracted_data?.address === "string" ? job.extracted_data.address.trim() : "";
@@ -263,8 +273,20 @@ export default function JobsPage(): React.JSX.Element {
           date_scheduled: job.date_scheduled,
           client_name: job.client_name,
           extracted_data: job.extracted_data,
-        })),
-    [globalJobs]
+        }));
+
+      const mergedById = new Map<string, JobListItem>();
+      for (const optimisticJob of optimisticJobs) {
+        mergedById.set(optimisticJob.id, optimisticJob);
+      }
+      for (const globalJob of fromGlobal) {
+        if (!mergedById.has(globalJob.id)) {
+          mergedById.set(globalJob.id, globalJob);
+        }
+      }
+      return Array.from(mergedById.values());
+    },
+    [globalJobs, optimisticJobs]
   );
 
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -278,6 +300,7 @@ export default function JobsPage(): React.JSX.Element {
     setIsCreating(true);
     setError(null);
 
+    let optimisticJobId = "";
     try {
       const scheduledIso =
         scheduledDate.trim().length > 0
@@ -302,6 +325,26 @@ export default function JobsPage(): React.JSX.Element {
         customer_mobile: customerMobile.trim() || null,
         organization_id: currentOrgId,
       };
+      optimisticJobId = payload.client_generated_id;
+
+      const optimisticJob = {
+        id: payload.client_generated_id,
+        status: "IN_PROGRESS",
+        created_at: new Date().toISOString(),
+        date_scheduled: payload.scheduled_date ?? null,
+        client_name: payload.client_name,
+        extracted_data: {
+          client: payload.client_name,
+          job_title: payload.title,
+          location: payload.location,
+          address: payload.address,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          scheduled_date: payload.scheduled_date,
+          required_trade: payload.required_trade,
+        },
+      } satisfies JobListItem;
+      setOptimisticJobs((previous) => [optimisticJob, ...previous.filter((job) => job.id !== optimisticJob.id)]);
 
       const createJobInput = {
         id: payload.client_generated_id,
@@ -371,6 +414,9 @@ export default function JobsPage(): React.JSX.Element {
       }
       void backgroundSync().catch(() => {});
     } catch (createError) {
+      if (optimisticJobId) {
+        setOptimisticJobs((previous) => previous.filter((job) => job.id !== optimisticJobId));
+      }
       const rawMessage = createError instanceof Error ? createError.message : "";
       if (rawMessage.includes("steal") || rawMessage.includes("Lock broken")) {
         return;
