@@ -4,10 +4,11 @@
 
 import { Camera, FileUp, Loader2, Mic, RefreshCw, Square, Upload } from "lucide-react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 
 import { motion, useReducedMotion } from "framer-motion";
 
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 
 
@@ -18,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
 import { saveJobDraft } from "@/lib/db";
+import { useGlobalData } from "@/lib/global-data";
 
 import { syncPendingDrafts } from "@/lib/syncManager";
 import { vibrateLight, vibrateSuccess, vibrateError } from "@/lib/haptics";
@@ -71,6 +73,8 @@ function fileToBase64(file: Blob): Promise<string> {
 export default function CapturePage() {
 
   const { isOnline, pendingCount, refreshCounts } = useSync();
+  const { jobs } = useGlobalData();
+  const searchParams = useSearchParams();
 
   const { session } = useAuth();
 
@@ -103,6 +107,7 @@ export default function CapturePage() {
   const [jobHours, setJobHours] = useState<number>(0);
 
   const [jobMinutes, setJobMinutes] = useState<number>(0);
+  const [activeJobId, setActiveJobId] = useState<string>("");
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
 
@@ -137,6 +142,33 @@ export default function CapturePage() {
     receiptBase64,
 
   });
+
+  const captureJobOptions = useMemo(
+    () =>
+      jobs.filter((job) => {
+        const normalizedStatus = String(job.status ?? "").toUpperCase();
+        return normalizedStatus !== "DONE";
+      }),
+    [jobs],
+  );
+
+  const activeJob = useMemo(
+    () => captureJobOptions.find((job) => job.id === activeJobId) ?? null,
+    [captureJobOptions, activeJobId],
+  );
+
+  useEffect(() => {
+    const requestedJobId = searchParams.get("jobId")?.trim() ?? "";
+    const hasRequestedJob = requestedJobId.length > 0 && captureJobOptions.some((job) => job.id === requestedJobId);
+    if (hasRequestedJob) {
+      setActiveJobId(requestedJobId);
+      return;
+    }
+    if (activeJobId && captureJobOptions.some((job) => job.id === activeJobId)) {
+      return;
+    }
+    setActiveJobId(captureJobOptions[0]?.id ?? "");
+  }, [searchParams, captureJobOptions, activeJobId]);
 
 
 
@@ -243,6 +275,8 @@ export default function CapturePage() {
       method: "POST",
 
       body: JSON.stringify({
+
+        job_id: activeJobId || undefined,
 
         audio_base64: audioBase64,
 
@@ -514,6 +548,10 @@ export default function CapturePage() {
 
       await saveJobDraft({
 
+        job_id: activeJobId || undefined,
+
+        job_client_name: activeJob?.client_name || undefined,
+
         voice_text: voiceText.trim() || undefined,
 
         audio_blob_base64: audioBlob || undefined,
@@ -633,6 +671,40 @@ export default function CapturePage() {
       <div className="pb-8">
 
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
+
+        <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Job Selector</p>
+              <p className="mt-1 text-sm text-gray-600">
+                {activeJob
+                  ? `Capturing against: ${activeJob.client_name || "Unknown Client"}`
+                  : "Select a job before saving capture data."}
+              </p>
+            </div>
+            {activeJob ? (
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                {String(activeJob.status ?? "").replace("_", " ")}
+              </span>
+            ) : null}
+          </div>
+          <label className="mt-3 block text-xs font-medium text-gray-700" htmlFor="capture-job-selector">
+            Active Job
+          </label>
+          <select
+            id="capture-job-selector"
+            value={activeJobId}
+            onChange={(event) => setActiveJobId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+          >
+            {captureJobOptions.length === 0 ? <option value="">No available jobs</option> : null}
+            {captureJobOptions.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.client_name || "Unknown Client"} - {String(job.status ?? "").replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </section>
 
         <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Voice First</p>

@@ -11,6 +11,8 @@ export type SyncStatus = "pending" | "synced" | "failed";
 export interface JobDraft {
   id?: number;
   timestamp: number;
+  job_id?: string;
+  job_client_name?: string;
   voice_text?: string;
   audio_blob_base64?: string;
   receipt_image_base64?: string;
@@ -310,6 +312,19 @@ class TradeOpsDexie extends Dexie {
     });
     this.version(6).stores({
       jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at,customer_email,customer_mobile",
+      job_details: "id,updated_at,status,customer_email,customer_mobile",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      map_state: "key,updated_at",
+      profile_state: "key,updated_at",
+      team_state: "key,updated_at",
+      admin_state: "key,updated_at",
+      vehicles: "id,updated_at,plate,name",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+    this.version(7).stores({
+      jobDrafts: "++id,job_id,sync_status,timestamp",
       jobs: "id,status,client_name,date_scheduled,sync_status,updated_at,customer_email,customer_mobile",
       job_details: "id,updated_at,status,customer_email,customer_mobile",
       clients: "id,name,updated_at",

@@ -52,7 +52,7 @@ describe("createJob", () => {
         scheduled_date: "2026-03-10T09:00:00.000Z",
         customer_email: null,
         customer_mobile: null,
-        status: "IN_PROGRESS",
+        status: "TO_DO",
       },
       { onConflict: "id" },
     );

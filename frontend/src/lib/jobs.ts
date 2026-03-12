@@ -1,4 +1,4 @@
-export type JobStatus = "DRAFT" | "SYNCING" | "DONE" | string;
+export type JobStatus = "TO_DO" | "IN_PROGRESS" | "DRAFT" | "SYNCING" | "DONE" | string;
 
 export type JobLineItem = {
   qty?: string | number;
@@ -86,7 +86,7 @@ export function parseNumeric(value: unknown): number {
 
 export function normalizeJobStatus(status: string): JobStatus {
   const normalized = status.toUpperCase();
-  if (normalized === "DRAFT" || normalized === "SYNCING" || normalized === "DONE") {
+  if (normalized === "TO_DO" || normalized === "IN_PROGRESS" || normalized === "DRAFT" || normalized === "SYNCING" || normalized === "DONE") {
     return normalized;
   }
   return normalized;

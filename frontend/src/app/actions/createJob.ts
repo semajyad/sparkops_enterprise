@@ -92,7 +92,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       scheduled_date: input.scheduled_date,
       customer_email: input.customer_email ?? null,
       customer_mobile: input.customer_mobile ?? null,
-      status: "IN_PROGRESS",
+      status: "TO_DO",
       organization_id: organizationId,
     },
     { onConflict: "id" },

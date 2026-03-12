@@ -11,10 +11,19 @@ interface JobsListProps {
 }
 
 export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
+  const toJobHref = (job: JobListItem): string => {
+    const normalizedStatus = String(job.status ?? "").toUpperCase();
+    if (normalizedStatus === "TO_DO") {
+      return `/capture?jobId=${encodeURIComponent(job.id)}`;
+    }
+    return `/jobs/${job.id}`;
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "DONE":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case "TO_DO":
       case "IN_PROGRESS":
         return <Clock className="h-4 w-4 text-blue-600" />;
       default:
@@ -26,7 +35,7 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
     <div className="space-y-3">
       {jobs.map((job) => (
         <Link
-          href={`/jobs/${job.id}`}
+          href={toJobHref(job)}
           key={job.id}
           className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
         >

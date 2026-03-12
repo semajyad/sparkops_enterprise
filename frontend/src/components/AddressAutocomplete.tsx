@@ -70,16 +70,12 @@ function pickFirstString(...values: Array<string | undefined>): string {
   return "";
 }
 
-function isBlockedComponent(value: string | undefined): boolean {
-  return typeof value === "string" && /(council|government)/i.test(value);
-}
-
 function sanitizeAddressComponent(value: string | undefined): string {
   if (typeof value !== "string") {
     return "";
   }
   const trimmed = value.trim();
-  if (!trimmed || isBlockedComponent(trimmed)) {
+  if (!trimmed) {
     return "";
   }
   return trimmed;

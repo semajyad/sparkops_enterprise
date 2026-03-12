@@ -78,7 +78,10 @@ export default function DashboardPage(): React.JSX.Element {
     });
 
     const scheduledTodayCount = scheduledToday.length;
-    const inProgressCount = scheduledToday.filter((job) => normalizeJobStatus(job.status) === "IN_PROGRESS").length;
+    const toDoCount = scheduledToday.filter((job) => {
+      const status = normalizeJobStatus(job.status);
+      return status === "TO_DO" || status === "IN_PROGRESS";
+    }).length;
     const completedCount = scheduledToday.filter((job) => {
       const status = normalizeJobStatus(job.status);
       return status === "COMPLETED" || status === "DONE";
@@ -87,7 +90,7 @@ export default function DashboardPage(): React.JSX.Element {
 
     return [
       { label: "Scheduled Today", value: scheduledTodayCount },
-      { label: "In Progress", value: inProgressCount },
+      { label: "To Do", value: toDoCount },
       { label: "Completed", value: completedCount },
       { label: "Pending Drafts", value: pendingDraftsCount },
     ];

@@ -22,6 +22,15 @@ const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
+function getMapboxToken(): string {
+  return (
+    process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ??
+    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ??
+    process.env.VITE_MAPBOX_TOKEN?.trim() ??
+    ""
+  );
+}
+
 async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = CREATE_STEP_TIMEOUT_MS): Promise<T> {
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   try {
@@ -42,7 +51,7 @@ export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
   const { jobs: globalJobs, teamMembers: globalTeamMembers, organizationId: currentOrgId, refreshCoreData } = useGlobalData();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("IN_PROGRESS");
+  const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "TO_DO">("TO_DO");
   const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +93,7 @@ export default function JobsPage(): React.JSX.Element {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
-            const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
+            const mapboxToken = getMapboxToken();
             if (!mapboxToken) return;
             
             const { latitude: lat, longitude: lng } = position.coords;
@@ -329,7 +338,7 @@ export default function JobsPage(): React.JSX.Element {
 
       const optimisticJob = {
         id: payload.client_generated_id,
-        status: "IN_PROGRESS",
+        status: "TO_DO",
         created_at: new Date().toISOString(),
         date_scheduled: payload.scheduled_date ?? null,
         client_name: payload.client_name,
@@ -380,7 +389,7 @@ export default function JobsPage(): React.JSX.Element {
         toCachedJob({
           id: payload.client_generated_id,
           client_name: payload.client_name,
-          status: "IN_PROGRESS",
+          status: "TO_DO",
           date_scheduled: payload.scheduled_date ?? null,
           extracted_data: {
             client: payload.client_name,
@@ -445,7 +454,13 @@ export default function JobsPage(): React.JSX.Element {
     const safeJobs = Array.from(dedupedById.values());
     
     let result = safeJobs;
-    result = result.filter((job) => job.status.toUpperCase() === filter);
+    result = result.filter((job) => {
+      const normalizedStatus = String(job.status ?? "").toUpperCase();
+      if (filter === "TO_DO") {
+        return normalizedStatus === "TO_DO" || normalizedStatus === "IN_PROGRESS";
+      }
+      return normalizedStatus === filter;
+    });
     
     // Timeframe filtering
     if (timeframe !== "ALL_TIME") {
@@ -525,17 +540,17 @@ export default function JobsPage(): React.JSX.Element {
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["IN_PROGRESS", "DRAFT", "DONE"].map((f) => (
+          {["TO_DO", "DRAFT", "DONE"].map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f as "DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS")}
+              onClick={() => setFilter(f as "DRAFT" | "DONE" | "SYNCING" | "TO_DO")}
               className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
                 filter === f
                   ? "bg-orange-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {f === "DRAFT" ? "Drafts" : f === "IN_PROGRESS" ? "To Do" : "Completed"}
+              {f === "DRAFT" ? "Drafts" : f === "TO_DO" ? "To Do" : "Completed"}
             </button>
           ))}
         </div>

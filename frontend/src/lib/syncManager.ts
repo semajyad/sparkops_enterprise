@@ -27,6 +27,7 @@ export async function syncPendingDrafts(): Promise<{ synced: number; attempted: 
       const response = await apiFetch(`${API_BASE_URL}/api/ingest`, {
         method: "POST",
         body: JSON.stringify({
+          job_id: draft.job_id,
           voice_notes: voiceText || undefined,
           audio_base64: audioBase64 || undefined,
           receipt_image_base64: receiptBase64 || undefined,

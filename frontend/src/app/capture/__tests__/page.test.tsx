@@ -5,6 +5,7 @@ import CapturePage from "@/app/capture/page";
 import { SyncContext } from "@/components/SyncProvider";
 
 const mockedUseAuth = jest.fn<() => unknown>();
+const mockedUseGlobalData = jest.fn<() => unknown>();
 const mockedApiFetch = jest.fn<() => Promise<Response>>();
 const mockedSaveJobDraft = jest.fn<() => Promise<number>>();
 const mockedSyncPendingDrafts = jest.fn<() => Promise<{ synced: number; attempted: number }>>();
@@ -35,6 +36,10 @@ jest.mock("@/lib/auth", () => ({
   useAuth: mockedUseAuth,
 }));
 
+jest.mock("@/lib/global-data", () => ({
+  useGlobalData: mockedUseGlobalData,
+}));
+
 jest.mock("@/lib/api", () => ({
   apiFetch: mockedApiFetch,
 }));
@@ -59,6 +64,10 @@ jest.mock("framer-motion", () => ({
     button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
   },
   useReducedMotion: () => true,
+}));
+
+jest.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 describe("Capture page logic", () => {
@@ -125,6 +134,17 @@ describe("Capture page logic", () => {
     });
 
     mockedSaveJobDraft.mockResolvedValue(100);
+    mockedUseGlobalData.mockReturnValue({
+      jobs: [
+        {
+          id: "job-1",
+          status: "TO_DO",
+          created_at: "2026-03-10T00:00:00.000Z",
+          client_name: "ACME",
+          extracted_data: { client: "ACME" },
+        },
+      ],
+    });
     mockedSyncPendingDrafts.mockResolvedValue({ synced: 1, attempted: 1 });
     mockedApiFetch.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
   });
