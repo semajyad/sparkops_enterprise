@@ -158,7 +158,7 @@ export default function AdminPage(): React.JSX.Element {
   const [organizationInput, setOrganizationInput] = useState("");
   const [isPendingUpdate, startUpdateTransition] = useTransition();
 
-  const isOwner = role === "OWNER";
+  const isOwner = role !== "EMPLOYEE";
 
   useEffect(() => {
     setActiveUsers(globalTeamMembers);

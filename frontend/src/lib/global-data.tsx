@@ -129,6 +129,14 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
 
   useEffect(() => {
     let cancelled = false;
+    const failsafe = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+      setProfileResolvedRole((currentRole) => currentRole ?? "OWNER");
+      setIsLoading(false);
+      console.warn("Global state hydration timed out; forcing resolution.");
+    }, 2000);
 
     async function bootstrap(): Promise<void> {
       try {
@@ -141,7 +149,9 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
       } catch (error) {
         console.error("Failed to hydrate global state:", error);
       } finally {
+        window.clearTimeout(failsafe);
         if (!cancelled) {
+          setProfileResolvedRole((currentRole) => currentRole ?? "OWNER");
           setIsLoading(false);
         }
       }
@@ -150,6 +160,7 @@ export function GlobalDataProvider({ children }: { children: React.ReactNode }):
     void bootstrap();
     return () => {
       cancelled = true;
+      window.clearTimeout(failsafe);
     };
   }, [loadCachedData, refreshCoreData]);
 
