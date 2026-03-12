@@ -445,60 +445,82 @@ export default function AdminPage(): React.JSX.Element {
   }
 
   async function saveSettings(): Promise<void> {
+    console.log("🔧 Save Company: Starting save process");
     setIsSavingSettings(true);
     setError(null);
 
-    const optimisticSettings: AdminSettings = {
-      logo_url: toNullable(toInput(settings.logo_url)),
-      website_url: toNullable(toInput(settings.website_url)),
-      business_name: toNullable(toInput(settings.business_name)),
-      gst_number: toNullable(toInput(settings.gst_number)),
-      default_trade: settings.default_trade,
-      tax_rate: settings.tax_rate,
-      standard_markup: settings.standard_markup,
-      terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
-      bank_account_name: toNullable(toInput(settings.bank_account_name)),
-      bank_account_number: toNullable(toInput(settings.bank_account_number)),
-      xero_tenant_id: settings.xero_tenant_id,
-    };
-
-    setSettings(optimisticSettings);
-    await setAdminSettingsCache(optimisticSettings);
-
     try {
+      const optimisticSettings: AdminSettings = {
+        logo_url: toNullable(toInput(settings.logo_url)),
+        website_url: toNullable(toInput(settings.website_url)),
+        business_name: toNullable(toInput(settings.business_name)),
+        gst_number: toNullable(toInput(settings.gst_number)),
+        default_trade: settings.default_trade,
+        tax_rate: settings.tax_rate,
+        standard_markup: settings.standard_markup,
+        terms_and_conditions: toNullable(toInput(settings.terms_and_conditions)),
+        bank_account_name: toNullable(toInput(settings.bank_account_name)),
+        bank_account_number: toNullable(toInput(settings.bank_account_number)),
+        xero_tenant_id: settings.xero_tenant_id,
+      };
+
+      console.log("🔧 Save Company: Optimistic settings", optimisticSettings);
+
+      setSettings(optimisticSettings);
+      await setAdminSettingsCache(optimisticSettings);
+
+      // Remove xero_tenant_id from payload as it might not be updatable
+      const { xero_tenant_id: _xeroTenantId, ...payloadWithoutXero } = optimisticSettings;
+      const finalPayload = {
+        ...payloadWithoutXero,
+        tax_rate: typeof optimisticSettings.tax_rate === "number" ? optimisticSettings.tax_rate / 100 : null,
+        standard_markup: optimisticSettings.standard_markup,
+      };
+
+      console.log("🔧 Save Company: Sending payload", finalPayload);
+
       const response = await apiFetch(`${API_BASE_URL}/api/admin/settings`, {
         method: "PUT",
-        body: JSON.stringify({
-          ...optimisticSettings,
-          tax_rate: typeof optimisticSettings.tax_rate === "number" ? optimisticSettings.tax_rate / 100 : null,
-          standard_markup: optimisticSettings.standard_markup,
-        }),
+        body: JSON.stringify(finalPayload),
       });
+      
+      console.log("🔧 Save Company: Response status", response.status);
+      
       if (!response.ok) {
         const body = await response.text();
+        console.error("🔧 Save Company: Response error", body);
         throw new Error(body || `Unable to save settings (${response.status}).`);
       }
 
-      const payload = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(response);
+      const payload_response = await parseApiJson<AdminSettings & { organization_id: string; updated_at: string }>(response);
+      console.log("🔧 Save Company: Response payload", payload_response);
+      
       const canonical: AdminSettings = {
-        logo_url: payload.logo_url,
-        website_url: payload.website_url,
-        business_name: payload.business_name,
-        gst_number: payload.gst_number,
-        default_trade: String((payload as { default_trade?: string }).default_trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
-        tax_rate: typeof payload.tax_rate === "number" ? payload.tax_rate * 100 : 15,
-        standard_markup: typeof payload.standard_markup === "number" ? payload.standard_markup : null,
-        terms_and_conditions: payload.terms_and_conditions,
-        bank_account_name: payload.bank_account_name,
-        bank_account_number: payload.bank_account_number,
-        xero_tenant_id: payload.xero_tenant_id,
+        logo_url: payload_response.logo_url,
+        website_url: payload_response.website_url,
+        business_name: payload_response.business_name,
+        gst_number: payload_response.gst_number,
+        default_trade: String((payload_response as { default_trade?: string }).default_trade ?? "").toUpperCase() === "PLUMBING" ? "PLUMBING" : "ELECTRICAL",
+        tax_rate: typeof payload_response.tax_rate === "number" ? payload_response.tax_rate * 100 : 15,
+        standard_markup: typeof payload_response.standard_markup === "number" ? payload_response.standard_markup : null,
+        terms_and_conditions: payload_response.terms_and_conditions,
+        bank_account_name: payload_response.bank_account_name,
+        bank_account_number: payload_response.bank_account_number,
+        xero_tenant_id: payload_response.xero_tenant_id,
       };
+      
+      console.log("🔧 Save Company: Canonical settings", canonical);
+      
       setSettings(canonical);
       await setAdminSettingsCache(canonical);
       setToast("Admin settings saved.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save admin settings.");
+      console.error("🔧 Save Company: Error occurred", saveError);
+      const errorMessage = saveError instanceof Error ? saveError.message : "Failed to save admin settings.";
+      setError(errorMessage);
+      setToast(errorMessage);
     } finally {
+      console.log("🔧 Save Company: Finally block - setting loading to false");
       setIsSavingSettings(false);
     }
   }
