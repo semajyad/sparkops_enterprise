@@ -28,9 +28,16 @@ export async function POST() {
       return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
 
+    const userId = user.id;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: "Server configuration is missing." }, { status: 500 });
+    }
+
     const supabaseAdmin = createSupabaseAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      supabaseUrl,
+      serviceRoleKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -41,7 +48,7 @@ export async function POST() {
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("organization_id, role, full_name")
-      .eq("id", user.id)
+      .eq("id", userId)
       .maybeSingle();
 
     if (profileError) {
@@ -72,7 +79,7 @@ export async function POST() {
     const role = String(profile?.role ?? "OWNER").toUpperCase() === "EMPLOYEE" ? "EMPLOYEE" : "OWNER";
     const { error: upsertProfileError } = await supabaseAdmin.from("profiles").upsert(
       {
-        id: user.id,
+        id: userId,
         organization_id: newOrganizationId,
         role,
         full_name: fullName,
@@ -85,8 +92,7 @@ export async function POST() {
     }
 
     return NextResponse.json({ organization_id: newOrganizationId }, { status: 200 });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: `Auto-provisioning failed: ${message}` }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Auto-provisioning failed." }, { status: 500 });
   }
 }
