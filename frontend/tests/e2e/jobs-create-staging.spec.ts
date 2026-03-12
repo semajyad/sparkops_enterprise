@@ -25,7 +25,8 @@ test.describe("Jobs create on staging", () => {
 
     await page.getByRole("button", { name: /Create new job/i }).click();
 
-    await page.getByLabel(/Client Name/i).fill(`Org Setup Debug ${Date.now()}`);
+    const uniqueClientName = `Org Setup Debug ${Date.now()}`;
+    await page.getByLabel(/Client Name/i).fill(uniqueClientName);
     await page.getByLabel(/Job Title/i).fill("Manual Debug Job");
     await page.getByPlaceholder(/Start typing an address/i).fill("10 Queen Street, Auckland");
 
@@ -35,5 +36,11 @@ test.describe("Jobs create on staging", () => {
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toMatch(/Organisation setup is incomplete|Organization setup is incomplete/i);
     expect(bodyText).not.toMatch(/Supabase jobs create failed/i);
+
+    await page.getByRole("button", { name: /^To Do$/i }).click();
+    await expect(page.getByText(uniqueClientName)).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("button", { name: /^Drafts$/i }).click();
+    await expect(page.getByText(uniqueClientName)).toBeHidden({ timeout: 20_000 });
   });
 });

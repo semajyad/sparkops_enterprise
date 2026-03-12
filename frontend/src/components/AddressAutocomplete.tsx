@@ -44,7 +44,12 @@ type MapboxResponse = {
 };
 
 function getMapboxToken(): string {
-  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? '';
+  return (
+    process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ??
+    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ??
+    process.env.VITE_MAPBOX_TOKEN?.trim() ??
+    ""
+  );
 }
 
 type AddressAutocompleteProps = {
@@ -190,8 +195,7 @@ export function AddressAutocomplete({
                 const text = sanitizeAddressComponent(feature.text);
                 const label = placeName || buildMapboxLabel(feature);
                 
-                // Extremely strict validation: Do not allow blank or 'Unknown address' to flash
-                if (!label || label === "Unknown address" || label.trim() === "") {
+                if (!label || label.trim() === "") {
                   return null;
                 }
 

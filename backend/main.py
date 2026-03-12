@@ -2732,7 +2732,7 @@ def create_job_draft(
             "organization_id": current_user.organization_id,
             "raw_transcript": f"Manual job: {title}",
             "extracted_data": extracted_data,
-            "status": "DRAFT",
+            "status": "IN_PROGRESS",
             "required_trade": required_trade,
             "date_scheduled": scheduled_at,
             "client_email": payload.client_email.strip().lower() if isinstance(payload.client_email, str) and payload.client_email.strip() else None,

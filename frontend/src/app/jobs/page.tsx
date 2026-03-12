@@ -17,9 +17,26 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
+const CREATE_STEP_TIMEOUT_MS = 12000;
 const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = CREATE_STEP_TIMEOUT_MS): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle !== null) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
@@ -286,7 +303,7 @@ export default function JobsPage(): React.JSX.Element {
         organization_id: currentOrgId,
       };
 
-      await createJob({
+      const createJobInput = {
         id: payload.client_generated_id,
         client_name: payload.client_name,
         title: payload.title,
@@ -300,13 +317,27 @@ export default function JobsPage(): React.JSX.Element {
         customer_email: payload.customer_email,
         customer_mobile: payload.customer_mobile,
         organization_id: payload.organization_id,
-      });
+      };
 
-      await putJobInCache(
+      let createJobTimedOut = false;
+      try {
+        await withTimeout(createJob(createJobInput), "Direct create");
+      } catch (directCreateError) {
+        const directCreateMessage =
+          directCreateError instanceof Error ? directCreateError.message.toLowerCase() : String(directCreateError).toLowerCase();
+        if (directCreateMessage.includes("timed out")) {
+          createJobTimedOut = true;
+        } else {
+          throw directCreateError;
+        }
+      }
+
+      await withTimeout(
+        putJobInCache(
         toCachedJob({
           id: payload.client_generated_id,
           client_name: payload.client_name,
-          status: "SYNCING",
+          status: "IN_PROGRESS",
           date_scheduled: payload.scheduled_date ?? null,
           extracted_data: {
             client: payload.client_name,
@@ -320,8 +351,10 @@ export default function JobsPage(): React.JSX.Element {
           },
           sync_status: "pending",
         })
+      ),
+        "Local cache update",
       );
-      await queueJobCreate(payload);
+      await withTimeout(queueJobCreate(payload), "Queue job create");
 
       setClientName("");
       setJobTitle("");
@@ -333,6 +366,9 @@ export default function JobsPage(): React.JSX.Element {
       setCustomerEmail("");
       setCustomerMobile("");
       setIsCreateOpen(false);
+      if (createJobTimedOut) {
+        setToast("Create request queued. Syncing in background.");
+      }
       void backgroundSync().catch(() => {});
     } catch (createError) {
       const rawMessage = createError instanceof Error ? createError.message : "";

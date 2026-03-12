@@ -214,7 +214,7 @@ def test_create_manual_job_draft(sqlite_engine) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "DRAFT"
+    assert payload["status"] == "IN_PROGRESS"
     assert payload["raw_transcript"] == "Manual job: Fuse board replacement"
     assert payload["extracted_data"]["client"] == "Harbor Electrical Ltd"
     assert payload["extracted_data"]["job_title"] == "Fuse board replacement"
