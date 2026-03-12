@@ -872,8 +872,8 @@ export default function JobReviewPage(): React.JSX.Element {
         ) : null}
 
         {isEditOpen ? (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-            <section className="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <section className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                 <h2 className="text-xl font-semibold text-gray-900">Edit Job</h2>
                 <button
@@ -886,8 +886,8 @@ export default function JobReviewPage(): React.JSX.Element {
                 </button>
               </div>
 
-              <form className="grid gap-2 px-3 py-3" onSubmit={(event) => void saveJobEdits(event)}>
-                <label className={MODAL_LABEL_CLASS}>
+              <form className="grid grid-cols-2 gap-2 px-3 py-3" onSubmit={(event) => void saveJobEdits(event)}>
+                <label className={`${MODAL_LABEL_CLASS} col-span-2`}>
                   Client Name
                   <input
                     type="text"
@@ -931,7 +931,7 @@ export default function JobReviewPage(): React.JSX.Element {
                   />
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2 grid grid-cols-2 gap-2">
                   <label className={MODAL_LABEL_CLASS}>
                     Customer Email
                     <input
@@ -954,7 +954,7 @@ export default function JobReviewPage(): React.JSX.Element {
                   </label>
                 </div>
 
-                <label className={MODAL_LABEL_CLASS}>
+                <label className={`${MODAL_LABEL_CLASS} col-span-2`}>
                   Scheduled Date
                   <input
                     type="datetime-local"
@@ -967,7 +967,7 @@ export default function JobReviewPage(): React.JSX.Element {
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                  className="col-span-2 w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
                 >
                   {isSavingEdit ? "Saving..." : "Save Changes"}
                 </button>

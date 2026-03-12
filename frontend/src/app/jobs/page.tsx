@@ -465,8 +465,9 @@ export default function JobsPage(): React.JSX.Element {
       </button>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-y-auto bg-white">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <section className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <button
               type="button"
               onClick={() => setIsCreateOpen(false)}
@@ -486,9 +487,8 @@ export default function JobsPage(): React.JSX.Element {
             </button>
           </div>
 
-          <form id="new-job-form" className="flex flex-col px-4 py-4" onSubmit={onCreateManualJob}>
-            <div className="grid gap-4">
-                <label className={MODAL_LABEL_CLASS}>
+          <form id="new-job-form" className="grid grid-cols-2 gap-2 px-3 py-3" onSubmit={onCreateManualJob}>
+                <label className={`${MODAL_LABEL_CLASS} col-span-2`}>
                   Client Name
                   <input
                     type="text"
@@ -591,8 +591,8 @@ export default function JobsPage(): React.JSX.Element {
                   </label>
                 </div>
 
-              </div>
             </form>
+          </section>
         </div>
       ) : null}
       </main>

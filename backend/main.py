@@ -1982,19 +1982,31 @@ def stripe_checkout_seats(
     seat_price_id = _stripe_seat_price_id()
     if not seat_price_id:
         raise HTTPException(status_code=500, detail="STRIPE_SEAT_PRICE_ID is not configured.")
+    base_price_id = _stripe_base_price_id()
 
     try:
         with Session(ENGINE) as session:
             settings = _ensure_org_settings(session, current_user.organization_id, current_user.organization_default_trade)
+            subscription_status = str(settings.subscription_status or "INACTIVE").upper()
+            line_items: list[dict[str, Any]] = [{"price": seat_price_id, "quantity": payload.quantity}]
+            purchase_type = "seat_addon"
+
+            if subscription_status == "INACTIVE":
+                if not base_price_id:
+                    raise HTTPException(status_code=500, detail="STRIPE_BASE_PRICE_ID or STRIPE_PRICE_ID is not configured.")
+                line_items.insert(0, {"price": base_price_id, "quantity": 1})
+                purchase_type = "base_plus_seats"
+
             result = create_checkout_session(
                 customer_id=settings.stripe_customer_id,
                 success_url=payload.success_url,
                 cancel_url=payload.cancel_url,
                 price_id=seat_price_id,
                 quantity=payload.quantity,
+                line_items=line_items,
                 metadata={
                     "organization_id": str(current_user.organization_id),
-                    "purchase_type": "seat_addon",
+                    "purchase_type": purchase_type,
                 },
             )
             customer = result.get("customer")

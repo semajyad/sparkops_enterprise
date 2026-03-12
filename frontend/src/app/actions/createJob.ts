@@ -32,7 +32,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       .from("profiles")
       .select("organization_id")
       .eq("id", user.id)
-      .single<{ organization_id: string | null }>();
+      .maybeSingle<{ organization_id: string | null }>();
 
     if (profileError) {
       throw new Error(`Unable to resolve organization_id: ${profileError.message}`);
@@ -42,7 +42,7 @@ export async function createJob(input: CreateJobInput): Promise<void> {
   }
 
   if (!organizationId) {
-    throw new Error("Unable to create job: missing organization_id for authenticated user.");
+    throw new Error("Organization setup is incomplete. Please finish profile setup before creating a job.");
   }
 
   const { error } = await supabase.from("jobs").upsert(

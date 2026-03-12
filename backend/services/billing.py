@@ -29,15 +29,34 @@ def _stripe_headers() -> dict[str, str]:
     }
 
 
-def create_checkout_session(*, customer_id: str | None, success_url: str, cancel_url: str, price_id: str, quantity: int = 1, metadata: dict[str, str] | None = None) -> dict[str, Any]:
+def create_checkout_session(
+    *,
+    customer_id: str | None,
+    success_url: str,
+    cancel_url: str,
+    price_id: str,
+    quantity: int = 1,
+    metadata: dict[str, str] | None = None,
+    line_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    normalized_items = line_items or [{"price": price_id, "quantity": quantity}]
     payload: dict[str, str] = {
         "mode": "subscription",
         "success_url": success_url,
         "cancel_url": cancel_url,
-        "line_items[0][price]": price_id,
-        "line_items[0][quantity]": str(max(1, quantity)),
         "allow_promotion_codes": "true",
     }
+    for index, item in enumerate(normalized_items):
+        item_price_id = str(item.get("price") or "").strip()
+        if not item_price_id:
+            continue
+        item_quantity = max(1, int(item.get("quantity") or 1))
+        payload[f"line_items[{index}][price]"] = item_price_id
+        payload[f"line_items[{index}][quantity]"] = str(item_quantity)
+
+    if not any(key.startswith("line_items[") for key in payload):
+        payload["line_items[0][price]"] = price_id
+        payload["line_items[0][quantity]"] = str(max(1, quantity))
 
     if customer_id:
         payload["customer"] = customer_id

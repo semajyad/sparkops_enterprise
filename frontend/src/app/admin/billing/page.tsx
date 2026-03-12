@@ -210,7 +210,9 @@ export default function AdminBillingPage(): React.JSX.Element {
                   disabled={loading}
                   className="w-full rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-700 disabled:opacity-60"
                 >
-                  Add {seatCount} {seatCount === 1 ? "Seat" : "Seats"}
+                  {entitlements?.subscription_status === "INACTIVE"
+                    ? `Subscribe Base Plan + ${seatCount} ${seatCount === 1 ? "Seat" : "Seats"}`
+                    : `Add ${seatCount} ${seatCount === 1 ? "Seat" : "Seats"}`}
                 </button>
                 <p className="mt-2 text-center text-xs text-gray-500">
                   Your card will be charged a pro-rated amount for the remainder of this billing cycle.
