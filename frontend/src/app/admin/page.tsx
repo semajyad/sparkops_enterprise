@@ -449,6 +449,19 @@ export default function AdminPage(): React.JSX.Element {
     setIsSavingSettings(true);
     setError(null);
 
+    // Check authentication status first
+    const supabase = createSupabaseClient();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log("🔧 Save Company: Auth session", { session, sessionError });
+    
+    if (!session) {
+      console.error("🔧 Save Company: No active session");
+      setError("No active session. Please log in again.");
+      setToast("No active session. Please log in again.");
+      setIsSavingSettings(false);
+      return;
+    }
+
     try {
       const optimisticSettings: AdminSettings = {
         logo_url: toNullable(toInput(settings.logo_url)),
@@ -479,12 +492,22 @@ export default function AdminPage(): React.JSX.Element {
 
       console.log("🔧 Save Company: Sending payload", finalPayload);
 
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      console.log("🔧 Save Company: Making API call to", `${API_BASE_URL}/api/admin/settings`);
+      
       const response = await apiFetch(`${API_BASE_URL}/api/admin/settings`, {
         method: "PUT",
         body: JSON.stringify(finalPayload),
+        signal: controller.signal,
       });
       
+      clearTimeout(timeoutId);
+      
       console.log("🔧 Save Company: Response status", response.status);
+      console.log("🔧 Save Company: Response headers", Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const body = await response.text();
@@ -516,7 +539,16 @@ export default function AdminPage(): React.JSX.Element {
       setToast("Admin settings saved.");
     } catch (saveError) {
       console.error("🔧 Save Company: Error occurred", saveError);
-      const errorMessage = saveError instanceof Error ? saveError.message : "Failed to save admin settings.";
+      let errorMessage = "Failed to save admin settings.";
+      
+      if (saveError instanceof Error) {
+        if (saveError.name === 'AbortError') {
+          errorMessage = "Save operation timed out. Please try again.";
+        } else {
+          errorMessage = saveError.message;
+        }
+      }
+      
       setError(errorMessage);
       setToast(errorMessage);
     } finally {
