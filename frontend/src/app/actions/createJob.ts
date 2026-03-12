@@ -13,6 +13,8 @@ export type CreateJobInput = {
   assigned_to_user_id: string | null;
   required_trade: "ELECTRICAL" | "PLUMBING" | "ANY";
   scheduled_date: string | null;
+  customer_email?: string | null;
+  customer_mobile?: string | null;
 };
 
 export async function createJob(input: CreateJobInput): Promise<void> {
@@ -29,6 +31,8 @@ export async function createJob(input: CreateJobInput): Promise<void> {
       assigned_to_user_id: input.assigned_to_user_id,
       required_trade: input.required_trade,
       scheduled_date: input.scheduled_date,
+      customer_email: input.customer_email ?? null,
+      customer_mobile: input.customer_mobile ?? null,
       status: "SYNCING",
     },
     { onConflict: "id" },

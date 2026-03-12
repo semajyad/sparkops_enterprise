@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
+import { getAdminSettingsCache, getTrackingMapCache, setTrackingMapCache } from "@/lib/db";
 import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { Coordinate, MapJob, RouteLine, StaffLocation } from "@/components/TrackingMap";
@@ -388,6 +388,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
               avatarUrl,
               initials: buildInitials(fallbackName),
               markerState,
+              customerMobile: (job.customer_mobile ?? null) as string | null,
             });
             return accumulator;
           }, []);
@@ -492,7 +493,26 @@ export default function TrackingIndexPage(): React.JSX.Element {
           </div>
           {nextJob ? (
             <button
-              onClick={() => window.open('https://maps.google.com/?daddr=' + encodeURIComponent(nextJob.addressLabel), '_blank')}
+              onClick={async () => {
+                window.open('https://maps.google.com/?daddr=' + encodeURIComponent(nextJob.addressLabel), '_blank');
+                if (nextJob.customerMobile) {
+                  try {
+                    const adminCache = await getAdminSettingsCache();
+                    await fetch('/api/sms', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        job_id: nextJob.id,
+                        customer_mobile: nextJob.customerMobile,
+                        eta_minutes: 20,
+                        organization_name: adminCache?.business_name ?? 'TradeOps',
+                      }),
+                    });
+                  } catch {
+                    // Fire-and-forget — never block navigation for SMS
+                  }
+                }
+              }}
               className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-lg border border-gray-100 transition hover:bg-gray-50 active:scale-95"
             >
               <Navigation className="h-4 w-4 text-orange-600" />

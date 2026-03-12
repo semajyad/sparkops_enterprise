@@ -24,6 +24,7 @@ export type MapJob = {
   avatarUrl: string | null;
   initials: string;
   markerState: "done" | "active" | "pending";
+  customerMobile?: string | null;
 };
 
 export type StaffLocation = {

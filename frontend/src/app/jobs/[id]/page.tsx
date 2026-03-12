@@ -39,8 +39,8 @@ const CHECKLIST_CATALOG: ComplianceChecklistItem[] = [
 ];
 
 const MODAL_INPUT_CLASS =
-  "mt-1 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
-const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
+  "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-0.5";
 
 function toDateTimeLocal(value: string | null | undefined): string {
   if (!value) {
@@ -106,6 +106,11 @@ export default function JobReviewPage(): React.JSX.Element {
   const [editLatitude, setEditLatitude] = useState<number | null>(null);
   const [editLongitude, setEditLongitude] = useState<number | null>(null);
   const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [editCustomerEmail, setEditCustomerEmail] = useState("");
+  const [editCustomerMobile, setEditCustomerMobile] = useState("");
+  const [isEmailGateOpen, setIsEmailGateOpen] = useState(false);
+  const [emailGateValue, setEmailGateValue] = useState("");
+  const [isSavingEmailGate, setIsSavingEmailGate] = useState(false);
   const [isAppendingVoiceNote, setIsAppendingVoiceNote] = useState(false);
   const [isRecordingNote, setIsRecordingNote] = useState(false);
   const [appendedCount, setAppendedCount] = useState(0);
@@ -216,54 +221,58 @@ export default function JobReviewPage(): React.JSX.Element {
     }
   }
 
-  async function completeJob(): Promise<void> {
-    if (!job || isCompleting) {
-      return;
-    }
+  function isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  }
 
-    const existingEmail = (job.client_email ?? "").trim();
-    const promptedEmail = existingEmail || window.prompt("Client email is required to send certificate:", "") || "";
-    const clientEmail = promptedEmail.trim().toLowerCase();
-    if (!clientEmail) {
-      setLocalError("Client email is required before completing this job.");
-      return;
-    }
-
+  async function doCompleteJob(clientEmail: string): Promise<void> {
     setIsCompleting(true);
     setLocalError("");
-
     try {
-      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job.id}/complete`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${job!.id}/complete`, {
         method: "POST",
         body: JSON.stringify({ client_email: clientEmail }),
       });
       if (!response.ok) {
-        let errorMessage = "";
-        const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-        if (contentType.includes("application/json")) {
+        let errMsg = "";
+        const ct = response.headers.get("content-type")?.toLowerCase() ?? "";
+        if (ct.includes("application/json")) {
           const payload = (await response.json()) as { error?: string };
-          errorMessage = typeof payload.error === "string" ? payload.error : "";
+          errMsg = typeof payload.error === "string" ? payload.error : "";
         } else {
-          errorMessage = await response.text();
+          errMsg = await response.text();
         }
-
-        if (response.status === 400 && errorMessage.toLowerCase().startsWith("missing:")) {
-          setComplianceChecklist(parseMissingChecklist(errorMessage));
+        if (response.status === 400 && errMsg.toLowerCase().startsWith("missing:")) {
+          setComplianceChecklist(parseMissingChecklist(errMsg));
           setIsComplianceModalOpen(true);
           return;
         }
-
-        throw new Error(errorMessage || `Complete failed (${response.status})`);
+        throw new Error(errMsg || `Complete failed (${response.status})`);
       }
-
-      setToast("✅ Certificate Sent to Client!");
-
+      setToast("\u2705 Certificate Sent to Client!");
       await refresh();
     } catch (completeError) {
       setLocalError(completeError instanceof Error ? completeError.message : "Unable to complete this job.");
     } finally {
       setIsCompleting(false);
     }
+  }
+
+  async function completeJob(): Promise<void> {
+    if (!job || isCompleting) {
+      return;
+    }
+
+    const existingEmail = (job.customer_email ?? job.client_email ?? "").trim();
+    if (existingEmail && isValidEmail(existingEmail)) {
+      await doCompleteJob(existingEmail.toLowerCase());
+      return;
+    }
+
+    setEmailGateValue(existingEmail);
+    setIsEmailGateOpen(true);
+    setIsCompleting(false);
+    setLocalError("");
   }
 
   async function pushToXero(): Promise<void> {
@@ -309,6 +318,8 @@ export default function JobReviewPage(): React.JSX.Element {
     setEditLatitude(parseNumeric(job.extracted_data?.latitude ?? 0) || null);
     setEditLongitude(parseNumeric(job.extracted_data?.longitude ?? 0) || null);
     setEditScheduledDate(toDateTimeLocal(job.extracted_data?.scheduled_date ?? null));
+    setEditCustomerEmail(job.customer_email ?? job.client_email ?? "");
+    setEditCustomerMobile(job.customer_mobile ?? "");
     setIsEditOpen(true);
     setLocalError("");
   }
@@ -336,6 +347,9 @@ export default function JobReviewPage(): React.JSX.Element {
     const nextLatitude = editLatitude ?? undefined;
     const nextLongitude = editLongitude ?? undefined;
 
+    const nextCustomerEmail = editCustomerEmail.trim() || null;
+    const nextCustomerMobile = editCustomerMobile.trim() || null;
+
     try {
       await updateJob({
         id: job.id,
@@ -346,11 +360,15 @@ export default function JobReviewPage(): React.JSX.Element {
         latitude: editLatitude,
         longitude: editLongitude,
         scheduled_date: scheduledIso,
+        customer_email: nextCustomerEmail,
+        customer_mobile: nextCustomerMobile,
       });
 
       await db.jobs.update(job.id, {
         client_name: nextClient,
         date_scheduled: scheduledIso,
+        customer_email: nextCustomerEmail,
+        customer_mobile: nextCustomerMobile,
         extracted_data: {
           ...(job.extracted_data ?? {}),
           client: nextClient,
@@ -363,6 +381,8 @@ export default function JobReviewPage(): React.JSX.Element {
         },
       });
       await db.job_details.update(job.id, {
+        customer_email: nextCustomerEmail,
+        customer_mobile: nextCustomerMobile,
         extracted_data: {
           ...(job.extracted_data ?? {}),
           client: nextClient,
@@ -385,6 +405,8 @@ export default function JobReviewPage(): React.JSX.Element {
           latitude: editLatitude,
           longitude: editLongitude,
           scheduled_date: scheduledIso,
+          customer_email: nextCustomerEmail,
+          customer_mobile: nextCustomerMobile,
         }),
       });
       if (!response.ok) {
@@ -864,7 +886,7 @@ export default function JobReviewPage(): React.JSX.Element {
                 </button>
               </div>
 
-              <form className="grid gap-5 px-5 py-4" onSubmit={(event) => void saveJobEdits(event)}>
+              <form className="grid gap-2 px-3 py-3" onSubmit={(event) => void saveJobEdits(event)}>
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
@@ -878,7 +900,7 @@ export default function JobReviewPage(): React.JSX.Element {
                 </label>
 
                 <label className={MODAL_LABEL_CLASS}>
-                  Job Title / Description
+                  Job Title
                   <input
                     type="text"
                     required
@@ -909,8 +931,31 @@ export default function JobReviewPage(): React.JSX.Element {
                   />
                 </label>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={MODAL_LABEL_CLASS}>
+                    Customer Email
+                    <input
+                      type="email"
+                      value={editCustomerEmail}
+                      onChange={(event) => setEditCustomerEmail(event.target.value)}
+                      className={MODAL_INPUT_CLASS}
+                      placeholder="client@email.com"
+                    />
+                  </label>
+                  <label className={MODAL_LABEL_CLASS}>
+                    Customer Mobile
+                    <input
+                      type="tel"
+                      value={editCustomerMobile}
+                      onChange={(event) => setEditCustomerMobile(event.target.value)}
+                      className={MODAL_INPUT_CLASS}
+                      placeholder="+64 21 000 0000"
+                    />
+                  </label>
+                </div>
+
                 <label className={MODAL_LABEL_CLASS}>
-                  Scheduled Date & Time
+                  Scheduled Date
                   <input
                     type="datetime-local"
                     value={editScheduledDate}
@@ -922,11 +967,76 @@ export default function JobReviewPage(): React.JSX.Element {
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="min-h-11 w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                  className="w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
                 >
                   {isSavingEdit ? "Saving..." : "Save Changes"}
                 </button>
               </form>
+            </section>
+          </div>
+        ) : null}
+
+        {isEmailGateOpen ? (
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 p-4">
+            <section className="w-full max-w-sm rounded-2xl border border-orange-200 bg-white p-5 shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-600">Email Required</p>
+              <h2 className="mt-2 text-lg font-semibold text-gray-900">Customer Email is required to send the invoice and compliance documents.</h2>
+              <label className="mt-4 block text-sm font-medium text-gray-700">
+                Customer Email
+                <input
+                  type="email"
+                  required
+                  autoFocus
+                  value={emailGateValue}
+                  onChange={(event) => setEmailGateValue(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+                  placeholder="client@example.com"
+                />
+              </label>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEmailGateOpen(false)}
+                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingEmailGate || !emailGateValue.trim()}
+                  onClick={async () => {
+                    if (!job || !emailGateValue.trim() || !isValidEmail(emailGateValue)) {
+                      setLocalError("Please enter a valid email address.");
+                      return;
+                    }
+                    setIsSavingEmailGate(true);
+                    try {
+                      await updateJob({
+                        id: job.id,
+                        client_name: job.extracted_data?.client ?? "",
+                        title: job.extracted_data?.job_title ?? "",
+                        location: job.extracted_data?.address ?? "",
+                        address: job.extracted_data?.address ?? "",
+                        latitude: parseNumeric(job.extracted_data?.latitude ?? 0) || null,
+                        longitude: parseNumeric(job.extracted_data?.longitude ?? 0) || null,
+                        scheduled_date: job.extracted_data?.scheduled_date ?? null,
+                        customer_email: emailGateValue.trim().toLowerCase(),
+                      });
+                      await db.jobs.update(job.id, { customer_email: emailGateValue.trim().toLowerCase() });
+                      await db.job_details.update(job.id, { customer_email: emailGateValue.trim().toLowerCase() });
+                      setIsEmailGateOpen(false);
+                      await doCompleteJob(emailGateValue.trim().toLowerCase());
+                    } catch (gateError) {
+                      setLocalError(gateError instanceof Error ? gateError.message : "Unable to save email.");
+                    } finally {
+                      setIsSavingEmailGate(false);
+                    }
+                  }}
+                  className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {isSavingEmailGate ? "Saving..." : "Save & Complete"}
+                </button>
+              </div>
             </section>
           </div>
         ) : null}

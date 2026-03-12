@@ -88,6 +88,7 @@ const EMPTY_SETTINGS: AdminSettings = {
   terms_and_conditions: null,
   bank_account_name: null,
   bank_account_number: null,
+  xero_tenant_id: null,
 };
 
 function toInput(value: string | null): string {
@@ -122,7 +123,7 @@ function initialsFromName(fullName: string): string {
 }
 
 export default function AdminPage(): React.JSX.Element {
-  const { loading: authLoading, role, user } = useAuth();
+  const { loading: authLoading, roleLoading, role, user } = useAuth();
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>("profile");
   const [settings, setSettings] = useState<AdminSettings>(EMPTY_SETTINGS);
@@ -172,6 +173,7 @@ export default function AdminPage(): React.JSX.Element {
         terms_and_conditions: cachedSettings.terms_and_conditions,
         bank_account_name: cachedSettings.bank_account_name,
         bank_account_number: cachedSettings.bank_account_number,
+        xero_tenant_id: cachedSettings.xero_tenant_id ?? null,
       });
     }
 
@@ -193,7 +195,7 @@ export default function AdminPage(): React.JSX.Element {
   }, []);
 
   const refreshFromServer = useCallback(async (): Promise<void> => {
-    if (!isOwner) {
+    if (!isOwner || roleLoading) {
       return;
     }
 
@@ -225,6 +227,7 @@ export default function AdminPage(): React.JSX.Element {
           terms_and_conditions: settingsPayload.terms_and_conditions,
           bank_account_name: settingsPayload.bank_account_name,
           bank_account_number: settingsPayload.bank_account_number,
+          xero_tenant_id: settingsPayload.xero_tenant_id ?? null,
         };
         setSettings(nextSettings);
         await setAdminSettingsCache(nextSettings);
@@ -253,7 +256,7 @@ export default function AdminPage(): React.JSX.Element {
     } finally {
       setIsTeamLoading(false);
     }
-  }, [isOwner]);
+  }, [isOwner, roleLoading]);
 
   async function onInviteSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -316,8 +319,9 @@ export default function AdminPage(): React.JSX.Element {
   }, [hydrateFromDexie]);
 
   useEffect(() => {
+    if (roleLoading) return;
     void refreshFromServer();
-  }, [refreshFromServer]);
+  }, [refreshFromServer, roleLoading]);
 
   useEffect(() => {
     if (!toast) {
@@ -594,7 +598,7 @@ export default function AdminPage(): React.JSX.Element {
     }
   }
 
-  if (authLoading) {
+  if (authLoading || roleLoading) {
     return <></>;
   }
 

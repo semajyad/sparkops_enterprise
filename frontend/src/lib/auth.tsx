@@ -14,6 +14,8 @@ type AppTrade = "ELECTRICAL" | "PLUMBING";
 
 const MODE_STORAGE_KEY = "tradeops_owner_mode";
 const ROLE_STORAGE_KEY = "tradeops_user_role";
+const TRADE_STORAGE_KEY = "tradeops_user_trade";
+const ORG_TRADE_STORAGE_KEY = "tradeops_org_trade";
 
 type AuthContextValue = {
   session: Session | null;
@@ -24,6 +26,7 @@ type AuthContextValue = {
   mode: AppMode;
   setMode: (next: AppMode) => void;
   loading: boolean;
+  roleLoading: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -35,6 +38,7 @@ const AuthContext = createContext<AuthContextValue>({
   mode: "FIELD",
   setMode: () => undefined,
   loading: true,
+  roleLoading: false,
 });
 
 export function AuthProvider({ 
@@ -67,8 +71,16 @@ export function AuthProvider({
     const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
     return storedRole === "OWNER" || storedRole === "EMPLOYEE" ? storedRole : null;
   });
-  const [trade, setTrade] = useState<AppTrade>("ELECTRICAL");
-  const [organizationDefaultTrade, setOrganizationDefaultTrade] = useState<AppTrade>("ELECTRICAL");
+  const [trade, setTrade] = useState<AppTrade>(() => {
+    if (typeof window === "undefined") return "ELECTRICAL";
+    const stored = window.localStorage.getItem(TRADE_STORAGE_KEY);
+    return stored === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
+  });
+  const [organizationDefaultTrade, setOrganizationDefaultTrade] = useState<AppTrade>(() => {
+    if (typeof window === "undefined") return "ELECTRICAL";
+    const stored = window.localStorage.getItem(ORG_TRADE_STORAGE_KEY);
+    return stored === "PLUMBING" ? "PLUMBING" : "ELECTRICAL";
+  });
   const [mode, setModeState] = useState<AppMode>(() => {
     if (initialMode === "FIELD" || initialMode === "ADMIN") {
       return initialMode;
@@ -141,6 +153,8 @@ export function AuthProvider({
         setOrganizationDefaultTrade("ELECTRICAL");
         if (typeof window !== "undefined") {
           window.localStorage.removeItem(ROLE_STORAGE_KEY);
+          window.localStorage.removeItem(TRADE_STORAGE_KEY);
+          window.localStorage.removeItem(ORG_TRADE_STORAGE_KEY);
           document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         }
         return;
@@ -222,8 +236,12 @@ export function AuthProvider({
 
         if (normalized === "OWNER" || normalized === "EMPLOYEE") {
           setRole(normalized);
+          setTrade(tradeValue);
+          setOrganizationDefaultTrade(orgTradeValue);
           if (typeof window !== "undefined") {
             window.localStorage.setItem(ROLE_STORAGE_KEY, normalized);
+            window.localStorage.setItem(TRADE_STORAGE_KEY, tradeValue);
+            window.localStorage.setItem(ORG_TRADE_STORAGE_KEY, orgTradeValue);
             document.cookie = `${ROLE_STORAGE_KEY}=${normalized}; path=/; max-age=31536000; SameSite=Lax`;
           }
         } else {
@@ -233,6 +251,8 @@ export function AuthProvider({
             setOrganizationDefaultTrade("ELECTRICAL");
             if (typeof window !== "undefined") {
               window.localStorage.removeItem(ROLE_STORAGE_KEY);
+              window.localStorage.removeItem(TRADE_STORAGE_KEY);
+              window.localStorage.removeItem(ORG_TRADE_STORAGE_KEY);
               document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
             }
           }
@@ -244,6 +264,8 @@ export function AuthProvider({
           setOrganizationDefaultTrade("ELECTRICAL");
           if (typeof window !== "undefined") {
             window.localStorage.removeItem(ROLE_STORAGE_KEY);
+            window.localStorage.removeItem(TRADE_STORAGE_KEY);
+            window.localStorage.removeItem(ORG_TRADE_STORAGE_KEY);
             document.cookie = `${ROLE_STORAGE_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
           }
         }
@@ -266,6 +288,7 @@ export function AuthProvider({
         mode: effectiveMode,
         setMode,
         loading: loading,
+        roleLoading,
       }}
     >
       {children}

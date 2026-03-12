@@ -14,9 +14,9 @@ import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
-const MODAL_LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-1";
+const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-0.5";
 const MODAL_INPUT_SMALL_CLASS =
-  "mt-1 min-h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
+  "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 export default function JobsPage(): React.JSX.Element {
   const { role, user, organizationDefaultTrade } = useAuth();
@@ -35,6 +35,8 @@ export default function JobsPage(): React.JSX.Element {
   const [scheduledDate, setScheduledDate] = useState("");
   const [teamMembers, setTeamMembers] = useState<CachedTeamMember[]>([]);
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerMobile, setCustomerMobile] = useState("");
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const createInFlightRef = useRef(false);
@@ -261,6 +263,8 @@ export default function JobsPage(): React.JSX.Element {
         assigned_to_user_id: isOwner ? assignedToUserId || user?.id : user?.id,
         required_trade: organizationDefaultTrade,
         scheduled_date: scheduledIso,
+        customer_email: customerEmail.trim() || null,
+        customer_mobile: customerMobile.trim() || null,
       };
 
       await createJob({
@@ -274,6 +278,8 @@ export default function JobsPage(): React.JSX.Element {
         assigned_to_user_id: payload.assigned_to_user_id ?? null,
         required_trade: payload.required_trade,
         scheduled_date: payload.scheduled_date,
+        customer_email: payload.customer_email,
+        customer_mobile: payload.customer_mobile,
       });
 
       await putJobInCache(
@@ -305,6 +311,8 @@ export default function JobsPage(): React.JSX.Element {
       setLongitude(null);
       setAssignedToUserId(user?.id ?? "");
       setScheduledDate("");
+      setCustomerEmail("");
+      setCustomerMobile("");
       setIsCreateOpen(false);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Unable to create manual job.");
@@ -442,22 +450,22 @@ export default function JobsPage(): React.JSX.Element {
       </button>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <section className="my-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
-              <h2 className="text-xl font-semibold text-gray-900">New Job</h2>
+        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-2 sm:items-center sm:p-4">
+          <section className="w-full max-w-lg flex-col rounded-xl border border-gray-200 bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-gray-200 px-3 py-3 shrink-0">
+              <h2 className="text-base font-semibold text-gray-900">New Job</h2>
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-300 text-gray-600"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-600 text-lg leading-none"
                 aria-label="Close create job form"
               >
                 ×
               </button>
             </div>
 
-            <form className="flex flex-col overflow-y-auto px-5 py-3 shrink" onSubmit={onCreateManualJob}>
-              <div className="grid gap-3">
+            <form className="flex flex-col px-3 py-2" onSubmit={onCreateManualJob}>
+              <div className="grid gap-2">
                 <label className={MODAL_LABEL_CLASS}>
                   Client Name
                   <input
@@ -471,14 +479,14 @@ export default function JobsPage(): React.JSX.Element {
                 </label>
 
                 <label className={MODAL_LABEL_CLASS}>
-                  Job Title / Description
+                  Job Title
                   <input
                     type="text"
                     required
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
                     className={MODAL_INPUT_SMALL_CLASS}
-                    placeholder="Switchboard inspection and repairs"
+                    placeholder="Switchboard inspection"
                   />
                 </label>
 
@@ -505,8 +513,31 @@ export default function JobsPage(): React.JSX.Element {
                 <input type="hidden" name="latitude" value={latitude ?? ""} />
                 <input type="hidden" name="longitude" value={longitude ?? ""} />
 
-                {isOwner ? (
-                  <>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={MODAL_LABEL_CLASS}>
+                    Customer Email
+                    <input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(event) => setCustomerEmail(event.target.value)}
+                      className={MODAL_INPUT_SMALL_CLASS}
+                      placeholder="client@email.com"
+                    />
+                  </label>
+                  <label className={MODAL_LABEL_CLASS}>
+                    Customer Mobile
+                    <input
+                      type="tel"
+                      value={customerMobile}
+                      onChange={(event) => setCustomerMobile(event.target.value)}
+                      className={MODAL_INPUT_SMALL_CLASS}
+                      placeholder="+64 21 000 0000"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {isOwner ? (
                     <label className={MODAL_LABEL_CLASS}>
                       Assign To
                       <select
@@ -516,42 +547,32 @@ export default function JobsPage(): React.JSX.Element {
                         disabled={isLoadingTeam}
                       >
                         <option value={user?.id ?? ""}>Me</option>
-                        {isLoadingTeam ? (
-                          <option disabled>Loading team members...</option>
-                        ) : (
-                          teamMembers
-                            .filter((member) => member.id !== user?.id)
-                            .filter((member) => member.trade === organizationDefaultTrade)
-                            .map((member) => (
-                              <option key={member.id} value={member.id}>
-                                {member.full_name} ({member.email}) · {member.trade}
-                              </option>
-                            ))
-                        )}
+                        {teamMembers
+                          .filter((member) => member.id !== user?.id)
+                          .filter((member) => member.trade === organizationDefaultTrade)
+                          .map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.full_name}
+                            </option>
+                          ))}
                       </select>
-                      {isLoadingTeam && (
-                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                          <div className="animate-spin w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full"></div>
-                          Loading team members...
-                        </div>
-                      )}
                     </label>
-                  </>
-                ) : null}
+                  ) : <div />}
+                  <label className={MODAL_LABEL_CLASS}>
+                    Scheduled Date
+                    <input
+                      type="datetime-local"
+                      value={scheduledDate}
+                      onChange={(event) => setScheduledDate(event.target.value)}
+                      className={MODAL_INPUT_SMALL_CLASS}
+                    />
+                  </label>
+                </div>
 
-                <label className={MODAL_LABEL_CLASS}>
-                  Scheduled Date & Time
-                  <input
-                    type="datetime-local"
-                    value={scheduledDate}
-                    onChange={(event) => setScheduledDate(event.target.value)}
-                    className={MODAL_INPUT_SMALL_CLASS}
-                  />
-                </label>
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="mb-[20px] min-h-11 w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                  className="mb-2 w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
                 >
                   {isCreating ? "Creating Job..." : "Create Job"}
                 </button>

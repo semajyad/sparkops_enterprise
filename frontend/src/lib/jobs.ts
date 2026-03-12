@@ -17,6 +17,8 @@ export type JobListItem = {
   date_scheduled?: string | null;
   client_name: string;
   client_email?: string | null;
+  customer_email?: string | null;
+  customer_mobile?: string | null;
   extracted_data?: {
     client?: string;
     job_title?: string;

@@ -91,6 +91,8 @@ export interface CachedJob {
   sync_status: SyncStatus;
   created_at: string;
   updated_at: string;
+  customer_email?: string | null;
+  customer_mobile?: string | null;
   extracted_data?: Record<string, unknown>;
   stale_at?: number;
 }
@@ -161,6 +163,8 @@ export interface CachedJobDetail {
   id: string;
   raw_transcript: string;
   client_email?: string | null;
+  customer_email?: string | null;
+  customer_mobile?: string | null;
   compliance_status?: string | null;
   certificate_pdf_url?: string | null;
   extracted_data: {
@@ -295,6 +299,19 @@ class TradeOpsDexie extends Dexie {
       jobDrafts: "++id,sync_status,timestamp",
       jobs: "id,status,client_name,date_scheduled,sync_status,updated_at",
       job_details: "id,updated_at,status",
+      clients: "id,name,updated_at",
+      products: "id,name,updated_at",
+      map_state: "key,updated_at",
+      profile_state: "key,updated_at",
+      team_state: "key,updated_at",
+      admin_state: "key,updated_at",
+      vehicles: "id,updated_at,plate,name",
+      sync_queue: "++id,status,entity_type,created_at,retry_count",
+    });
+    this.version(6).stores({
+      jobDrafts: "++id,sync_status,timestamp",
+      jobs: "id,status,client_name,date_scheduled,sync_status,updated_at,customer_email,customer_mobile",
+      job_details: "id,updated_at,status,customer_email,customer_mobile",
       clients: "id,name,updated_at",
       products: "id,name,updated_at",
       map_state: "key,updated_at",

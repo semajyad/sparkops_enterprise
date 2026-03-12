@@ -24,7 +24,7 @@ type AuthMePayload = {
 };
 
 export default function ProfilePage(): React.JSX.Element {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading, role: authRole } = useAuth();
   const router = useRouter();
   const [details, setDetails] = useState<AuthMePayload | null>(null);
   const [sessionIdentity, setSessionIdentity] = useState<{ full_name: string | null; email: string | null; organization: string | null } | null>(null);
@@ -209,7 +209,7 @@ export default function ProfilePage(): React.JSX.Element {
   const displayEmail = details?.email || sessionIdentity?.email || user?.email || "Unknown";
   const metadataOrganization = typeof user?.user_metadata?.organization === "string" ? user.user_metadata.organization.trim() : "";
   const displayOrganization = sessionIdentity?.organization || metadataOrganization || "Unknown";
-  const isOwner = String(details?.role ?? "").toUpperCase() === "OWNER";
+  const isOwner = authRole === "OWNER" || String(details?.role ?? "").toUpperCase() === "OWNER";
 
   useEffect(() => {
     setFullNameInput(displayName === "TradeOps User" ? "" : displayName);
