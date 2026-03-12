@@ -27,8 +27,15 @@ async function autoProvisionOrganization(): Promise<string> {
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Auto-provision failed (${response.status})`);
+    let message = "";
+    try {
+      const payload = (await response.json()) as { error?: unknown };
+      message = typeof payload.error === "string" ? payload.error.trim() : "";
+    } catch {
+      const body = await response.text();
+      message = body.trim();
+    }
+    throw new Error(message || `Auto-provision failed (${response.status})`);
   }
 
   const payload = (await response.json()) as { organization_id?: string | null };

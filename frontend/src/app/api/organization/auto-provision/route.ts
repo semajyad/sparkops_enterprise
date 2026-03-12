@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function normalizedFullName(rawFullName: unknown, fallbackEmail: string | null | undefined): string {
@@ -28,8 +28,16 @@ export async function POST() {
       return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAdmin = getSupabaseAdmin() as any;
+    const supabaseAdmin = createSupabaseAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("organization_id, role, full_name")
