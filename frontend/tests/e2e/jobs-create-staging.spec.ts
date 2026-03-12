@@ -4,12 +4,26 @@ const configuredEmail = process.env.PLAYWRIGHT_TEST_EMAIL;
 const configuredPassword = process.env.PLAYWRIGHT_TEST_PASSWORD;
 const hasConfiguredCredentials = Boolean(configuredEmail && configuredPassword);
 
+async function gotoWithRetry(page: import("@playwright/test").Page, path: string): Promise<void> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      await page.goto(path, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      await page.waitForTimeout(1500 * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`Unable to navigate to ${path}`);
+}
+
 async function login(page: import("@playwright/test").Page): Promise<void> {
   if (!configuredEmail || !configuredPassword) {
     throw new Error("Missing PLAYWRIGHT_TEST_EMAIL or PLAYWRIGHT_TEST_PASSWORD.");
   }
 
-  await page.goto("/login");
+  await gotoWithRetry(page, "/login");
   await page.locator('input[type="email"]').first().fill(configuredEmail);
   await page.locator('input[type="password"]').first().fill(configuredPassword);
   await page.locator('button[type="submit"]').click();
@@ -21,7 +35,7 @@ test.describe("Jobs create on staging", () => {
     test.skip(!hasConfiguredCredentials, "Set PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_PASSWORD.");
 
     await login(page);
-    await page.goto("/jobs", { waitUntil: "domcontentloaded" });
+    await gotoWithRetry(page, "/jobs");
 
     await page.getByRole("button", { name: /Create new job/i }).click();
     await expect(page.getByRole("heading", { level: 2, name: /New Job/i })).toBeVisible({ timeout: 20_000 });
