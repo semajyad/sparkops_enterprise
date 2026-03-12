@@ -10,6 +10,7 @@ import { AuthSessionExpiredError } from "@/lib/api";
 import { clearAuthState, useAuth } from "@/lib/auth";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { db } from "@/lib/db";
+import { toRenderableErrorMessage } from "@/lib/errorSuppression";
 import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { backgroundSync } from "@/lib/syncService";
 
@@ -42,7 +43,7 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function DashboardPage(): React.JSX.Element {
-  const { user, session, role, mode } = useAuth();
+  const { user, session, role } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +95,6 @@ export default function DashboardPage(): React.JSX.Element {
   const recentActivity = useMemo(() => {
     return visibleJobs.slice(0, 5);
   }, [visibleJobs]);
-  const ownerFieldFocus = role === "OWNER" && mode === "FIELD";
-
   useEffect(() => {
     async function loadJobs(): Promise<void> {
       if (!session?.access_token) {
@@ -134,7 +133,7 @@ export default function DashboardPage(): React.JSX.Element {
           setIsSessionExpired(true);
           setError(null);
         } else {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard pulse.");
+          setError(toRenderableErrorMessage(loadError, "Unable to load dashboard pulse."));
         }
       } finally {
         setLoading(false);
@@ -194,19 +193,6 @@ export default function DashboardPage(): React.JSX.Element {
           <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>
         ) : null}
 
-        {!loading && visibleJobs.length === 0 ? (
-          <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6">
-            <h2 className="text-xl font-semibold text-gray-900">{displayName ? `Welcome ${displayName}` : "Welcome"}</h2>
-            <p className="mt-2 text-sm text-gray-600">You have no jobs yet. Capture your first voice note to start building today&apos;s pipeline.</p>
-            <Link
-              href="/capture"
-              className="mt-5 inline-flex items-center rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-700"
-            >
-              Start New Job
-            </Link>
-          </section>
-        ) : null}
-
         {loading ? (
           <section className="mt-6 grid grid-cols-2 gap-4">
             {[0, 1, 2, 3].map((i) => (
@@ -215,7 +201,7 @@ export default function DashboardPage(): React.JSX.Element {
           </section>
         ) : null}
 
-        {!loading && visibleJobs.length > 0 ? (
+        {!loading ? (
           <>
             <section className="mt-6 grid grid-cols-2 gap-4">
               {(() => {

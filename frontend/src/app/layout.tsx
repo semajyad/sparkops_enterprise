@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { GlobalSyncStatusDot } from "@/components/GlobalSyncStatusDot";
+import { GlobalErrorSuppressor } from "@/components/GlobalErrorSuppressor";
 import { MobileNav } from "@/components/MobileNav";
 import { SyncProvider } from "@/components/SyncProvider";
 import { AuthProvider } from "@/lib/auth";
@@ -64,6 +65,7 @@ export default async function RootLayout({
         <AuthProvider initialRole={initialRole as "OWNER" | "EMPLOYEE" | null} initialMode={initialMode as "FIELD" | "ADMIN"}>
           <UserModeProvider>
             <SyncProvider>
+              <GlobalErrorSuppressor />
               {children}
               <GlobalSyncStatusDot />
             </SyncProvider>

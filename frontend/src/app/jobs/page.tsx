@@ -10,6 +10,7 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
 import { useAuth } from "@/lib/auth";
 import { db, getTeamCache, putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
+import { toRenderableErrorMessage } from "@/lib/errorSuppression";
 import { JobListItem, isMissingJobId } from "@/lib/jobs";
 import { backgroundSync, pull, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
@@ -23,6 +24,7 @@ export default function JobsPage(): React.JSX.Element {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"DRAFT" | "DONE" | "SYNCING" | "IN_PROGRESS">("IN_PROGRESS");
   const [timeframe, setTimeframe] = useState<"TODAY" | "YESTERDAY" | "TOMORROW" | "THIS_WEEK" | "NEXT_WEEK" | "LAST_WEEK" | "ALL_TIME">("ALL_TIME");
+  const [isJobsLoading, setIsJobsLoading] = useState(true);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -186,6 +188,19 @@ export default function JobsPage(): React.JSX.Element {
   const cacheIsEmpty = hasResolvedCache && cachedJobs.length === 0;
 
   useEffect(() => {
+    if (hasResolvedCache) {
+      setIsJobsLoading(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsJobsLoading(false);
+    }, 1800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasResolvedCache]);
+
+  useEffect(() => {
     if (!hasResolvedCache) {
       return;
     }
@@ -198,7 +213,7 @@ export default function JobsPage(): React.JSX.Element {
     void syncTask
       .catch((syncError) => {
         if (!cancelled) {
-          setError(syncError instanceof Error ? syncError.message : "Unable to refresh jobs.");
+          setError(toRenderableErrorMessage(syncError, "Unable to refresh jobs."));
         }
       })
       .finally(() => {
@@ -315,7 +330,7 @@ export default function JobsPage(): React.JSX.Element {
       setCustomerMobile("");
       setIsCreateOpen(false);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Unable to create manual job.");
+      setError(toRenderableErrorMessage(createError, "Unable to create manual job."));
     } finally {
       setIsCreating(false);
       createInFlightRef.current = false;
@@ -429,12 +444,12 @@ export default function JobsPage(): React.JSX.Element {
           ))}
         </div>
 
-        {!hasResolvedCache ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
+        {isJobsLoading ? <p className="mt-4 text-xs text-gray-500">Loading jobs...</p> : null}
         {error ? <p className="mt-4 rounded-xl border border-red-500/60 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
         {toast ? <p className="mt-4 rounded-xl border border-green-500/50 bg-green-50 p-3 text-sm text-green-700">{toast}</p> : null}
 
-        {hasResolvedCache && !isRevalidating && filteredJobs.length === 0 ? (
-          <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found for your search.</p>
+        {!isJobsLoading && !isRevalidating && filteredJobs.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found</p>
         ) : null}
 
         <JobsList jobs={filteredJobs} />
