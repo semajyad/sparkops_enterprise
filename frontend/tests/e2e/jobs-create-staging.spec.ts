@@ -29,23 +29,11 @@ test.describe("Jobs create on staging", () => {
     await page.getByLabel(/Job Title/i).fill("Manual Debug Job");
     await page.getByPlaceholder(/Start typing an address/i).fill("10 Queen Street, Auckland");
 
-    const postResponsePromise = page.waitForResponse(
-      (response) => {
-        const method = response.request().method();
-        const url = response.url();
-        return method === "POST" && (url.includes("/api/jobs") || url.includes("/api/v1/jobs"));
-      },
-      { timeout: 20_000 },
-    );
-
     await page.getByRole("button", { name: /^Create Job$/i }).click();
-
-    const postResponse = await postResponsePromise;
-    expect(postResponse.status()).toBeLessThan(500);
-
-    await page.waitForTimeout(1500);
+    await expect(page.getByRole("heading", { level: 2, name: /New Job/i })).toBeHidden({ timeout: 25_000 });
 
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toMatch(/Organisation setup is incomplete|Organization setup is incomplete/i);
+    expect(bodyText).not.toMatch(/Supabase jobs create failed/i);
   });
 });
