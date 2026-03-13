@@ -165,6 +165,47 @@ export default function TrackingIndexPage(): React.JSX.Element {
   const lastBeaconRef = useRef<{ coordinate: Coordinate; at: number } | null>(null);
   const hasSnappedToGpsRef = useRef(false);
 
+  async function estimateEtaMinutes(jobId: string): Promise<number | null> {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/eta/lookup/${jobId}`, { cache: "no-store" });
+      if (!response.ok) {
+        return null;
+      }
+      const payload = await parseApiJson<{ eta_minutes?: number }>(response);
+      const etaMinutes = Number(payload.eta_minutes ?? NaN);
+      if (!Number.isFinite(etaMinutes) || etaMinutes <= 0) {
+        return null;
+      }
+      return Math.round(etaMinutes);
+    } catch {
+      return null;
+    }
+  }
+
+  async function triggerNavigationAndSms(job: MapJob): Promise<void> {
+    window.open(job.navigateUrl, "_blank");
+    if (!job.customerMobile) {
+      return;
+    }
+
+    const etaMinutes = (await estimateEtaMinutes(job.id)) ?? 20;
+    try {
+      const adminCache = await getAdminSettingsCache();
+      await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_id: job.id,
+          customer_mobile: job.customerMobile,
+          eta_minutes: etaMinutes,
+          organization_name: adminCache?.business_name ?? "TradeOps",
+        }),
+      });
+    } catch {
+      // Fire-and-forget — never block navigation for SMS
+    }
+  }
+
   const visibleStaffLocations = useMemo(() => {
     if (isAdminMode) {
       return staffLocations;
@@ -381,14 +422,15 @@ export default function TrackingIndexPage(): React.JSX.Element {
               job.extracted_data?.avatar_url ??
               (assigneeId ? assigneeAvatarById.get(assigneeId) ?? null : null);
 
+            const mapLabel = String(job.extracted_data?.job_title ?? job.client_name ?? "Unknown Job").trim();
             accumulator.push({
               id: job.id,
-              clientName: job.client_name || "Unknown Client",
+              clientName: mapLabel || "Unknown Job",
               timeLabel: `Scheduled ${formatJobDate(job.date_scheduled || job.created_at)}`,
               timePill: formatTimePill(job.date_scheduled || job.created_at),
               addressLabel: formattedAddress,
               coordinate,
-              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formattedAddress)}`,
+              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressOrLocation)}`,
               avatarUrl,
               initials: buildInitials(fallbackName),
               markerState,
@@ -459,6 +501,11 @@ export default function TrackingIndexPage(): React.JSX.Element {
 
   function onJobSelect(jobId: string): void {
     setSelectedJobId(jobId);
+    const selectedJob = jobs.find((job) => job.id === jobId);
+    if (!selectedJob) {
+      return;
+    }
+    void triggerNavigationAndSms(selectedJob);
   }
 
   const nextJob = useMemo(() => {
@@ -495,24 +542,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
           {nextJob ? (
             <button
               onClick={async () => {
-                window.open('https://maps.google.com/?daddr=' + encodeURIComponent(nextJob.addressLabel), '_blank');
-                if (nextJob.customerMobile) {
-                  try {
-                    const adminCache = await getAdminSettingsCache();
-                    await fetch('/api/sms', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        job_id: nextJob.id,
-                        customer_mobile: nextJob.customerMobile,
-                        eta_minutes: 20,
-                        organization_name: adminCache?.business_name ?? 'TradeOps',
-                      }),
-                    });
-                  } catch {
-                    // Fire-and-forget — never block navigation for SMS
-                  }
-                }
+                await triggerNavigationAndSms(nextJob);
               }}
               className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-lg border border-gray-100 transition hover:bg-gray-50 active:scale-95"
             >

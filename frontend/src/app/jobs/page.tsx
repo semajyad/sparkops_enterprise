@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { createJob } from "@/app/actions/createJob";
+import { updateJob } from "@/app/actions/updateJob";
 import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
+import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
 import { useGlobalData } from "@/lib/global-data";
-import { canEditJobForRole, JobListItem, isMissingJobId } from "@/lib/jobs";
+import { canEditJobForRole, JobListItem, isMissingJobId, parseNumeric } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const CREATE_STEP_TIMEOUT_MS = 12000;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
@@ -71,6 +74,18 @@ export default function JobsPage(): React.JSX.Element {
   const [toast, setToast] = useState<string | null>(null);
   const [autoProvisionFailed, setAutoProvisionFailed] = useState(false);
   const [optimisticJobs, setOptimisticJobs] = useState<JobListItem[]>([]);
+  const [editedJobsById, setEditedJobsById] = useState<Record<string, JobListItem>>({});
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editingJob, setEditingJob] = useState<JobListItem | null>(null);
+  const [editClientName, setEditClientName] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editLatitude, setEditLatitude] = useState<number | null>(null);
+  const [editLongitude, setEditLongitude] = useState<number | null>(null);
+  const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [editCustomerEmail, setEditCustomerEmail] = useState("");
+  const [editCustomerMobile, setEditCustomerMobile] = useState("");
   const createInFlightRef = useRef(false);
 
   const isOwner = role === "OWNER";
@@ -125,11 +140,130 @@ export default function JobsPage(): React.JSX.Element {
     const params = new URLSearchParams(window.location.search);
     if (params.get("deleted") === "1") {
       setToast("Job Deleted");
-      const timer = window.setTimeout(() => setToast(null), 2400);
-      return () => window.clearTimeout(timer);
     }
     return;
   }, []);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  function toDateTimeLocal(value: string | null | undefined): string {
+    if (!value) {
+      return "";
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return "";
+    }
+    const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  function openEditModal(job: JobListItem): void {
+    setEditingJob(job);
+    setEditClientName((job.extracted_data?.client ?? job.client_name ?? "").trim());
+    setEditTitle((job.extracted_data?.job_title ?? "").trim());
+    setEditAddress((job.extracted_data?.address ?? job.extracted_data?.location ?? "").trim());
+    setEditLatitude(parseNumeric(job.extracted_data?.latitude) || null);
+    setEditLongitude(parseNumeric(job.extracted_data?.longitude) || null);
+    setEditScheduledDate(toDateTimeLocal(job.date_scheduled ?? job.extracted_data?.scheduled_date ?? null));
+    setEditCustomerEmail((job.customer_email ?? "").trim());
+    setEditCustomerMobile((job.customer_mobile ?? "").trim());
+    setError(null);
+    setIsEditOpen(true);
+  }
+
+  async function saveJobEdits(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingJob || isSavingEdit) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setError(null);
+
+    const scheduledIso =
+      editScheduledDate.trim().length > 0
+        ? (() => {
+            const parsed = new Date(editScheduledDate);
+            return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          })()
+        : null;
+
+    const nextClient = editClientName.trim();
+    const nextTitle = editTitle.trim();
+    const nextAddress = editAddress.trim();
+    const nextCustomerEmail = editCustomerEmail.trim() || null;
+    const nextCustomerMobile = editCustomerMobile.trim() || null;
+
+    try {
+      await updateJob({
+        id: editingJob.id,
+        client_name: nextClient,
+        title: nextTitle,
+        location: nextAddress,
+        address: nextAddress,
+        latitude: editLatitude,
+        longitude: editLongitude,
+        scheduled_date: scheduledIso,
+        customer_email: nextCustomerEmail,
+        customer_mobile: nextCustomerMobile,
+      });
+
+      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${editingJob.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          client_name: nextClient,
+          title: nextTitle,
+          location: nextAddress,
+          address: nextAddress,
+          latitude: editLatitude,
+          longitude: editLongitude,
+          scheduled_date: scheduledIso,
+          customer_email: nextCustomerEmail,
+          customer_mobile: nextCustomerMobile,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Job update failed (${response.status})`);
+      }
+      await parseApiJson(response);
+
+      const updatedJob: JobListItem = {
+        ...editingJob,
+        client_name: nextClient,
+        date_scheduled: scheduledIso,
+        customer_email: nextCustomerEmail,
+        customer_mobile: nextCustomerMobile,
+        extracted_data: {
+          ...(editingJob.extracted_data ?? {}),
+          client: nextClient,
+          job_title: nextTitle,
+          address: nextAddress,
+          location: nextAddress,
+          latitude: editLatitude ?? undefined,
+          longitude: editLongitude ?? undefined,
+          scheduled_date: scheduledIso,
+        },
+      };
+
+      setEditedJobsById((previous) => ({ ...previous, [editingJob.id]: updatedJob }));
+      setIsEditOpen(false);
+      setEditingJob(null);
+      setToast("Job updated");
+      void refreshCoreData().catch(() => {});
+    } catch (saveError) {
+      setError(toRenderableErrorMessage(saveError, "Unable to save job changes."));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
 
   // Refresh team members when modal opens
   useEffect(() => {
@@ -293,9 +427,12 @@ export default function JobsPage(): React.JSX.Element {
           mergedById.set(globalJob.id, globalJob);
         }
       }
+      for (const [jobId, editedJob] of Object.entries(editedJobsById)) {
+        mergedById.set(jobId, editedJob);
+      }
       return Array.from(mergedById.values());
     },
-    [globalJobs, optimisticJobs]
+    [editedJobsById, globalJobs, optimisticJobs]
   );
 
   async function onCreateManualJob(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -574,7 +711,7 @@ export default function JobsPage(): React.JSX.Element {
           <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found</p>
         ) : null}
 
-        <JobsList jobs={filteredJobs} canEditJobs={canEditJobForRole(role)} />
+        <JobsList jobs={filteredJobs} canEditJobs={canEditJobForRole(role)} onEdit={openEditModal} />
       </section>
 
       <button
@@ -714,6 +851,121 @@ export default function JobsPage(): React.JSX.Element {
                     {isCreating ? "Creating..." : "Create Job"}
                   </button>
                 </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+      {isEditOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <section className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 pb-3">
+              <h2 className="text-base font-semibold text-gray-900">Edit Job</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditOpen(false);
+                  setEditingJob(null);
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
+                aria-label="Close edit job form"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <form id="edit-job-form" className="grid grid-cols-2 gap-4 px-4 py-4" onSubmit={saveJobEdits}>
+              <label className={`${MODAL_LABEL_CLASS} col-span-2`}>
+                Client Name
+                <input
+                  type="text"
+                  required
+                  value={editClientName}
+                  onChange={(event) => setEditClientName(event.target.value)}
+                  className={MODAL_INPUT_SMALL_CLASS}
+                  placeholder="ACME Properties"
+                />
+              </label>
+
+              <label className={MODAL_LABEL_CLASS}>
+                Job Title
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(event) => setEditTitle(event.target.value)}
+                  className={MODAL_INPUT_SMALL_CLASS}
+                  placeholder="Switchboard inspection"
+                />
+              </label>
+
+              <label className={MODAL_LABEL_CLASS}>
+                Address
+                <AddressAutocomplete
+                  id="edit-job-address"
+                  value={editAddress}
+                  onChange={(next) => {
+                    setEditAddress(next);
+                    setEditLatitude(null);
+                    setEditLongitude(null);
+                  }}
+                  onSelect={(selection) => {
+                    setEditAddress(selection.place_name);
+                    setEditLatitude(selection.lat);
+                    setEditLongitude(selection.lng);
+                  }}
+                  placeholder="Start typing an address"
+                  className={MODAL_INPUT_SMALL_CLASS}
+                />
+              </label>
+
+              <input type="hidden" name="latitude" value={editLatitude ?? ""} />
+              <input type="hidden" name="longitude" value={editLongitude ?? ""} />
+
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <label className={MODAL_LABEL_CLASS}>
+                  Customer Email
+                  <input
+                    type="email"
+                    value={editCustomerEmail}
+                    onChange={(event) => setEditCustomerEmail(event.target.value)}
+                    className={MODAL_INPUT_SMALL_CLASS}
+                    placeholder="client@email.com"
+                  />
+                </label>
+                <label className={MODAL_LABEL_CLASS}>
+                  Customer Mobile
+                  <input
+                    type="tel"
+                    value={editCustomerMobile}
+                    onChange={(event) => setEditCustomerMobile(event.target.value)}
+                    className={MODAL_INPUT_SMALL_CLASS}
+                    placeholder="+64 21 000 0000"
+                  />
+                </label>
+              </div>
+
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <div />
+                <label className={MODAL_LABEL_CLASS}>
+                  Scheduled Date
+                  <input
+                    type="datetime-local"
+                    value={editScheduledDate}
+                    onChange={(event) => setEditScheduledDate(event.target.value)}
+                    className={MODAL_INPUT_SMALL_CLASS}
+                  />
+                </label>
+              </div>
+
+              <div className="col-span-2 mt-2 border-t border-gray-200 pt-4">
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="w-full rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+                >
+                  {isSavingEdit ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
             </form>
           </section>
         </div>

@@ -10,9 +10,10 @@ interface JobsListProps {
   canEditJobs?: boolean;
   onDelete?: (jobId: string) => void;
   onComplete?: (jobId: string) => void;
+  onEdit?: (job: JobListItem) => void;
 }
 
-export function JobsList({ jobs, canEditJobs = false, onDelete, onComplete }: JobsListProps) {
+export function JobsList({ jobs, canEditJobs = false, onDelete, onComplete, onEdit }: JobsListProps) {
   const router = useRouter();
 
   const toJobHref = (job: JobListItem): string => {
@@ -114,6 +115,10 @@ export function JobsList({ jobs, canEditJobs = false, onDelete, onComplete }: Jo
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (onEdit) {
+                      onEdit(job);
+                      return;
+                    }
                     router.push(`/jobs/${job.id}?edit=1`);
                   }}
                   className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:border-orange-500 hover:text-orange-600"
