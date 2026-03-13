@@ -6,13 +6,14 @@ const hasConfiguredCredentials = Boolean(configuredEmail && configuredPassword);
 
 async function gotoWithRetry(page: import("@playwright/test").Page, path: string): Promise<void> {
   let lastError: unknown = null;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
     try {
-      await page.goto(path, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await page.goto(path, { waitUntil: "commit", timeout: 45_000 });
+      await page.waitForLoadState("domcontentloaded", { timeout: 20_000 });
       return;
     } catch (error) {
       lastError = error;
-      await page.waitForTimeout(1500 * attempt);
+      await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
     }
   }
   throw lastError instanceof Error ? lastError : new Error(`Unable to navigate to ${path}`);
@@ -23,19 +24,39 @@ async function login(page: import("@playwright/test").Page): Promise<void> {
     throw new Error("Missing PLAYWRIGHT_TEST_EMAIL or PLAYWRIGHT_TEST_PASSWORD.");
   }
 
-  await gotoWithRetry(page, "/login");
-  await page.locator('input[type="email"]').first().fill(configuredEmail);
-  await page.locator('input[type="password"]').first().fill(configuredPassword);
-  await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/(home|dashboard)/, { timeout: 30_000 });
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    await gotoWithRetry(page, "/login");
+    const emailInput = page.locator('input[type="email"]').first();
+    const passwordInput = page.locator('input[type="password"]').first();
+    await expect(emailInput).toBeVisible({ timeout: 20_000 });
+    await expect(passwordInput).toBeVisible({ timeout: 20_000 });
+    await emailInput.fill(configuredEmail);
+    await passwordInput.fill(configuredPassword);
+    await page.getByRole("button", { name: /Sign In to TradeOps|Sign In/i }).last().click();
+    const authenticatedUrl = /\/(home|dashboard|jobs)/;
+    try {
+      await expect(page).toHaveURL(authenticatedUrl, { timeout: 30_000 });
+      await gotoWithRetry(page, "/jobs");
+      await expect(page).toHaveURL(/\/jobs/, { timeout: 30_000 });
+      return;
+    } catch {
+      const alertText = (await page.getByRole("alert").first().innerText().catch(() => "")).trim();
+      if (alertText.length > 0) {
+        throw new Error(`Unable to log in: ${alertText}`);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500 * attempt));
+  }
+  const alertText = (await page.getByRole("alert").first().innerText().catch(() => "")).trim();
+  throw new Error(alertText ? `Unable to log in: ${alertText}` : "Unable to log in after multiple attempts.");
 }
 
 test.describe("Jobs create on staging", () => {
   test("create job does not fail org setup check", async ({ page }) => {
+    test.setTimeout(180_000);
     test.skip(!hasConfiguredCredentials, "Set PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_PASSWORD.");
 
     await login(page);
-    await gotoWithRetry(page, "/jobs");
 
     await page.getByRole("button", { name: /Create new job/i }).click();
     await expect(page.getByRole("heading", { level: 2, name: /New Job/i })).toBeVisible({ timeout: 20_000 });

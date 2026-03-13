@@ -27,6 +27,14 @@ function statusBadgeClass(status: string): string {
   return "border-gray-300 bg-gray-50 text-gray-600";
 }
 
+function statusLabel(status: string): string {
+  const normalized = normalizeJobStatus(status);
+  if (normalized === "IN_PROGRESS") {
+    return "TO_DO";
+  }
+  return normalized;
+}
+
 type ComplianceChecklistItem = {
   label: string;
   key: "safety" | "photos" | "voice";
@@ -574,7 +582,7 @@ export default function JobReviewPage(): React.JSX.Element {
           <div className="flex items-center gap-1">
             {job ? (
               <span className={`mr-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
-                {normalizeJobStatus(job.status)}
+                {statusLabel(job.status)}
               </span>
             ) : null}
             {canEditJob ? (

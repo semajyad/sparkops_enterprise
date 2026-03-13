@@ -13,7 +13,7 @@ interface JobsListProps {
 export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
   const toJobHref = (job: JobListItem): string => {
     const normalizedStatus = String(job.status ?? "").toUpperCase();
-    if (normalizedStatus === "TO_DO") {
+    if (normalizedStatus === "TO_DO" || normalizedStatus === "IN_PROGRESS") {
       return `/capture?jobId=${encodeURIComponent(job.id)}`;
     }
     return `/jobs/${job.id}`;

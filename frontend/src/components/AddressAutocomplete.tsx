@@ -20,18 +20,6 @@ type AddressSuggestion = {
   lng: number;
 };
 
-function createManualSuggestion(query: string): AddressSuggestion {
-  const normalized = query.trim();
-  return {
-    id: `manual-${normalized.toLowerCase()}`,
-    text: normalized,
-    place_name: normalized,
-    address: normalized,
-    lat: Number.NaN,
-    lng: Number.NaN,
-  };
-}
-
 type MapboxFeature = {
   id: string;
   place_type?: string[];
@@ -158,41 +146,37 @@ export function AddressAutocomplete({
 
         const mapboxToken = getMapboxToken().trim();
         if (!mapboxToken) {
-          const fallback = createManualSuggestion(query);
-          setSuggestions([fallback]);
-          setOpen(true);
+          setSuggestions([]);
+          setOpen(false);
           return;
         }
 
         const fetchSuggestions = async (): Promise<void> => {
           setIsLoading(true);
           try {
-            const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&types=address,poi&access_token=${mapboxToken}`;
+            const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&autocomplete=true&limit=8&language=en&types=address,street,poi,place&access_token=${mapboxToken}`;
             const mapboxResponse = await fetch(mapboxUrl, {
               method: "GET",
               headers: { Accept: "application/json" },
             });
 
             if (!mapboxResponse.ok) {
-              const fallback = createManualSuggestion(query);
-              setSuggestions([fallback]);
-              setOpen(true);
+              setSuggestions([]);
+              setOpen(false);
               return;
             }
 
             const payload = (await mapboxResponse.json()) as MapboxResponse;
             if (!payload || !Array.isArray(payload.features)) {
-              const fallback = createManualSuggestion(query);
-              setSuggestions([fallback]);
-              setOpen(true);
+              setSuggestions([]);
+              setOpen(false);
               return;
             }
 
             const rows = payload.features;
             if (rows.length === 0) {
-              const fallback = createManualSuggestion(query);
-              setSuggestions([fallback]);
-              setOpen(true);
+              setSuggestions([]);
+              setOpen(false);
               return;
             }
 
@@ -224,13 +208,11 @@ export function AddressAutocomplete({
               })
               .filter((row): row is AddressSuggestion => Boolean(row));
 
-            const resolved = mapped.length > 0 ? mapped : [createManualSuggestion(query)];
-            setSuggestions(resolved);
-            setOpen(resolved.length > 0);
+            setSuggestions(mapped);
+            setOpen(mapped.length > 0);
           } catch {
-            const fallback = createManualSuggestion(query);
-            setSuggestions([fallback]);
-            setOpen(true);
+            setSuggestions([]);
+            setOpen(false);
           } finally {
             setIsLoading(false);
           }

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import CapturePage from "@/app/capture/page";
 import { SyncContext } from "@/components/SyncProvider";
 
 const mockedUseAuth = jest.fn<() => unknown>();
@@ -62,6 +61,7 @@ jest.mock("next/image", () => ({
 jest.mock("framer-motion", () => ({
   motion: {
     button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
+    span: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
   },
   useReducedMotion: () => true,
 }));
@@ -69,6 +69,11 @@ jest.mock("framer-motion", () => ({
 jest.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
+
+// Import after mocks so page dependencies resolve to mocked modules.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const capturePageModule = require("@/app/capture/page");
+const CapturePage = capturePageModule.default ?? capturePageModule;
 
 describe("Capture page logic", () => {
   const refreshCounts = jest.fn(async () => undefined);
