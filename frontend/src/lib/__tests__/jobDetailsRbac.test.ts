@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { canEditJobForRole } from "@/app/jobs/[id]/page";
+import { canEditJobForRole } from "@/lib/jobs";
 
 describe("canEditJobForRole", () => {
   it("returns false for APPRENTICE role", () => {

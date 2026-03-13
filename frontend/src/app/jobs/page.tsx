@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
 import { useGlobalData } from "@/lib/global-data";
-import { JobListItem, isMissingJobId } from "@/lib/jobs";
+import { canEditJobForRole, JobListItem, isMissingJobId } from "@/lib/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
@@ -574,7 +574,7 @@ export default function JobsPage(): React.JSX.Element {
           <p className="mt-4 rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-600">No jobs found</p>
         ) : null}
 
-        <JobsList jobs={filteredJobs} />
+        <JobsList jobs={filteredJobs} canEditJobs={canEditJobForRole(role)} />
       </section>
 
       <button

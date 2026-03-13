@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { useAuth } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
 import { useJob } from "@/hooks/useJob";
-import { formatJobDate, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
+import { canEditJobForRole, formatJobDate, formatJobStatusLabel, isValidJobUuid, normalizeJobStatus, parseNumeric } from "@/lib/jobs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -28,11 +28,7 @@ function statusBadgeClass(status: string): string {
 }
 
 function statusLabel(status: string): string {
-  const normalized = normalizeJobStatus(status);
-  if (normalized === "IN_PROGRESS") {
-    return "TO_DO";
-  }
-  return normalized;
+  return formatJobStatusLabel(status);
 }
 
 type ComplianceChecklistItem = {
@@ -62,11 +58,6 @@ function toDateTimeLocal(value: string | null | undefined): string {
 
   const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
-}
-
-export function canEditJobForRole(role: string | null | undefined): boolean {
-  const roleLabel = String(role ?? "").toUpperCase();
-  return roleLabel.length > 0 && roleLabel !== "APPRENTICE";
 }
 
 function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
@@ -581,7 +572,7 @@ export default function JobReviewPage(): React.JSX.Element {
           </div>
           <div className="flex items-center gap-1">
             {job ? (
-              <span className={`mr-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
+              <span className={`mr-2 rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${statusBadgeClass(job.status)}`}>
                 {statusLabel(job.status)}
               </span>
             ) : null}

@@ -11,7 +11,7 @@ import { clearAuthState, useAuth } from "@/lib/auth";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { db } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
-import { formatJobDate, JobListItem, normalizeJobStatus } from "@/lib/jobs";
+import { formatJobDate, formatJobStatusLabel, JobListItem, normalizeJobStatus } from "@/lib/jobs";
 import { backgroundSync } from "@/lib/syncService";
 
 function isVisibleClientJob(job: JobListItem): boolean {
@@ -243,8 +243,8 @@ export default function DashboardPage(): React.JSX.Element {
                           </div>
                         ) : null}
                       </div>
-                      <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
-                        {normalizeJobStatus(job.status)}
+                      <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold tracking-wide ${statusBadgeClass(job.status)}`}>
+                        {formatJobStatusLabel(job.status)}
                       </span>
                     </Link>
                   </li>

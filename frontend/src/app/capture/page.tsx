@@ -673,7 +673,7 @@ export default function CapturePage() {
       <section className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 md:p-8">
 
         <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Job Selector</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Job</p>
           <select
             id="capture-job-selector"
             value={activeJobId}

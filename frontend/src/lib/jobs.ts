@@ -92,6 +92,28 @@ export function normalizeJobStatus(status: string): JobStatus {
   return normalized;
 }
 
+export function formatJobStatusLabel(status: string): string {
+  const normalized = normalizeJobStatus(status);
+  if (normalized === "TO_DO" || normalized === "IN_PROGRESS") {
+    return "To Do";
+  }
+  if (normalized === "DONE") {
+    return "Done";
+  }
+  if (normalized === "DRAFT") {
+    return "Draft";
+  }
+  if (normalized === "SYNCING") {
+    return "Syncing";
+  }
+  return normalized.replaceAll("_", " ");
+}
+
+export function canEditJobForRole(role: string | null | undefined): boolean {
+  const roleLabel = String(role ?? "").toUpperCase();
+  return roleLabel.length > 0 && roleLabel !== "APPRENTICE";
+}
+
 export function computePulseMetrics(jobs: JobListItem[]): PulseMetrics {
   let pendingJobs = 0;
   let totalBillableHours = 0;

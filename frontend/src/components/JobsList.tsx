@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, CheckCircle, Clock } from "lucide-react";
-import { JobListItem } from "@/lib/jobs";
+import { useRouter } from "next/navigation";
+import { AlertCircle, CheckCircle, Clock, Pencil } from "lucide-react";
+import { JobListItem, formatJobStatusLabel, normalizeJobStatus } from "@/lib/jobs";
 
 interface JobsListProps {
   jobs: JobListItem[];
+  canEditJobs?: boolean;
   onDelete?: (jobId: string) => void;
   onComplete?: (jobId: string) => void;
 }
 
-export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
+export function JobsList({ jobs, canEditJobs = false, onDelete, onComplete }: JobsListProps) {
+  const router = useRouter();
+
   const toJobHref = (job: JobListItem): string => {
     const normalizedStatus = String(job.status ?? "").toUpperCase();
     if (normalizedStatus === "TO_DO" || normalizedStatus === "IN_PROGRESS") {
@@ -55,6 +59,9 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
                   📍 {job.extracted_data.location}
                 </p>
               )}
+              <span className="mt-2 inline-flex rounded-full border border-gray-300 bg-gray-50 px-2 py-1 text-[11px] font-semibold tracking-wide text-gray-600">
+                {formatJobStatusLabel(job.status)}
+              </span>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-500">
@@ -100,6 +107,21 @@ export function JobsList({ jobs, onDelete, onComplete }: JobsListProps) {
                     </button>
                   )}
                 </div>
+              ) : null}
+              {canEditJobs && (normalizeJobStatus(job.status) === "TO_DO" || normalizeJobStatus(job.status) === "IN_PROGRESS") ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    router.push(`/jobs/${job.id}`);
+                  }}
+                  className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:border-orange-500 hover:text-orange-600"
+                  aria-label="Edit Job"
+                  title="Edit Job"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
               ) : null}
             </div>
           </div>
