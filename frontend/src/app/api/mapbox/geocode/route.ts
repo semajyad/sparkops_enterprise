@@ -6,6 +6,8 @@ function getMapboxToken(): string {
     process.env.MAPBOX_TOKEN?.trim() ??
     process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ??
     process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ??
+    process.env.NEXT_PUBLIC_VITE_MAPBOX_TOKEN?.trim() ??
+    process.env.VITE_MAPBOX_TOKEN?.trim() ??
     ""
   );
 }

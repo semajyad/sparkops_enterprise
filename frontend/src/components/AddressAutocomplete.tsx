@@ -43,6 +43,16 @@ type MapboxResponse = {
   features?: MapboxFeature[];
 };
 
+function getMapboxToken(): string {
+  return (
+    process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ??
+    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ??
+    process.env.NEXT_PUBLIC_VITE_MAPBOX_TOKEN?.trim() ??
+    process.env.VITE_MAPBOX_TOKEN?.trim() ??
+    ""
+  );
+}
+
 type AddressAutocompleteProps = {
   id: string;
   value: string;
@@ -142,14 +152,25 @@ export function AddressAutocomplete({
               method: "GET",
               headers: { Accept: "application/json" },
             });
-
-            if (!response.ok) {
-              setSuggestions([]);
-              setOpen(false);
-              return;
+            let payload: MapboxResponse | null = null;
+            if (response.ok) {
+              payload = (await response.json()) as MapboxResponse;
             }
 
-            const payload = (await response.json()) as MapboxResponse;
+            if (!payload || !Array.isArray(payload.features) || payload.features.length === 0) {
+              const mapboxToken = getMapboxToken();
+              if (mapboxToken) {
+                const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&autocomplete=true&limit=8&language=en&types=address,street,poi,place&access_token=${mapboxToken}`;
+                const fallbackResponse = await fetch(mapboxUrl, {
+                  method: "GET",
+                  headers: { Accept: "application/json" },
+                });
+                if (fallbackResponse.ok) {
+                  payload = (await fallbackResponse.json()) as MapboxResponse;
+                }
+              }
+            }
+
             if (!payload || !Array.isArray(payload.features)) {
               setSuggestions([]);
               setOpen(false);
