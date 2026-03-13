@@ -1,8 +1,8 @@
 "use client";
 
 import { Download, Loader2, Mic, Pencil, Square, Trash2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useRef, type FormEvent } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 
 import { updateJob } from "@/app/actions/updateJob";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
@@ -84,6 +84,7 @@ function parseMissingChecklist(message: string): ComplianceChecklistItem[] {
 export default function JobReviewPage(): React.JSX.Element {
   const { role } = useAuth();
   const params = useParams<{ id?: string | string[] }>();
+  const searchParams = useSearchParams();
   const routeId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const normalizedRouteId = typeof routeId === "string" ? routeId.trim() : "";
   const router = useRouter();
@@ -116,6 +117,7 @@ export default function JobReviewPage(): React.JSX.Element {
   const noteMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const noteStreamRef = useRef<MediaStream | null>(null);
   const noteRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const didAutoOpenEditRef = useRef(false);
   const [noteInterim, setNoteInterim] = useState("");
 
   const guardrail = String(job?.compliance_status ?? "UNKNOWN").toUpperCase();
@@ -305,6 +307,22 @@ export default function JobReviewPage(): React.JSX.Element {
   const invoiceSummary = job?.invoice_summary;
   const complianceSummary = job?.compliance_summary;
   const canEditJob = canEditJobForRole(role);
+
+  useEffect(() => {
+    if (didAutoOpenEditRef.current || !job || !canEditJob) {
+      return;
+    }
+    const editParam = searchParams.get("edit");
+    if (editParam !== "1" && editParam?.toLowerCase() !== "true") {
+      return;
+    }
+    openEditModal();
+    didAutoOpenEditRef.current = true;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("edit");
+    const query = nextParams.toString();
+    router.replace(query ? `/jobs/${job.id}?${query}` : `/jobs/${job.id}`);
+  }, [canEditJob, job, router, searchParams]);
 
   function openEditModal(): void {
     if (!job) {

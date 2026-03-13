@@ -29,17 +29,13 @@ function Harness({ onSelect }: { onSelect: (selection: SuggestionSelection) => v
 
 describe("AddressAutocomplete", () => {
   const originalFetch = global.fetch;
-  const originalMapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  const testMapboxToken = "test-mapbox-public-token";
 
   beforeEach(() => {
     jest.resetAllMocks();
-    process.env.NEXT_PUBLIC_MAPBOX_TOKEN = testMapboxToken;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    process.env.NEXT_PUBLIC_MAPBOX_TOKEN = originalMapboxToken;
   });
 
   it("queries mapbox directly and returns lng/lat when address is selected", async () => {
@@ -70,8 +66,7 @@ describe("AddressAutocomplete", () => {
     });
 
     const url = String((fetchMock as unknown as jest.Mock).mock.calls[0][0]);
-    expect(url).toContain("https://api.mapbox.com/geocoding/v5/mapbox.places/");
-    expect(url).toContain(`access_token=${testMapboxToken}`);
+    expect(url).toContain("/api/mapbox/geocode?q=");
 
     const suggestion = await screen.findByRole("button", { name: /21 Churchill Avenue, Auckland/i });
     fireEvent.click(suggestion);

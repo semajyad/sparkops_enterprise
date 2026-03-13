@@ -43,15 +43,6 @@ type MapboxResponse = {
   features?: MapboxFeature[];
 };
 
-function getMapboxToken(): string {
-  return (
-    process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ??
-    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ??
-    process.env.VITE_MAPBOX_TOKEN?.trim() ??
-    ""
-  );
-}
-
 type AddressAutocompleteProps = {
   id: string;
   value: string;
@@ -144,29 +135,21 @@ export function AddressAutocomplete({
           return;
         }
 
-        const mapboxToken = getMapboxToken().trim();
-        if (!mapboxToken) {
-          setSuggestions([]);
-          setOpen(false);
-          return;
-        }
-
         const fetchSuggestions = async (): Promise<void> => {
           setIsLoading(true);
           try {
-            const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&autocomplete=true&limit=8&language=en&types=address,street,poi,place&access_token=${mapboxToken}`;
-            const mapboxResponse = await fetch(mapboxUrl, {
+            const response = await fetch(`/api/mapbox/geocode?q=${encodeURIComponent(query)}`, {
               method: "GET",
               headers: { Accept: "application/json" },
             });
 
-            if (!mapboxResponse.ok) {
+            if (!response.ok) {
               setSuggestions([]);
               setOpen(false);
               return;
             }
 
-            const payload = (await mapboxResponse.json()) as MapboxResponse;
+            const payload = (await response.json()) as MapboxResponse;
             if (!payload || !Array.isArray(payload.features)) {
               setSuggestions([]);
               setOpen(false);

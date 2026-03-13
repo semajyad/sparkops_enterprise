@@ -114,7 +114,7 @@ export function JobsList({ jobs, canEditJobs = false, onDelete, onComplete }: Jo
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    router.push(`/jobs/${job.id}`);
+                    router.push(`/jobs/${job.id}?edit=1`);
                   }}
                   className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:border-orange-500 hover:text-orange-600"
                   aria-label="Edit Job"
