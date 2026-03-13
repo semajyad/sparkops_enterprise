@@ -63,7 +63,45 @@ function normalizeAddressLabel(raw: string): string {
     return parts[0];
   }
 
+  if (/^\d+[a-zA-Z]?$/.test(parts[0]) && parts[1]) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+
   return `${parts[0]}, ${parts[1]}`;
+}
+
+function normalizeNavigationAddress(raw: string): string {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .filter((part) => !/(council|government)/i.test(part));
+
+  if (parts.length === 0) {
+    return raw.trim();
+  }
+
+  if (/^\d+[a-zA-Z]?$/.test(parts[0]) && parts[1]) {
+    return [`${parts[0]} ${parts[1]}`, ...parts.slice(2)].join(", ");
+  }
+
+  return parts.join(", ");
+}
+
+function extractAssigneeIdCandidates(job: JobListItem): string[] {
+  const extracted = job.extracted_data ?? {};
+  const unsafeJob = job as JobListItem & Record<string, unknown>;
+  const possibleValues = [
+    extracted.assigned_to_user_id,
+    (extracted as Record<string, unknown>).assigned_user_id,
+    (extracted as Record<string, unknown>).assignee_id,
+    (unsafeJob as Record<string, unknown>).assigned_to_user_id,
+    (unsafeJob as Record<string, unknown>).user_id,
+  ];
+
+  return possibleValues
+    .map((value) => String(value ?? "").trim())
+    .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
 }
 
 function parseCoordsFromLocation(location: string | undefined): Coordinate | null {
@@ -110,6 +148,12 @@ function buildInitials(name: string): string {
   }
 
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function buildFallbackAvatarDataUri(name: string): string {
+  const initials = buildInitials(name || "SparkOps");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="#ea580c"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function colorFromSeed(seed: string): string {
@@ -367,7 +411,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
         const assigneeIds = Array.from(
           new Set(
             todaysJobs
-              .map((job) => String(job.extracted_data?.assigned_to_user_id ?? "").trim())
+              .flatMap((job) => extractAssigneeIdCandidates(job))
               .filter((value) => value.length > 0),
           ),
         );
@@ -407,6 +451,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
               job.extracted_data?.address ||
               job.extracted_data?.location ||
               `${coordinate.lat},${coordinate.lng}`;
+            const navigationAddress = normalizeNavigationAddress(addressOrLocation);
             const formattedAddress = normalizeAddressLabel(addressOrLocation);
             const normalizedStatus = normalizeJobStatus(job.status);
             const markerState: MapJob["markerState"] =
@@ -416,11 +461,12 @@ export default function TrackingIndexPage(): React.JSX.Element {
                   ? (hasActiveAssigned = true, "active")
                   : "pending";
             const fallbackName = String(job.extracted_data?.assigned_to_name || job.client_name || "Spark").trim();
-            const assigneeId = String(job.extracted_data?.assigned_to_user_id ?? "").trim();
+            const assigneeId = extractAssigneeIdCandidates(job)[0] ?? "";
             const avatarUrl =
               job.avatar_url ??
               job.extracted_data?.avatar_url ??
-              (assigneeId ? assigneeAvatarById.get(assigneeId) ?? null : null);
+              (assigneeId ? assigneeAvatarById.get(assigneeId) ?? null : null) ??
+              buildFallbackAvatarDataUri(fallbackName || "SparkOps");
 
             const mapLabel = String(job.extracted_data?.job_title ?? job.client_name ?? "Unknown Job").trim();
             accumulator.push({
@@ -430,7 +476,7 @@ export default function TrackingIndexPage(): React.JSX.Element {
               timePill: formatTimePill(job.date_scheduled || job.created_at),
               addressLabel: formattedAddress,
               coordinate,
-              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressOrLocation)}`,
+              navigateUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navigationAddress)}`,
               avatarUrl,
               initials: buildInitials(fallbackName),
               markerState,

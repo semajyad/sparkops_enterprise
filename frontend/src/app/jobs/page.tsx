@@ -9,7 +9,6 @@ import { updateJob } from "@/app/actions/updateJob";
 import { listTeamMembers } from "@/app/profile/actions";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { JobsList } from "@/components/JobsList";
-import { apiFetch, parseApiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { putJobInCache, setTeamCache, type CachedTeamMember } from "@/lib/db";
 import { toRenderableErrorMessage } from "@/lib/errorSuppression";
@@ -20,7 +19,6 @@ import { backgroundSync, queueJobCreate, toCachedJob } from "@/lib/syncService";
 
 const ROGUE_JOB_ID = "rouge-id-if-known";
 const CREATE_STEP_TIMEOUT_MS = 12000;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const MODAL_LABEL_CLASS = "block text-xs font-medium text-gray-700 mb-1.5";
 const MODAL_INPUT_SMALL_CLASS =
   "mt-0.5 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
@@ -214,26 +212,6 @@ export default function JobsPage(): React.JSX.Element {
         customer_email: nextCustomerEmail,
         customer_mobile: nextCustomerMobile,
       });
-
-      const response = await apiFetch(`${API_BASE_URL}/api/jobs/${editingJob.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          client_name: nextClient,
-          title: nextTitle,
-          location: nextAddress,
-          address: nextAddress,
-          latitude: editLatitude,
-          longitude: editLongitude,
-          scheduled_date: scheduledIso,
-          customer_email: nextCustomerEmail,
-          customer_mobile: nextCustomerMobile,
-        }),
-      });
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || `Job update failed (${response.status})`);
-      }
-      await parseApiJson(response);
 
       const updatedJob: JobListItem = {
         ...editingJob,
