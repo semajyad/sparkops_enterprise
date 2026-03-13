@@ -11,13 +11,33 @@ function debounce<TArgs extends unknown[]>(func: (...args: TArgs) => void, delay
   };
 }
 
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 7000): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 type AddressSuggestion = {
   id: string;
   text: string;
   place_name: string;
   address: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
 };
 
 type MapboxFeature = {
@@ -148,26 +168,13 @@ export function AddressAutocomplete({
         const fetchSuggestions = async (): Promise<void> => {
           setIsLoading(true);
           try {
-            const response = await fetch(`/api/mapbox/geocode?q=${encodeURIComponent(query)}`, {
-              method: "GET",
-              headers: { Accept: "application/json" },
-            });
-            let payload: MapboxResponse | null = null;
-            if (response.ok) {
-              payload = (await response.json()) as MapboxResponse;
-            }
+            let payload = await fetchJsonWithTimeout<MapboxResponse>(`/api/mapbox/geocode?q=${encodeURIComponent(query)}`, 7000);
 
             if (!payload || !Array.isArray(payload.features) || payload.features.length === 0) {
               const mapboxToken = getMapboxToken();
               if (mapboxToken) {
                 const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&autocomplete=true&limit=8&language=en&types=address,street,poi,place&access_token=${mapboxToken}`;
-                const fallbackResponse = await fetch(mapboxUrl, {
-                  method: "GET",
-                  headers: { Accept: "application/json" },
-                });
-                if (fallbackResponse.ok) {
-                  payload = (await fallbackResponse.json()) as MapboxResponse;
-                }
+                payload = await fetchJsonWithTimeout<MapboxResponse>(mapboxUrl, 6000);
               }
             }
 
@@ -212,11 +219,33 @@ export function AddressAutocomplete({
               })
               .filter((row): row is AddressSuggestion => Boolean(row));
 
-            setSuggestions(mapped);
-            setOpen(mapped.length > 0);
+            const finalSuggestions =
+              mapped.length > 0
+                ? mapped
+                : [
+                    {
+                      id: `manual-${query.toLowerCase()}`,
+                      text: query,
+                      place_name: query,
+                      address: query,
+                      lat: null,
+                      lng: null,
+                    } satisfies AddressSuggestion,
+                  ];
+
+            setSuggestions(finalSuggestions);
+            setOpen(finalSuggestions.length > 0);
           } catch {
-            setSuggestions([]);
-            setOpen(false);
+            const manualSuggestion: AddressSuggestion = {
+              id: `manual-${query.toLowerCase()}`,
+              text: query,
+              place_name: query,
+              address: query,
+              lat: null,
+              lng: null,
+            };
+            setSuggestions([manualSuggestion]);
+            setOpen(true);
           } finally {
             setIsLoading(false);
           }
@@ -293,12 +322,14 @@ export function AddressAutocomplete({
                 onClick={() => {
                   suppressFetchRef.current = true;
                   onChange(suggestion.place_name);
-                  onSelect({
-                    ...suggestion,
-                    address: suggestion.place_name,
-                    lat: suggestion.lat,
-                    lng: suggestion.lng,
-                  });
+                  if (typeof suggestion.lat === "number" && typeof suggestion.lng === "number") {
+                    onSelect({
+                      ...suggestion,
+                      address: suggestion.place_name,
+                      lat: suggestion.lat,
+                      lng: suggestion.lng,
+                    });
+                  }
                   setSuggestions([]);
                   setOpen(false);
                 }}

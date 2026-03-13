@@ -12,6 +12,60 @@ function getMapboxToken(): string {
   );
 }
 
+type NominatimRow = {
+  place_id?: string | number;
+  display_name?: string;
+  lat?: string;
+  lon?: string;
+  name?: string;
+  address?: {
+    road?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+  };
+};
+
+async function fetchNominatimFallback(query: string): Promise<{ features: Array<Record<string, unknown>> }> {
+  const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=nz&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`;
+  const response = await fetch(nominatimUrl, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "TradeOps/1.0 AddressAutocomplete",
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return { features: [] };
+  }
+  const payload = (await response.json()) as NominatimRow[];
+  if (!Array.isArray(payload)) {
+    return { features: [] };
+  }
+
+  const features = payload
+    .map((row, index) => {
+      const lon = Number(row.lon);
+      const lat = Number(row.lat);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+        return null;
+      }
+      const placeName = String(row.display_name ?? "").trim();
+      const text = String(row.name ?? row.address?.road ?? placeName.split(",")[0] ?? "").trim() || placeName;
+      return {
+        id: `nominatim-${String(row.place_id ?? index)}`,
+        place_name: placeName || text,
+        text,
+        center: [lon, lat],
+      };
+    })
+    .filter((row): row is Record<string, unknown> => Boolean(row));
+
+  return { features };
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (query.length < 3) {
@@ -20,7 +74,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const mapboxToken = getMapboxToken();
   if (!mapboxToken) {
-    return NextResponse.json({ error: "Mapbox token not configured." }, { status: 503 });
+    const fallbackPayload = await fetchNominatimFallback(query);
+    return NextResponse.json(fallbackPayload);
   }
 
   const mapboxUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=nz&autocomplete=true&limit=8&language=en&types=address,street,poi,place&access_token=${mapboxToken}`;
@@ -33,13 +88,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     if (!response.ok) {
-      const details = await response.text();
-      return NextResponse.json({ error: details || "Mapbox request failed." }, { status: response.status });
+      const fallbackPayload = await fetchNominatimFallback(query);
+      return NextResponse.json(fallbackPayload);
     }
 
     const payload = (await response.json()) as { features?: unknown[] };
-    return NextResponse.json({ features: Array.isArray(payload.features) ? payload.features : [] });
+    const features = Array.isArray(payload.features) ? payload.features : [];
+    if (features.length === 0) {
+      const fallbackPayload = await fetchNominatimFallback(query);
+      return NextResponse.json(fallbackPayload);
+    }
+    return NextResponse.json({ features });
   } catch {
-    return NextResponse.json({ error: "Mapbox request failed." }, { status: 502 });
+    const fallbackPayload = await fetchNominatimFallback(query);
+    return NextResponse.json(fallbackPayload);
   }
 }

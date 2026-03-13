@@ -108,4 +108,21 @@ describe("AddressAutocomplete", () => {
     const list = screen.queryByRole("list");
     expect(list).toBeNull();
   });
+
+  it("shows typed-address fallback suggestion when request fails", async () => {
+    const onSelect = jest.fn();
+    global.fetch = jest.fn().mockRejectedValue(new Error("network down")) as jest.Mock;
+
+    render(<Harness onSelect={onSelect} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Start typing an address"), {
+      target: { value: "21 Churchill Avenue" },
+    });
+
+    const fallbackSuggestion = await screen.findByRole("button", { name: /21 Churchill Avenue/i });
+    expect(fallbackSuggestion).toBeInTheDocument();
+    fireEvent.click(fallbackSuggestion);
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });
