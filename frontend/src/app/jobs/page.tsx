@@ -231,6 +231,19 @@ export default function JobsPage(): React.JSX.Element {
         },
       };
 
+      await putJobInCache(
+        toCachedJob({
+          id: editingJob.id,
+          client_name: nextClient,
+          status: editingJob.status,
+          created_at: editingJob.created_at,
+          updated_at: new Date().toISOString(),
+          date_scheduled: scheduledIso,
+          extracted_data: updatedJob.extracted_data ?? {},
+          sync_status: "synced",
+        }),
+      );
+
       setEditedJobsById((previous) => ({ ...previous, [editingJob.id]: updatedJob }));
       setIsEditOpen(false);
       setEditingJob(null);

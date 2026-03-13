@@ -48,44 +48,62 @@ function parseCoordinate(value: unknown): number | null {
   return null;
 }
 
-function normalizeAddressLabel(raw: string): string {
-  const parts = raw
+const ADDRESS_NOISE_PATTERN =
+  /(council|government|local board|hibiscus and bays|new\s*z(?:ea|a)land|aotearoa|aotaroa)/i;
+
+function toAddressTitleCase(value: string): string {
+  if (/^\d{4}$/.test(value)) {
+    return value;
+  }
+  return value
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
+function sanitizeAddressParts(raw: string): string[] {
+  const initialParts = raw
     .split(",")
-    .map((part) => part.trim())
+    .map((part) => part.trim().replace(/\s+/g, " "))
     .filter((part) => part.length > 0)
-    .filter((part) => !/(council|government)/i.test(part));
+    .filter((part) => !ADDRESS_NOISE_PATTERN.test(part));
+
+  if (initialParts.length === 0) {
+    return [];
+  }
+
+  const normalizedParts = [...initialParts];
+  if (/^\d+[a-zA-Z]?$/.test(normalizedParts[0]) && normalizedParts[1]) {
+    normalizedParts.splice(0, 2, `${normalizedParts[0]} ${normalizedParts[1]}`);
+  }
+
+  const postcodeIndex = normalizedParts.findIndex((part) => /^\d{4}$/.test(part));
+  const trimmedToPostcode = postcodeIndex >= 0 ? normalizedParts.slice(0, postcodeIndex + 1) : normalizedParts;
+
+  return trimmedToPostcode.map(toAddressTitleCase);
+}
+
+function normalizeAddressLabel(raw: string): string {
+  const parts = sanitizeAddressParts(raw);
 
   if (parts.length === 0) {
-    return raw;
+    return raw.trim();
   }
 
   if (parts.length === 1) {
     return parts[0];
   }
 
-  if (/^\d+[a-zA-Z]?$/.test(parts[0]) && parts[1]) {
-    return `${parts[0]} ${parts[1]}`;
-  }
-
   return `${parts[0]}, ${parts[1]}`;
 }
 
 function normalizeNavigationAddress(raw: string): string {
-  const parts = raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    .filter((part) => !/(council|government)/i.test(part));
+  const parts = sanitizeAddressParts(raw);
 
   if (parts.length === 0) {
     return raw.trim();
   }
 
-  if (/^\d+[a-zA-Z]?$/.test(parts[0]) && parts[1]) {
-    return [`${parts[0]} ${parts[1]}`, ...parts.slice(2)].join(", ");
-  }
-
-  return parts.join(", ");
+  return parts.slice(0, 4).join(", ");
 }
 
 function extractAssigneeIdCandidates(job: JobListItem): string[] {
